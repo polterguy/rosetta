@@ -84,7 +84,7 @@ void static_file_handler::handle (exceptional_executor x, function<void (excepti
   }
 
   // Checking if client passed in an "If-Modified-Since" header, and if so, handle it accordingly.
-  string if_modified_since = (*_request)["If-Modified-Since"];
+  string if_modified_since = (*_request)["if-modified-since"];
   if (if_modified_since != "") {
 
     // We have an "If-Modified-Since" HTTP header, checking if file was tampered with since that date.
