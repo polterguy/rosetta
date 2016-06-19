@@ -38,8 +38,10 @@ using std::vector;
 using std::ifstream;
 using std::istreambuf_iterator;
 using boost::system::error_code;
-using boost::algorithm::trim;
 using boost::algorithm::split;
+using boost::algorithm::to_upper_copy;
+using boost::algorithm::to_lower_copy;
+using boost::algorithm::trim_copy;
 using namespace rosetta::common;
 
 
@@ -80,19 +82,16 @@ void request::handle (exceptional_executor x)
       // Splitting initial HTTP line into its three parts.
       vector<string> parts;
       split (parts, http_request_line, ::isspace);
+      size_t no_parts = parts.size ();
 
-      // Verifying initial line has exactly 3 parts.
-      if (parts.size() != 3)
-        throw request_exception ("Initial HTTP-Request line was malformed, line contained; '" + http_request_line + "'.");
-
-      // Now we can start deducting which type of request, and path, etc, this is.
-      string type         = parts [0];
-      string path         = parts [1];
-      string version      = parts [2];
+      // Now we can start deducting which type of request, and path, etc, this is, trying to be as fault tolerant as we can.
+      string type         = no_parts > 1 ? to_upper_copy (parts [0]) : "GET";
+      string path         = no_parts > 1 ? parts [1] : parts [0];
+      string version      = no_parts > 2 ? to_upper_copy (parts [2]) : "HTTP/1.1";
 
       // Decorating request.
       decorate (type, path, version, x, [this] (exceptional_executor x) {
-        
+
         // Reading HTTP headers into request.
         read_headers (x, [this] (exceptional_executor x) {
 
@@ -101,22 +100,22 @@ void request::handle (exceptional_executor x)
 
             // First we need to create our handler.
             _request_handler = request_handler::create (_connection->_server, _connection->_socket, this);
-
-            // Making sure we actually have a request_handler before we start using it.
-            // If we do not have a request_handler at this point, then it means that we do not serve this type of request,
-            // and hence we return a 404 error.
             if (_request_handler == nullptr) {
 
               // No handler for this request, returning 404.
               write_error_response (404, x);
             } else {
 
-              // Now we can let our handler take care of the rest of our request, making sure we pass in exceptional_executor,
-              // such that if an exception occurs, then the connection is closed.
-              _request_handler->handle (x, [] (exceptional_executor x) {
+              // Letting our request_handler take care of the rest.
+              _request_handler->handle (x, [this] (exceptional_executor x) {
 
-                // Now request is finished handled, and we need to determine if we should keep connection alive, or if
-                // we should close the connection immediately.
+                // Now request is finished handled, and we can take back control over connection.
+                string connection = to_lower_copy ((*this)["connection"]);
+                if (connection != "close") {
+
+                  // Keeping connection open, by invoking release() on "x", and creating a timeout condition on connection.
+                  x.release ();
+                }
               });
             }
           });
@@ -133,23 +132,9 @@ void request::decorate (const string & type,
                         exceptional_executor x,
                         function<void(exceptional_executor x)> callback)
 {
-  // Sanity checking version.
-  if (version != "HTTP/1.1") {
-
-    // Unsupported HTTP version.
-    write_error_response (501, x);
-    return;
-  }
   // Storing HTTP version of request.
   _version = version;
 
-  // Checking that this is a type of request we know how to handle.
-  if (type != "GET" && type != "POST" && type != "DELETE" && type != "PUT") {
-
-    // We cannot handle this request, hence we return 501 to client.
-    write_error_response (501, x);
-    return;
-  }
   // Storing type of request.
   _type = type;
 
@@ -234,10 +219,8 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
       return;
     }
 
-    // Now we can start parsing HTTP header.
+    // Now we can start parsing HTTP header, and check if this was our last HTTP header.
     string line = string_helper::get_line (_request_buffer, bytes_read);
-
-    // Checking if there are more headers.
     if (line == "") {
 
       // We're now done reading all HTTP headers, giving control back to connection through function callback.
@@ -245,22 +228,17 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
     } else {
 
       // There are possibly more HTTP headers, continue reading until we see an empty line.
-      string key, value;
       const size_t equals_idx = line.find (':');
-      if (string::npos == equals_idx) {
+      if (equals_idx == string::npos) {
 
-        // Missing colon (:) in HTTP header.
-        throw request_exception ("Syntes error in HTTP header close to; '" + line + "'");
+        // Missing colon (:) in HTTP header, meaning, only HTTP-Header name, and no value.
+        // To be more fault tolerant towards non-conforming clients, we still let this one pass.
+        _headers [to_lower_copy (trim_copy (line))] = "";
       } else {
 
-        key = line.substr (0, equals_idx);
-        value = line.substr (equals_idx + 1);
+        // Both name and key was supplied.
+        _headers [to_lower_copy (trim_copy (line.substr (0, equals_idx)))] = trim_copy (line.substr (equals_idx + 1));
       }
-
-      // Trimming header key and value before we put results into collection.
-      trim (key);
-      trim (value);
-      _headers [key] = value;
 
       // Fetching next header by invoking self.
       read_headers (x, functor);

@@ -50,7 +50,7 @@ public:
   /// Constructs a new request of the specified type, path and version.
   static request_ptr create (connection * connection);
 
-  /// Handles a request, after it is finished reading the entire request envelope and content.
+  /// Handles a request.
   void handle (exceptional_executor x);
 
   /// Returns URI of request.
