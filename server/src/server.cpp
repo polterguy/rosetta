@@ -149,7 +149,7 @@ void server::on_stop (int signal_number)
   for (auto idx = _connections.begin(); idx != _connections.end(); idx++) {
 
     // Stopping connection first, then removing from list of open connections.
-    (*idx)->stop ();
+    (*idx)->close ();
     remove_connection (*idx);
   }
 }

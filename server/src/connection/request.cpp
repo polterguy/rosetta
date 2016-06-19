@@ -19,8 +19,11 @@
 #include <vector>
 #include <utility>
 #include <iostream>
+#include <fstream>
 #include <boost/asio.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
+#include "common/include/date.hpp"
 #include "common/include/string_helper.hpp"
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
@@ -34,81 +37,155 @@ namespace server {
   
 using std::string;
 using std::vector;
+using std::ifstream;
+using std::istreambuf_iterator;
 using boost::system::error_code;
 using boost::algorithm::trim;
+using boost::algorithm::split;
+using boost::algorithm::to_lower_copy;
+using namespace rosetta::common;
 
 
-request_ptr request::create (connection * connection, const string & type, const string & path, const string & version)
+request_ptr request::create (connection * connection)
 {
-  return request_ptr (new request (connection, type, path, version));
+  return request_ptr (new request (connection));
 }
 
 
-request::request (connection * connection, const string & type, const string & path, const string & version)
+request::request (connection * connection)
   : _connection (connection)
-{
-  // Sanity check.
-  if (_connection == nullptr)
-    throw request_exception ("Request was not given a valid connection."); // Oops, no connection!
+{ }
 
+
+void request::handle (exceptional_executor x)
+{
+  // Figuring out the maximum accepted length of the initial HTTP-Request line.
+  auto max_uri_length = _connection->_server->configuration().get<size_t> ("max-uri-length", 4096);
+  match_condition match (max_uri_length, "\r\n");
+
+  // Reading initial HTTP-Request line.
+  async_read_until (*_connection->_socket, _request_buffer, match, [this, match, x] (const error_code & error, size_t bytes_read) {
+
+    // Checking if socket has an error, or if reading the first line created an error (too long request).
+    if (error) {
+
+      // Our socket has an error of some sort, stopping connection early.
+      throw request_exception ("Socket error while reading HTTP-Request line.");
+    } else if (match.has_error()) {
+
+      // HTTP-Version line was too long, returning 414 to client.
+      write_error_response (414, x);
+    } else {
+
+      // Parsing request line.
+      string http_request_line = string_helper::get_line (_request_buffer);
+
+      // Splitting initial HTTP line into its three parts.
+      vector<string> parts;
+      split (parts, http_request_line, ::isspace);
+
+      // Verifying initial line has exactly 3 parts.
+      if (parts.size() != 3) {
+
+        // Some sort of error in initial HTTP line from client.
+        throw request_exception ("Initial HTTP-Request line was malformed, line contained; '" + http_request_line + "'.");
+      }
+
+      // Now we can start deducting which type of request, and path, etc, this is.
+      string type         = to_lower_copy (parts [0]);
+      string path         = parts [1];
+      string version      = to_lower_copy (parts [2]);
+
+      // Decorating request.
+      decorate (type, path, version);
+
+      // Reading HTTP headers into request.
+      read_headers (x, [this] (exceptional_executor x) {
+
+        // Reading content of HTTP request, if any.
+        read_content (x, [this] (exceptional_executor x) {
+
+          // First we need to create our handler.
+          _request_handler = request_handler::create (_connection->_server, _connection->_socket, this);
+
+          // Making sure we actually have a request_handler before we start using it.
+          // If we do not have a request_handler at this point, then it means that we do not serve this type of request,
+          // and hence we return a 404 error.
+          if (_request_handler == nullptr) {
+
+            // No handler for this request, returning 404.
+            write_error_response (404, x);
+          } else {
+
+            // Then we let our handler take care of the rest of our request, making sure we pass in exceptional_executor,
+            // such that if an exception occurs, then connection is closed.
+            _request_handler->handle (x, [] (exceptional_executor x) {
+
+              // Now request is finished handled, and we need to determine is we should keep connection alive, or if
+              // we should close connection immediately.
+            });
+          }
+        });
+      });
+    }
+  });
+}
+
+
+void request::decorate (const string & type, const string & uri, const string & version)
+{
   // More sanity checking.
   if (version != "http/1.1")
     throw request_exception ("Unknown HTTP-Version; '" + version + "'."); // We only support HTTP version 1.1 at the moment.
 
   // Checking path, simple case first.
-  if (path.length () == 0 || path [0] != '/')
-    throw request_exception ("Illegal path; '" + path + "'."); // This is not an OK path.
+  if (uri.length () == 0 || uri [0] != '/')
+    throw request_exception ("Illegal path; '" + uri + "'."); // This is not an OK path.
 
   // Checking if path is empty, at which case we default it to the default file, referenced in configuration.
   // In addition to temporarily removing the initial "/", to not mess up our split below, and return empty values.
-  string substr_path = path.substr (1);
-  if (substr_path.size () == 0)
-    substr_path = _connection->_server->configuration().get<string> ("default-page", "index.html");
+  string substr_uri = uri.substr (1);
+  if (substr_uri.size () == 0)
+    substr_uri = _connection->_server->configuration().get<string> ("default-page", "index.html");
 
   // Checking if URI contains GET parameters.
-  auto index_of_pars = substr_path.find ("?");
+  auto index_of_pars = substr_uri.find ("?");
   if (string::npos != index_of_pars) {
 
     // URI contains GET parameters.
     // Making sure we decode the URI as we pass it into the parameters parsing method, in case parameter contains for instance "?" etc.
-    parse_parameters (string_helper::decode_uri (substr_path.substr (index_of_pars + 1)));
+    parse_parameters (string_helper::decode_uri (substr_uri.substr (index_of_pars + 1)));
 
     // Decoding actual URI.
-    substr_path = string_helper::decode_uri (substr_path.substr (0, index_of_pars));
+    substr_uri = string_helper::decode_uri (substr_uri.substr (0, index_of_pars));
   } else {
 
     // No parameters in request URI, making sure we decode the string any way, in case request is for a document with a "funny name".
-    substr_path = string_helper::decode_uri (substr_path);
+    substr_uri = string_helper::decode_uri (substr_uri);
   }
 
-  // Breaking up path into components, and sanity checking each component.
+  // Breaking up URI into components, and sanity checking each component.
   vector<string> entities;
-  split (entities, substr_path, boost::is_any_of ("/"));
+  split (entities, substr_uri, boost::is_any_of ("/"));
   for (string & idx : entities) {
 
     if (idx == "")
-      throw request_exception ("Illegal path; '" + path + "'."); // Two consecutive "/" after each other.
+      throw request_exception ("Illegal URI; '" + uri + "'."); // Two consecutive "/" after each other.
 
     if (idx.find ("..") != string::npos) // Request is attempting at accessing files outside of the main www-root folder.
-      throw request_exception ("Illegal path; '" + path + "'.");
+      throw request_exception ("Illegal URI; '" + uri + "'.");
 
     if (idx.find ("~") == 0) // Linux backup file.
-      throw request_exception ("Illegal path; '" + path + "'.");
+      throw request_exception ("Illegal URI; '" + uri + "'.");
 
     if (idx.find (".") == 0) // Linux hidden file, or a file without a name, and only extension.
-      throw request_exception ("Illegal path; '" + path + "'.");
+      throw request_exception ("Illegal URI; '" + uri + "'.");
   }
 
   // Now we know that this is something we can probably handle.
   _type         = type;
-  _path         = "/" + substr_path; // Making sure we add back the initial "/" again.
-  _filename     = entities [entities.size() - 1];
-  _http_version = version;
-
-  // Checking if there's a file extension in our filename.
-  auto pos_of_dot = _filename.find (".");
-  if (pos_of_dot != string::npos)
-    _extension = _filename.substr (pos_of_dot + 1);
+  _uri          = "/" + substr_uri; // Making sure we add back the initial "/" again.
+  _version      = version;
 }
 
 
@@ -118,7 +195,7 @@ void request::parse_parameters (const string & params)
   vector<string> pars;
   split (pars, params, boost::is_any_of ("&"));
   for (string & idx : pars) {
-
+    
     // Splitting up name/value of parameter.
     vector<string> name_value;
     split (name_value, idx, boost::is_any_of ("="));
@@ -139,7 +216,7 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
   if (_headers.size() > max_header_count) {
 
     // Writing error status response, and returning early.
-    _connection->write_error_response (413, x);
+    write_error_response (413, x);
     return;
   }
 
@@ -148,7 +225,7 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
   match_condition match (max_header_length, "\r\n", "\t ");
 
   // Now we can read the first header from socket, making sure it does not exceed max-header-length
-  async_read_until (*_connection->_socket, _connection->_request_buffer, match, [this, x, match, functor] (const error_code & error, size_t bytes_read) {
+  async_read_until (*_connection->_socket, _request_buffer, match, [this, x, match, functor] (const error_code & error, size_t bytes_read) {
 
     // Making sure there was no errors while reading socket
     if (error)
@@ -158,12 +235,12 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
     if (match.has_error ()) {
 
       // Writing error status response, and returning early.
-      _connection->write_error_response (413, x);
+      write_error_response (413, x);
       return;
     }
 
     // Now we can start parsing HTTP header.
-    string line = string_helper::get_line (_connection->_request_buffer, bytes_read);
+    string line = string_helper::get_line (_request_buffer, bytes_read);
 
     // Checking if there are no more headers.
     if (line == "") {
@@ -215,13 +292,13 @@ void request::read_content (exceptional_executor x, function<void(exceptional_ex
     if (content_length > max_content_length) {
 
       // Writing error status response, and returning early.
-      _connection->write_error_response (500, x);
+      write_error_response (500, x);
       return;
     }
 
     // Reading content into streambuf.
     match_condition match (content_length);
-    async_read_until (*_connection->_socket, _connection->_request_buffer, match, [this, match, content_length, functor, x] (const error_code & error, size_t bytes_read) {
+    async_read_until (*_connection->_socket, _request_buffer, match, [this, match, content_length, functor, x] (const error_code & error, size_t bytes_read) {
 
       // Checking for socket errors.
       if (error)
@@ -239,20 +316,6 @@ void request::read_content (exceptional_executor x, function<void(exceptional_ex
 }
 
 
-void request::handle (exceptional_executor x, function<void(exceptional_executor x)> callback)
-{
-  // First we need to create our handler.
-  _request_handler = request_handler::create (_connection->_server, _connection, this, _extension);
-
-  // Then we let our handler take care of the rest of our request, making sure we pass in exceptional_executor,
-  // such that if an exception occurs, then connection is closed.
-  _request_handler->handle (x, [callback] (exceptional_executor x) {
-
-    callback (x);
-  });
-}
-
-
 const string & request::operator [] (const string & key) const
 {
   // String we return if there is no HTTP header with the specified name.
@@ -264,6 +327,72 @@ const string & request::operator [] (const string & key) const
     return empty_return_value; // No such header.
 
   return index->second;
+}
+
+
+void request::write_error_response (int status_code, exceptional_executor x)
+{
+  // Creating status line, and serializing to socket.
+  string status_line = "HTTP/1.1 " + lexical_cast<string> (status_code) + " ";
+  switch (status_code) {
+  case 403:
+    status_line += "Forbidden";
+    break;
+  case 404:
+    status_line += "Not Found";
+    break;
+  case 413:
+    status_line += "Request Header Too Long";
+    break;
+  case 414:
+    status_line += "Request-URI Too Long";
+    break;
+  case 500:
+    status_line += "Internal Server Error";
+    break;
+  case 501:
+    status_line += "Not Implemented";
+    break;
+  default:
+    status_line += "Unknown Error Type";
+    break;
+  }
+  status_line += "\r\n";
+
+  // Writing status line to socket.
+  async_write (*_connection->_socket, buffer (status_line), [this, x, status_code] (const error_code & error, size_t bytes_written) {
+
+    // Sanity check.
+    if (error)
+      throw request_exception ("Socket error while returning HTTP error status line back to client.");
+
+    // Figuring out error file to use, and its size.
+    string path = "error-pages/" + lexical_cast<string> (status_code) + ".html";
+    size_t size = boost::filesystem::file_size (path);
+
+    // Writing default headers for an error request.
+    string headers = "Date: " + date::now ().to_string () + "\r\n";
+    headers       += "Content-Type: text/html; charset=utf-8\r\n";
+    headers       += "Content-Length: " + lexical_cast<string> (size) + "\r\n\r\n";
+    async_write (*_connection->_socket, buffer (headers), [this, x, path] (const error_code & error, size_t bytes_written) {
+
+      // Sanity check.
+      if (error)
+        throw request_exception ("Socket error while returning HTTP headers back to client on error request.");
+
+      // Writing file to socket.
+      ifstream fs (path, std::ios_base::binary);
+      vector<char> file_content ((istreambuf_iterator<char> (fs)), istreambuf_iterator<char>());
+      async_write (*_connection->_socket, buffer (file_content), [x] (const error_code & error, size_t bytes_written) {
+
+        // Sanity check.
+        if (error)
+          throw request_exception ("Socket error while returning error file content back to client.");
+
+        // Intentionally not releasing exceptional_executor, to make sure we close socket, since this was an error request.
+      });
+    });
+  });
 }
 
 

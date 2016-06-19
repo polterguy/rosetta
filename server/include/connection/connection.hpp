@@ -42,32 +42,20 @@ class connection final : public std::enable_shared_from_this<connection>, public
 {
 public:
 
-  /// Making request a friend class, such that it can access the socket,
-  /// server, streambuf, and other private data members.
-  friend class request;
-
-  /// Tracking destruction of connections.
-  ~connection ();
-
   /// Creates a new connection.
   static connection_ptr create (class server * server, socket_ptr socket);
-
-  /// Returns the socket for the current connection.
-  socket_ptr socket() { return _socket; }
 
   /// Handles a connection to our server.
   void handle ();
 
   /// Stops a connection.
-  void stop ();
-
-  /// Creates and returns an error response, according to the specified status code.
-  void write_error_response (int status_code, exceptional_executor x);
+  void close ();
 
 private:
 
-  /// Returns an exception_executor object that ensures closing of connection unless release() is invoked on the return value.
-  exceptional_executor ensure_close ();
+  /// Making request a friend class, such that it can access the socket,
+  /// server, streambuf, and other private data members.
+  friend class request;
 
   /// Creates a connection belonging to the specified connection_manager, on the given socket.
   explicit connection (class server * server, socket_ptr socket);
@@ -78,9 +66,6 @@ private:
 
   /// Socket for connection.
   socket_ptr _socket;
-
-  /// Buffer for reading request.
-  streambuf _request_buffer;
 
   /// Contains a reference to the request.
   request_ptr _request;

@@ -33,6 +33,7 @@ using std::string;
 using std::vector;
 using std::function;
 using std::shared_ptr;
+using boost::asio::ip::tcp;
 using namespace rosetta::common;
 
 class server;
@@ -40,6 +41,7 @@ class request;
 class connection;
 class request_handler;
 typedef shared_ptr<request_handler> request_handler_ptr;
+typedef shared_ptr<tcp::socket> socket_ptr;
 
 
 /// Handles an HTTP request.
@@ -48,7 +50,7 @@ class request_handler : public boost::noncopyable
 public:
 
   /// Creates the specified type of handler, according to file extension given, and configuration of server.
-  static request_handler_ptr create (server * server, connection * connection, request * request, const string & extension);
+  static request_handler_ptr create (server * server, socket_ptr socket, request * request);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, function<void (exceptional_executor x)> callback) = 0;
@@ -56,7 +58,7 @@ public:
 protected:
 
   /// Protected constructor, to make sure only factory method can create instances.
-  request_handler (server * server, connection * connection, request * request);
+  request_handler (server * server, socket_ptr socket, request * request);
 
   /// Writing given HTTP headetr with given value back to client.
   void write_status (unsigned int status_code, exceptional_executor x, function<void (exceptional_executor x)> callback);
@@ -72,7 +74,7 @@ protected:
   server * _server;
 
   /// The connection to the current instance.
-  connection * _connection;
+  socket_ptr _socket;
 
   /// The request that owns this instance.
   request * _request;

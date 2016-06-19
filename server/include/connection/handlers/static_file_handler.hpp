@@ -31,11 +31,14 @@ using std::string;
 using std::function;
 using std::shared_ptr;
 using boost::asio::buffer;
+using boost::asio::ip::tcp;
 using namespace rosetta::common;
 
 class server;
 class request;
 class connection;
+
+typedef shared_ptr<tcp::socket> socket_ptr;
 
 
 /// Handles an HTTP request.
@@ -44,7 +47,7 @@ class static_file_handler final : public request_handler
 public:
 
   /// Creates a static file handler.
-  static_file_handler (server * server, connection * connection, request * request);
+  static_file_handler (server * server, socket_ptr socket, request * request, const string & extension);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, function<void (exceptional_executor x)> callback) override;
@@ -55,7 +58,10 @@ private:
   void write_file (const string & filepath, exceptional_executor x, function<void (exceptional_executor x)> callback);
 
   /// Returns the MIME type according to file extension.
-  string get_mime (const string & extension);
+  string get_mime ();
+
+  /// Contains the file extension for our request.
+  string _extension;
 };
 
 

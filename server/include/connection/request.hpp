@@ -48,45 +48,36 @@ class request
 public:
 
   /// Constructs a new request of the specified type, path and version.
-  static request_ptr create (connection * connection, const string & type, const string & path, const string & version);
+  static request_ptr create (connection * connection);
+
+  /// Handles a request, after it is finished reading the entire request envelope and content.
+  void handle (exceptional_executor x);
+
+  /// Returns URI of request.
+  const string & uri() const { return _uri; }
+
+  /// Returns the value of the HTTP header with the given name, or empty string, if there is no such header.
+  const string & operator [] (const string & key) const;
+
+  /// Creates and returns an error response, according to the specified status code.
+  void write_error_response (int status_code, exceptional_executor x);
+
+private:
+
+  /// Constructs a new request of the specified type, path and version.
+  request (connection * connection);
+
+  /// Decorates request according to initial HTTP-Request line sent.
+  void decorate (const string & type, const string & uri, const string & version);
+
+  /// Parses GET parameters, if any.
+  void parse_parameters (const string & params);
 
   /// Reads and parses the HTTP headers from the given connection.
   void read_headers (exceptional_executor x, function<void(exceptional_executor x)> callback);
 
   /// Reads and parses the HTTP headers from the given connection.
   void read_content (exceptional_executor x, function<void(exceptional_executor x)> callback);
-
-  /// Handles a request, after it is finished reading the entire request envelope and content.
-  void handle (exceptional_executor x, function<void(exceptional_executor x)> callback);
-
-  /// Returns the type of request (GET/POST/PUT/DELETE etc)
-  const string & type() const { return _type; }
-
-  /// Returns the full path of request.
-  const string & path() const { return _path; }
-
-  /// Returns the filename of request.
-  const string & filename() const { return _filename; }
-
-  /// Returns the file's extension of request.
-  const string & extension() const { return _extension; }
-
-  /// Returns the HTTP version of request.
-  const string & version() const { return _http_version; }
-
-  /// Returns the HTTP headers of request.
-  const map<string, string> & headers() const { return _headers; }
-
-  /// Returns the value of the HTTP header with the given name, or empty string, if there is no such header.
-  const string & operator [] (const string & key) const;
-
-private:
-
-  /// Constructs a new request of the specified type, path and version.
-  request (connection * connection, const string & type, const string & path, const string & version);
-
-  /// Parses GET parameters.
-  void parse_parameters (const string & params);
 
 
   /// The connection this instance belongs to.
@@ -96,16 +87,10 @@ private:
   string _type;
 
   /// Path to resource requested.
-  string _path;
-
-  /// Filename, without the path parts.
-  string _filename;
-
-  /// File's extension.
-  string _extension;
+  string _uri;
 
   /// HTTP version of request.
-  string _http_version;
+  string _version;
 
   /// Headers.
   map<string, string> _headers;
@@ -115,6 +100,9 @@ private:
 
   /// Request handler.
   request_handler_ptr _request_handler;
+
+  /// Buffer for reading request.
+  boost::asio::streambuf _request_buffer;
 };
 
 

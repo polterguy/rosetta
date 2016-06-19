@@ -41,8 +41,9 @@ using boost::asio::async_write;
 using namespace rosetta::common;
 
 
-static_file_handler::static_file_handler (server * server, connection * connection, request * request)
-  : request_handler (server, connection, request)
+static_file_handler::static_file_handler (server * server, socket_ptr socket, request * request, const string & extension)
+  : request_handler (server, socket, request),
+    _extension (extension)
 { }
 
 
@@ -52,13 +53,13 @@ void static_file_handler::handle (exceptional_executor x, function<void (excepti
   string root = _server->configuration().get<string> ("www-root", "www-root");
 
   // Figuring out which file was requested.
-  string path = root + _request->path ();
+  string path = root + _request->uri ();
 
   // Making sure file exists.
   if (!boost::filesystem::exists (path)) {
 
       // Writing error status response, and returning early.
-      _connection->write_error_response (404, x);
+      _request->write_error_response (404, x);
       return;
   }
 
@@ -103,16 +104,16 @@ void static_file_handler::write_file (const string & filepath, exceptional_execu
   if (size > _server->configuration().get<size_t> ("max-response-content-length", 4194304)) {
 
     // File was too long for server to serve according to configuration.
-    _connection->write_error_response (500, x);
+    _request->write_error_response (500, x);
     return;
   }
 
   // Retrieving MIME type, and verifying this is a type of file we actually serve.
-  string mime_type = get_mime (_request->extension());
+  string mime_type = get_mime ();
   if (mime_type == "") {
 
     // File type is not served according to configuration of server.
-    _connection->write_error_response (403, x);
+    _request->write_error_response (403, x);
     return;
   }
 
@@ -129,7 +130,7 @@ void static_file_handler::write_file (const string & filepath, exceptional_execu
     write_headers (headers, x, [this, filepath, callback] (exceptional_executor x) {
 
       // Writing additional CR/LF sequence, to signal to client that we're beginning to send content.
-      async_write (*_connection->socket(), buffer (string("\r\n")), [this, filepath, callback, x] (const error_code & error, size_t bytes_written) {
+      async_write (*_socket, buffer (string("\r\n")), [this, filepath, callback, x] (const error_code & error, size_t bytes_written) {
 
         // Sanity check.
         if (error)
@@ -140,7 +141,7 @@ void static_file_handler::write_file (const string & filepath, exceptional_execu
         vector<char> file_content ((istreambuf_iterator<char> (fs)), istreambuf_iterator<char>());
 
         // Writing content to connection's socket.
-        async_write (*_connection->socket(), buffer (file_content), [filepath, callback, x] (const error_code & error, size_t bytes_written) {
+        async_write (*_socket, buffer (file_content), [filepath, callback, x] (const error_code & error, size_t bytes_written) {
 
           // Sanity check.
           if (error)
@@ -155,10 +156,10 @@ void static_file_handler::write_file (const string & filepath, exceptional_execu
 }
 
 
-string static_file_handler::get_mime (const string & extension)
+string static_file_handler::get_mime ()
 {
   // Returning MIME type for file extension, defaulting to "application/octet-stream"
-  return _server->configuration().get<string> ("mime-" + extension, "");
+  return _server->configuration().get<string> ("mime-" + _extension, "");
 }
 
 

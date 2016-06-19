@@ -16,6 +16,7 @@
  */
 
 #include <boost/asio.hpp>
+#include <boost/algorithm/string.hpp>
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
@@ -33,22 +34,34 @@ using boost::asio::buffer;
 using boost::asio::async_write;
 
 
-request_handler_ptr request_handler::create (server * server, connection * connection, request * request, const string & extension)
+request_handler_ptr request_handler::create (server * server, socket_ptr socket, request * request)
 {
-  // Figuring out which handler to use, according to configuration of server.
-  auto handler = server->configuration().get<string> (extension + "-handler", server->configuration().get<string> ("default-handler"));
+  // First we retrieve the request URI, and find the file name, without the folder.
+  const string & request_uri = request->uri ();
+  vector<string> uri_components;
+  split (uri_components, request_uri, boost::is_any_of ("/"));
+  const string & request_filename = uri_components.back ();
+
+  // Then figuring out the extension of the file, if there is any.
+  size_t pos_of_dot = request_filename.find_last_of (".");
+  const string extension = pos_of_dot == string::npos ? "" : request_filename.substr (pos_of_dot + 1);
+
+  // We now have a file extension, or an empty string, and we can create our request_handler according to the extension.
+  string handler = extension.size () == 0 ?
+      server->configuration().get<string> ("default-handler", "error") :
+      server->configuration().get<string> (extension + "-handler", "error");
 
   // Returning the correct handler to caller.
   if (handler == "static-file-handler")
-    return request_handler_ptr (new static_file_handler (server, connection, request));
+    return request_handler_ptr (new static_file_handler (server, socket, request, extension));
 
-  throw request_exception ("Unknown handler type for files with extension; '" + extension + "', handler name was; '" + handler + "'");
+  return nullptr;
 }
 
 
-request_handler::request_handler (server * server, connection * connection, request * request)
+request_handler::request_handler (server * server, socket_ptr socket, request * request)
   : _server (server),
-    _connection (connection),
+    _socket (socket),
     _request (request)
 { }
 
@@ -91,7 +104,7 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
   status_line += "\r\n";
 
   // Writing status line to socket.
-  async_write (*_connection->socket(), buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (*_socket, buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -105,7 +118,7 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
 void request_handler::write_header (const string & key, const string & value, exceptional_executor x, function<void (exceptional_executor x)> callback)
 {
   // Writing HTTP header on socket.
-  async_write (*_connection->socket(), buffer (key + ": " + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (*_socket, buffer (key + ": " + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
