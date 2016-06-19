@@ -76,6 +76,12 @@ void connection::handle()
 }
 
 
+void connection::keep_alive ()
+{
+  handle ();
+}
+
+
 void connection::close()
 {
   // Making sure we delete connection from server's list of connections.

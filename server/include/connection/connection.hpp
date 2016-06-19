@@ -51,6 +51,9 @@ public:
   /// Handles a connection to our server.
   void handle ();
 
+  /// Keeps a connection alive for consecutive requests for an n amount of configurable seconds.
+  void keep_alive ();
+
   /// Stops a connection.
   void close ();
 

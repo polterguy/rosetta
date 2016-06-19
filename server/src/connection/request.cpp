@@ -113,8 +113,9 @@ void request::handle (exceptional_executor x)
                 string connection = to_lower_copy ((*this)["connection"]);
                 if (connection != "close") {
 
-                  // Keeping connection open, by invoking release() on "x", and creating a timeout condition on connection.
+                  // Keeping connection alive, by invoking release() on "x", and letting our connection class take over from here.
                   x.release ();
+                  _connection->keep_alive();
                 }
               });
             }
