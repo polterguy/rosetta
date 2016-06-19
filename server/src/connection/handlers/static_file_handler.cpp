@@ -25,7 +25,7 @@
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
 #include "server/include/exceptions/request_exception.hpp"
-#include "server/include/connection/static_file_handler.hpp"
+#include "server/include/connection/handlers/static_file_handler.hpp"
 
 namespace rosetta {
 namespace server {

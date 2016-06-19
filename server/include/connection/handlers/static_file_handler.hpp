@@ -22,7 +22,7 @@
 #include <utility>
 #include <boost/asio.hpp>
 #include "common/include/exceptional_executor.hpp"
-#include "server/include/connection/request_handler.hpp"
+#include "server/include/connection/handlers/request_handler.hpp"
 
 namespace rosetta {
 namespace server {

@@ -36,18 +36,17 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/bin)
 find_package (Boost COMPONENTS filesystem thread REQUIRED)
 
 # Adding source files to compilation of main Rosetta project.
-file (GLOB MAIN_SOURCE "server/main.cpp")
-file (GLOB MAIN_SERVER_SOURCES "server/src/*.cpp")
-file (GLOB CONNECTION_SOURCES "server/src/connection/*.cpp")
-file (GLOB REQUEST_SOURCES "server/src/connection/request/*.cpp")
-file (GLOB RESPONSE_SOURCES "server/src/connection/response/*.cpp")
+file (GLOB MAIN "server/main.cpp")
+file (GLOB SERVER "server/src/*.cpp")
+file (GLOB CONNECTION "server/src/connection/*.cpp")
+file (GLOB HANDLERS "server/src/connection/handlers/*.cpp")
 
 # Adding all C++ files compiler should compile into main executable
-add_executable (rosetta ${MAIN_SOURCE} ${MAIN_SERVER_SOURCES} ${CONNECTION_SOURCES} ${REQUEST_SOURCES} ${RESPONSE_SOURCES})
+add_executable (rosetta ${MAIN} ${SERVER} ${CONNECTION} ${HANDLERS})
 
 # Creating "configuration" library as a statically linked library
-file (GLOB COMMON_SOURCES "common/src/*.cpp")
-add_library (rosetta_common STATIC ${COMMON_SOURCES})
+file (GLOB COMMON "common/src/*.cpp")
+add_library (rosetta_common STATIC ${COMMON})
 
 # Making sure we link to boost during linking process, in addition to all additionally built libraries,
 # such as "configuration" library
