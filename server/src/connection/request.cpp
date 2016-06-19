@@ -56,14 +56,19 @@ void request::handle (exceptional_executor x)
   auto max_uri_length = _connection->_server->configuration().get<size_t> ("max-uri-length", 4096);
   match_condition match (max_uri_length, "\r\n");
 
+  // If client spends more than x seconds sending the HTTP headers, we forcibly close connection.
+  size_t seconds = _connection->_server->configuration().get<size_t> ("request-header-read-timeout", 5);
+  _connection->set_deadline_timer (boost::posix_time::seconds (seconds));
+
   // Reading initial HTTP-Request line.
   async_read_until (*_connection->_socket, _request_buffer, match, [this, match, x] (const error_code & error, size_t bytes_read) {
 
     // Checking if socket has an error, or if reading the first line created an error (too long request).
     if (error) {
 
-      // Our socket has an error of some sort, stopping connection early.
-      throw request_exception ("Socket error while reading HTTP-Request line.");
+      // Our socket was probably closed due to a timeout.
+      x.release ();
+      return;
     } else if (match.has_error()) {
 
       // HTTP-Version line was too long, probably too long URI, returning 414 to client.
@@ -90,8 +95,15 @@ void request::handle (exceptional_executor x)
         // Reading HTTP headers into request.
         read_headers (x, [this] (exceptional_executor x) {
 
+          // Setting deadline timer to content-read value.
+          size_t seconds = _connection->_server->configuration().get<size_t> ("request-content-read-timeout", 300);
+          _connection->set_deadline_timer (boost::posix_time::seconds (seconds));
+
           // Reading content of HTTP request, if any.
           read_content (x, [this] (exceptional_executor x) {
+
+            // Killing timer, since we're finished reading from client.
+            _connection->kill_deadline_timer ();
 
             // First we need to create our handler.
             _request_handler = request_handler::create (_connection->_server, _connection->_socket, this);
@@ -210,8 +222,12 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
   async_read_until (*_connection->_socket, _request_buffer, match, [this, x, match, functor] (const error_code & error, size_t bytes_read) {
 
     // Making sure there was no errors while reading socket
-    if (error)
-      throw request_exception ("Socket error while reading HTTP headers.");
+    if (error) {
+
+      // Our connection was probably dropped due to a timeout.
+      x.release ();
+      return;
+    }
 
     // Making sure there was no more than maximum number of bytes read according to configuration.
     if (match.has_error ()) {
@@ -334,6 +350,9 @@ void request::write_error_response (int status_code, exceptional_executor x)
     break;
   }
   status_line += "\r\n";
+
+  // Making sure we kill deadline timer, before we start another async task.
+  _connection->kill_deadline_timer ();
 
   // Writing status line to socket.
   async_write (*_connection->_socket, buffer (status_line), [this, x, status_code] (const error_code & error, size_t bytes_written) {

@@ -163,14 +163,15 @@ void create_default_configuration_file()
   config.set ("max-header-length", 8192);
   config.set ("max-header-count", 25);
   config.set ("max-request-content-length", 4194304); // 4 MB
-  config.set ("request-timeout", 300);
+  config.set ("request-header-read-timeout", 5);
+  config.set ("request-content-read-timeout", 300);
 
   // Response settings.
   config.set ("response-timeout", 300);
   config.set ("max-response-content-length", 4194304); // 4 MB
 
   // Connection settings.
-  config.set ("connection-keep-alive", 30);
+  config.set ("connection-keep-alive-timeout", 5);
   config.set ("max-connections-per-client", 8); // Internet Exploder settings.
 
   // Request Handlers, according to file extensions.

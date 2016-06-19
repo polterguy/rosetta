@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <boost/asio.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "server/include/server.hpp"
 
@@ -69,6 +70,12 @@ private:
   /// Creates a connection belonging to the specified connection_manager, on the given socket.
   explicit connection (class server * server, socket_ptr socket);
 
+  /// Sets the deadline timer for a specified amount of time before connection is closed unless timer is retouched.
+  void set_deadline_timer (boost::posix_time::seconds seconds);
+
+  /// Kills deadline timer altogether.
+  void kill_deadline_timer ();
+
 
   /// Server instance this connection is running on.
   server * _server;
@@ -78,6 +85,9 @@ private:
 
   /// Contains a reference to the request.
   request_ptr _request;
+
+  /// Deadline timer, used to close connection if a timeout occurs.
+  deadline_timer _timer;
 };
 
 

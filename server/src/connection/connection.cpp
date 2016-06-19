@@ -48,7 +48,8 @@ connection_ptr connection::create (class server * server, socket_ptr socket)
 
 connection::connection (class server * server, socket_ptr socket)
   : _server (server),
-    _socket (socket)
+    _socket (socket),
+    _timer (server->io_service())
 { }
 
 
@@ -78,6 +79,9 @@ void connection::handle()
 
 void connection::keep_alive ()
 {
+  // Settings deadline timer to "keep-alive" value.
+  size_t seconds = _server->configuration().get<size_t> ("connection-keep-alive-timeout", 5);
+  set_deadline_timer (boost::posix_time::seconds (seconds));
   handle ();
 }
 
@@ -88,6 +92,26 @@ void connection::close()
   // This will delete the last reference to the connection's shared_ptr,
   // and hence make sure the destructor is invoked, which will clean up everything.
   _server->remove_connection (shared_from_this());
+}
+
+
+void connection::set_deadline_timer (boost::posix_time::seconds seconds)
+{
+  // Cancel any previously registered tasks, before updating expire value, and registering a "close connection handler".
+  _timer.cancel ();
+  _timer.expires_from_now (seconds);
+  _timer.async_wait ([this] (const error_code & error) {
+
+    // We don't close in case an error, since when timer is canceled, handler is invoked, with an error code.
+    if (!error)
+      close ();
+  });
+}
+
+
+void connection::kill_deadline_timer ()
+{
+  _timer.cancel ();
 }
 
 

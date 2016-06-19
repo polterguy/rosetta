@@ -56,7 +56,7 @@ exceptional_executor & exceptional_executor::operator = (const exceptional_execu
 }
 
 
-void exceptional_executor::release ()
+void exceptional_executor::release () const
 {
   _functor = nullptr;
 }

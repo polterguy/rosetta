@@ -51,7 +51,7 @@ public:
   exceptional_executor & operator = (const exceptional_executor & rhs);
 
   /// Releases functor object, making sure it is never invoked.
-  void release ();
+  void release () const;
 
 private:
 
