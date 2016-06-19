@@ -51,6 +51,9 @@ public:
   /// Stops a connection.
   void close ();
 
+  /// Returns the socket for the current connection.
+  socket_ptr socket() { return _socket; }
+
 private:
 
   /// Making request a friend class, such that it can access the socket,

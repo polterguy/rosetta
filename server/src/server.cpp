@@ -102,6 +102,24 @@ server::server (const class configuration & configuration)
 
 connection_ptr server::create_connection (socket_ptr socket)
 {
+  // Counting existing connections from client.
+  size_t no_connections_for_ip = 0;
+  ip::address client_address = socket->remote_endpoint().address();
+  for (auto & idx : _connections) {
+    if (idx->socket()->remote_endpoint().address() == client_address)
+      ++no_connections_for_ip;
+  }
+
+  // Checking if number of connections for client exceeds our max value, and if so, we refuse the connection.
+  size_t max_connections_per_client = configuration().get<size_t> ("max-connections-per-client", 8);
+  if (no_connections_for_ip >= max_connections_per_client) {
+
+    // We refuse this connection.
+    error_code ignored_ec;
+    socket->shutdown (tcp::socket::shutdown_both, ignored_ec);
+    return nullptr;
+  }
+
   // Creating a new connection as a shared pointer, and putting it into our list of connections.
   connection_ptr connection = connection::create (this, socket);
   _connections.insert (connection);
@@ -129,9 +147,12 @@ void server::on_accept ()
 
     if (!error) {
 
-      // Handle request
+      // Creating connection.
       auto connection = create_connection (socket);
-      connection->handle ();
+
+      // Handling connection, but only if it was accepted.
+      if (connection != nullptr)
+        connection->handle ();
     }
 
     // Invoking "self" again to accept next request.

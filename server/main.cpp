@@ -171,6 +171,7 @@ void create_default_configuration_file()
 
   // Connection settings.
   config.set ("connection-keep-alive", 30);
+  config.set ("max-connections-per-client", 8); // Internet Exploder settings.
 
   // Request Handlers, according to file extensions.
   config.set ("html-handler", "static-file-handler");
