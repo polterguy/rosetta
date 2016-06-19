@@ -18,6 +18,7 @@
 #include <memory>
 #include <vector>
 #include <fstream>
+#include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
@@ -34,14 +35,7 @@ namespace rosetta {
 namespace server {
   
 using std::string;
-using std::vector;
-using std::ifstream;
-using std::istreambuf_iterator;
 using boost::system::error_code;
-using boost::algorithm::split;
-using boost::algorithm::to_upper_copy;
-using boost::algorithm::to_lower_copy;
-using boost::algorithm::trim_copy;
 using namespace rosetta::common;
 
 
@@ -81,13 +75,14 @@ void request::handle (exceptional_executor x)
 
       // Splitting initial HTTP line into its three parts.
       vector<string> parts;
-      split (parts, http_request_line, ::isspace);
+      boost::algorithm::split (parts, http_request_line, ::isspace);
+      std::remove (parts.begin(), parts.end(), "");
       size_t no_parts = parts.size ();
 
       // Now we can start deducting which type of request, and path, etc, this is, trying to be as fault tolerant as we can.
-      string type         = no_parts > 1 ? to_upper_copy (parts [0]) : "GET";
+      string type         = no_parts > 1 ? boost::algorithm::to_upper_copy (parts [0]) : "GET";
       string path         = no_parts > 1 ? parts [1] : parts [0];
-      string version      = no_parts > 2 ? to_upper_copy (parts [2]) : "HTTP/1.1";
+      string version      = no_parts > 2 ? boost::algorithm::to_upper_copy (parts [2]) : "HTTP/1.1";
 
       // Decorating request.
       decorate (type, path, version, x, [this] (exceptional_executor x) {
@@ -110,7 +105,7 @@ void request::handle (exceptional_executor x)
               _request_handler->handle (x, [this] (exceptional_executor x) {
 
                 // Now request is finished handled, and we can take back control over connection.
-                string connection = to_lower_copy ((*this)["connection"]);
+                string connection = boost::algorithm::to_lower_copy ((*this)["connection"]);
                 if (connection != "close") {
 
                   // Keeping connection alive, by invoking release() on "x", and letting our connection class take over from here.
@@ -160,12 +155,18 @@ void request::decorate (const string & type,
       // URI contains GET parameters.
       parse_parameters (string_helper::decode_uri (uri.substr (index_of_pars + 1)));
 
-      // Decoding actual URI.
-      _uri = string_helper::decode_uri (uri.substr (0, index_of_pars));
+      // Decoding actual URI, and making sure it starts with a "/".
+      if (uri.find_first_of ("/") != 0)
+        _uri = "/" + string_helper::decode_uri (uri.substr (0, index_of_pars));
+      else
+        _uri = string_helper::decode_uri (uri.substr (0, index_of_pars));
     } else {
 
-      // No parameters in request URI, making sure we decode the string any way, in case request is for a document with a "funny name".
-      _uri = string_helper::decode_uri (uri);
+      // Decoding actual URI, and making sure it starts with a "/".
+      if (uri.find_first_of ("/") != 0)
+        _uri = "/" + string_helper::decode_uri (uri);
+      else
+        _uri = string_helper::decode_uri (uri);
     }
   }
 
@@ -234,11 +235,12 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
 
         // Missing colon (:) in HTTP header, meaning, only HTTP-Header name, and no value.
         // To be more fault tolerant towards non-conforming clients, we still let this one pass.
-        _headers [to_lower_copy (trim_copy (line))] = "";
+        _headers [boost::algorithm::to_lower_copy (boost::algorithm::trim_copy (line))] = "";
       } else {
 
         // Both name and key was supplied.
-        _headers [to_lower_copy (trim_copy (line.substr (0, equals_idx)))] = trim_copy (line.substr (equals_idx + 1));
+        _headers [boost::algorithm::to_lower_copy (boost::algorithm::trim_copy (line.substr (0, equals_idx)))]
+          = boost::algorithm::trim_copy (line.substr (equals_idx + 1));
       }
 
       // Fetching next header by invoking self.
@@ -355,8 +357,8 @@ void request::write_error_response (int status_code, exceptional_executor x)
         throw request_exception ("Socket error while returning HTTP headers back to client on error request.");
 
       // Writing file to socket.
-      ifstream fs (path, std::ios_base::binary);
-      vector<char> file_content ((istreambuf_iterator<char> (fs)), istreambuf_iterator<char>());
+      std::ifstream fs (path, std::ios_base::binary);
+      vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
       async_write (*_connection->_socket, buffer (file_content), [x] (const error_code & error, size_t bytes_written) {
 
         // Sanity check.
