@@ -3,7 +3,7 @@ Rosetta Web Server
 
 Rosetta Web Server is a small web server.
 
-## Getting started with p5 lambda and Hyperlisp
+## Getting started with Rosetta
 
 Coming soon
 
