@@ -67,10 +67,14 @@ private:
   /// Constructs a new request of the specified type, path and version.
   request (connection * connection);
 
-  /// Decorates request according to initial HTTP-Request line sent.
-  void decorate (const string & type, const string & uri, const string & version);
+  /// Decorates request according to initial HTTP-Request line sent, and returns true if request was successfully decorated.
+  void decorate (const string & type,
+                 const string & uri,
+                 const string & version,
+                 exceptional_executor x,
+                 function<void(exceptional_executor x)> callback);
 
-  /// Parses GET parameters, if any.
+  /// Parses GET parameters.
   void parse_parameters (const string & params);
 
   /// Reads and parses the HTTP headers from the given connection.

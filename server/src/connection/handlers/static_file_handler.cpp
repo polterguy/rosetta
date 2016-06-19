@@ -20,6 +20,7 @@
 #include <fstream>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
 #include "common/include/date.hpp"
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
@@ -37,6 +38,7 @@ using std::ifstream;
 using std::shared_ptr;
 using std::istreambuf_iterator;
 using boost::system::error_code;
+using boost::algorithm::split;
 using boost::asio::async_write;
 using namespace rosetta::common;
 
@@ -49,11 +51,29 @@ static_file_handler::static_file_handler (server * server, socket_ptr socket, re
 
 void static_file_handler::handle (exceptional_executor x, function<void (exceptional_executor x)> callback)
 {
-  // Retrieving document root path for server.
-  string root = _server->configuration().get<string> ("www-root", "www-root");
+  // Retrieving URI from request, removing initial "/" from URI.
+  string uri = _request->uri ().substr (1);
+
+  // Breaking up URI into components, and sanity checking each component, to verify client is not requesting an illegal URI.
+  vector<string> entities;
+  split (entities, uri, boost::is_any_of ("/"));
+  for (string & idx : entities) {
+
+    if (idx == "")
+      throw request_exception ("Illegal URI; '" + _request->uri () + "'."); // Two consecutive "/" after each other.
+
+    if (idx.find ("..") != string::npos) // Request is probably trying to access files outside of the main www-root folder.
+      throw request_exception ("Illegal URI; '" + _request->uri () + "'.");
+
+    if (idx.find ("~") == 0) // Linux backup file.
+      throw request_exception ("Illegal URI; '" + _request->uri () + "'.");
+
+    if (idx.find (".") == 0) // Linux hidden file, or a file without a name, and only extension.
+      throw request_exception ("Illegal URI; '" + _request->uri () + "'.");
+  }
 
   // Figuring out which file was requested.
-  string path = root + _request->uri ();
+  string path = _server->configuration().get<string> ("www-root", "www-root/") + uri;
 
   // Making sure file exists.
   if (!boost::filesystem::exists (path)) {

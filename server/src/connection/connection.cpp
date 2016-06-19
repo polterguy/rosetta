@@ -52,6 +52,15 @@ connection::connection (class server * server, socket_ptr socket)
 { }
 
 
+connection::~connection ()
+{
+  // Closing socket gracefully.
+  error_code ignored_ec;
+  _socket->shutdown (tcp::socket::shutdown_both, ignored_ec);
+  _socket->close();
+}
+
+
 void connection::handle()
 {
   // Creating a new request, passing in an exceptional_executor object, which unless the request somehow
@@ -69,12 +78,9 @@ void connection::handle()
 
 void connection::close()
 {
-  // Closing socket gracefully.
-  error_code ignored_ec;
-  _socket->shutdown (tcp::socket::shutdown_both, ignored_ec);
-  _socket->close();
-
   // Making sure we delete connection from server's list of connections.
+  // This will delete the last reference to the connection's shared_ptr,
+  // and hence make sure the destructor is invoked, which will clean up everything.
   _server->remove_connection (shared_from_this());
 }
 

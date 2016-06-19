@@ -155,8 +155,8 @@ void create_default_configuration_file()
   config.set ("port", 8080);
   config.set ("thread-model", "thread-pool");
   config.set ("threads", 128);
-  config.set ("www-root", "www-root");
-  config.set ("default-page", "index.html");
+  config.set ("www-root", "www-root/");
+  config.set ("default-page", "/index.html");
 
   // Request settings.
   config.set ("max-uri-length", 4096);

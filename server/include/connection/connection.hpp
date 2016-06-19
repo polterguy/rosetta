@@ -45,6 +45,9 @@ public:
   /// Creates a new connection.
   static connection_ptr create (class server * server, socket_ptr socket);
 
+  /// Destroys the connection.
+  ~connection ();
+
   /// Handles a connection to our server.
   void handle ();
 

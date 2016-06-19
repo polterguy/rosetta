@@ -17,8 +17,6 @@
 
 #include <memory>
 #include <vector>
-#include <utility>
-#include <iostream>
 #include <fstream>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
@@ -42,7 +40,6 @@ using std::istreambuf_iterator;
 using boost::system::error_code;
 using boost::algorithm::trim;
 using boost::algorithm::split;
-using boost::algorithm::to_lower_copy;
 using namespace rosetta::common;
 
 
@@ -73,7 +70,7 @@ void request::handle (exceptional_executor x)
       throw request_exception ("Socket error while reading HTTP-Request line.");
     } else if (match.has_error()) {
 
-      // HTTP-Version line was too long, returning 414 to client.
+      // HTTP-Version line was too long, probably too long URI, returning 414 to client.
       write_error_response (414, x);
     } else {
 
@@ -85,46 +82,44 @@ void request::handle (exceptional_executor x)
       split (parts, http_request_line, ::isspace);
 
       // Verifying initial line has exactly 3 parts.
-      if (parts.size() != 3) {
-
-        // Some sort of error in initial HTTP line from client.
+      if (parts.size() != 3)
         throw request_exception ("Initial HTTP-Request line was malformed, line contained; '" + http_request_line + "'.");
-      }
 
       // Now we can start deducting which type of request, and path, etc, this is.
-      string type         = to_lower_copy (parts [0]);
+      string type         = parts [0];
       string path         = parts [1];
-      string version      = to_lower_copy (parts [2]);
+      string version      = parts [2];
 
       // Decorating request.
-      decorate (type, path, version);
+      decorate (type, path, version, x, [this] (exceptional_executor x) {
+        
+        // Reading HTTP headers into request.
+        read_headers (x, [this] (exceptional_executor x) {
 
-      // Reading HTTP headers into request.
-      read_headers (x, [this] (exceptional_executor x) {
+          // Reading content of HTTP request, if any.
+          read_content (x, [this] (exceptional_executor x) {
 
-        // Reading content of HTTP request, if any.
-        read_content (x, [this] (exceptional_executor x) {
+            // First we need to create our handler.
+            _request_handler = request_handler::create (_connection->_server, _connection->_socket, this);
 
-          // First we need to create our handler.
-          _request_handler = request_handler::create (_connection->_server, _connection->_socket, this);
+            // Making sure we actually have a request_handler before we start using it.
+            // If we do not have a request_handler at this point, then it means that we do not serve this type of request,
+            // and hence we return a 404 error.
+            if (_request_handler == nullptr) {
 
-          // Making sure we actually have a request_handler before we start using it.
-          // If we do not have a request_handler at this point, then it means that we do not serve this type of request,
-          // and hence we return a 404 error.
-          if (_request_handler == nullptr) {
+              // No handler for this request, returning 404.
+              write_error_response (404, x);
+            } else {
 
-            // No handler for this request, returning 404.
-            write_error_response (404, x);
-          } else {
+              // Now we can let our handler take care of the rest of our request, making sure we pass in exceptional_executor,
+              // such that if an exception occurs, then the connection is closed.
+              _request_handler->handle (x, [] (exceptional_executor x) {
 
-            // Then we let our handler take care of the rest of our request, making sure we pass in exceptional_executor,
-            // such that if an exception occurs, then connection is closed.
-            _request_handler->handle (x, [] (exceptional_executor x) {
-
-              // Now request is finished handled, and we need to determine is we should keep connection alive, or if
-              // we should close connection immediately.
-            });
-          }
+                // Now request is finished handled, and we need to determine if we should keep connection alive, or if
+                // we should close the connection immediately.
+              });
+            }
+          });
         });
       });
     }
@@ -132,60 +127,64 @@ void request::handle (exceptional_executor x)
 }
 
 
-void request::decorate (const string & type, const string & uri, const string & version)
+void request::decorate (const string & type,
+                        const string & uri,
+                        const string & version,
+                        exceptional_executor x,
+                        function<void(exceptional_executor x)> callback)
 {
-  // More sanity checking.
-  if (version != "http/1.1")
-    throw request_exception ("Unknown HTTP-Version; '" + version + "'."); // We only support HTTP version 1.1 at the moment.
+  // Sanity checking version.
+  if (version != "HTTP/1.1") {
 
-  // Checking path, simple case first.
-  if (uri.length () == 0 || uri [0] != '/')
-    throw request_exception ("Illegal path; '" + uri + "'."); // This is not an OK path.
+    // Unsupported HTTP version.
+    write_error_response (501, x);
+    return;
+  }
+  // Storing HTTP version of request.
+  _version = version;
 
-  // Checking if path is empty, at which case we default it to the default file, referenced in configuration.
-  // In addition to temporarily removing the initial "/", to not mess up our split below, and return empty values.
-  string substr_uri = uri.substr (1);
-  if (substr_uri.size () == 0)
-    substr_uri = _connection->_server->configuration().get<string> ("default-page", "index.html");
+  // Checking that this is a type of request we know how to handle.
+  if (type != "GET" && type != "POST" && type != "DELETE" && type != "PUT") {
 
-  // Checking if URI contains GET parameters.
-  auto index_of_pars = substr_uri.find ("?");
-  if (string::npos != index_of_pars) {
+    // We cannot handle this request, hence we return 501 to client.
+    write_error_response (501, x);
+    return;
+  }
+  // Storing type of request.
+  _type = type;
 
-    // URI contains GET parameters.
-    // Making sure we decode the URI as we pass it into the parameters parsing method, in case parameter contains for instance "?" etc.
-    parse_parameters (string_helper::decode_uri (substr_uri.substr (index_of_pars + 1)));
+  // Checking if path is "/" or empty, at which case we default it to the default file, referenced in configuration.
+  if (uri.size() == 0 || uri == "/") {
 
-    // Decoding actual URI.
-    substr_uri = string_helper::decode_uri (substr_uri.substr (0, index_of_pars));
+    // Serving default document.
+    _uri = _connection->_server->configuration().get<string> ("default-page", "/index.html");
   } else {
 
-    // No parameters in request URI, making sure we decode the string any way, in case request is for a document with a "funny name".
-    substr_uri = string_helper::decode_uri (substr_uri);
+    // Checking if URI contains HTTP GET parameters.
+    auto index_of_pars = uri.find ("?");
+    if (index_of_pars <= 1) {
+
+      // Default page was requested, with HTTP GET parameters.
+      parse_parameters (string_helper::decode_uri (uri.substr (index_of_pars + 1)));
+
+      // Serving default document.
+      _uri = _connection->_server->configuration().get<string> ("default-page", "/index.html");
+    } else if (index_of_pars != string::npos) {
+
+      // URI contains GET parameters.
+      parse_parameters (string_helper::decode_uri (uri.substr (index_of_pars + 1)));
+
+      // Decoding actual URI.
+      _uri = string_helper::decode_uri (uri.substr (0, index_of_pars));
+    } else {
+
+      // No parameters in request URI, making sure we decode the string any way, in case request is for a document with a "funny name".
+      _uri = string_helper::decode_uri (uri);
+    }
   }
 
-  // Breaking up URI into components, and sanity checking each component.
-  vector<string> entities;
-  split (entities, substr_uri, boost::is_any_of ("/"));
-  for (string & idx : entities) {
-
-    if (idx == "")
-      throw request_exception ("Illegal URI; '" + uri + "'."); // Two consecutive "/" after each other.
-
-    if (idx.find ("..") != string::npos) // Request is attempting at accessing files outside of the main www-root folder.
-      throw request_exception ("Illegal URI; '" + uri + "'.");
-
-    if (idx.find ("~") == 0) // Linux backup file.
-      throw request_exception ("Illegal URI; '" + uri + "'.");
-
-    if (idx.find (".") == 0) // Linux hidden file, or a file without a name, and only extension.
-      throw request_exception ("Illegal URI; '" + uri + "'.");
-  }
-
-  // Now we know that this is something we can probably handle.
-  _type         = type;
-  _uri          = "/" + substr_uri; // Making sure we add back the initial "/" again.
-  _version      = version;
+  // Invoking callback supplied for success condition.
+  callback (x);
 }
 
 
@@ -197,13 +196,9 @@ void request::parse_parameters (const string & params)
   for (string & idx : pars) {
     
     // Splitting up name/value of parameter.
-    vector<string> name_value;
-    split (name_value, idx, boost::is_any_of ("="));
-
-    // Creating our HTTP GET parameter, with the given name/value combination, making sure we default its value to "" if
-    // no value is supplied.
-    string name = name_value [0];
-    string value = name_value.size() > 1 ? name_value [1] : "";
+    size_t index_of_equal = idx.find ("=");
+    string name = index_of_equal == string::npos ? idx : idx.substr (0, index_of_equal);
+    string value = index_of_equal == string::npos ? "" : idx.substr (index_of_equal + 1);
     _parameters [name] = value;
   }
 }
@@ -242,7 +237,7 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
     // Now we can start parsing HTTP header.
     string line = string_helper::get_line (_request_buffer, bytes_read);
 
-    // Checking if there are no more headers.
+    // Checking if there are more headers.
     if (line == "") {
 
       // We're now done reading all HTTP headers, giving control back to connection through function callback.
