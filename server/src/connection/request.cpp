@@ -162,7 +162,7 @@ void request::decorate (const string & type,
 
     // Checking if URI contains HTTP GET parameters, allowing for multiple different GET parameter delimiters, to support
     // maximum amount of HTTP cloaking.
-    auto index_of_pars = uri.find_first_of ("?*$#~^€'§");
+    auto index_of_pars = uri.find_first_of ("?*$~^€§");
     if (index_of_pars <= 1) {
 
       // Default page was requested, with HTTP GET parameters.
@@ -213,6 +213,9 @@ void request::parse_parameters (const string & params)
 
 void request::read_headers (exceptional_executor x, function<void(exceptional_executor x)> functor)
 {
+  // Valid HTTP header name characters.
+  const static string HTTP_HEADER_VALID_CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";
+
   // Making sure each header don't exceed the maximum length defined in configuration.
   size_t max_header_length = _connection->_server->configuration().get<size_t> ("max-header-length", 8192);
   match_condition match (max_header_length, "\r\n");
@@ -246,8 +249,10 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
     }
 
     // There are possibly more HTTP headers, continue reading until we see an empty line.
-    const size_t equals_idx = line.find (':');
-    if (equals_idx == string::npos) {
+    const auto equals_idx = std::find_if (line.begin (), line.end (), [] (char idx) {
+      return (idx >= 'a' && idx <= 'z') || (idx >= 'A' && idx <= 'Z') || (idx >= '0' && idx <= '9') || idx == '-';
+    });
+    if (equals_idx == line.end ()) {
 
       // Missing colon (:) in HTTP header, meaning, only HTTP-Header name, and no value.
       // To be more fault tolerant towards non-conforming clients, we still let this one pass.
@@ -255,8 +260,8 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
     } else {
 
       // Both name and key was supplied.
-      _headers [boost::algorithm::to_lower_copy (boost::algorithm::trim_copy (line.substr (0, equals_idx)))]
-        = boost::algorithm::trim_copy (line.substr (equals_idx + 1));
+      _headers [boost::algorithm::to_lower_copy (boost::algorithm::trim_copy (string (line.begin (), equals_idx)))]
+        = boost::algorithm::trim_copy (string (equals_idx + 1, line.end ()));
     }
 
     // Reading next header from socket.

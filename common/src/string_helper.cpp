@@ -41,45 +41,27 @@ string string_helper::get_line (streambuf & buffer, int size)
   // and CR/LF, to allow for cloaking HTTP requests.
   // Please notice, that with the current logic here, you can even create requests that have lines in them, where you can put
   // "garbage data" between the CR and the LF to create a maximum amount of cloaking for your HTTP requests.
-  // In addition, everything from 1 to 10 is interpreted as a LF, and everything from 11 to 20 is interpreted as a CR.
-  // Which means, it becomes literally impossible for an adversary to see the difference between a cloaked HTTP request,
-  // and "random garbage", since it has nothing to look for, to even see the CR/LF sequence, to understand if there are any
-  // CR/LF sequences in the data.
+  // In addition, everything between [0 11> is interpreted as a LF, and everything between [11 21> is interpreted as a CR, and
+  // everything between [21 32> is interpreted as a SP.
+  // This means, it becomes literally impossible for an adversary to see the difference between a cloaked HTTP request,
+  // and "random garbage", since it has nothing to look for, not even to see a CR/LF sequence, to understand if there are any
+  // CR/LF sequences, or even SP in the data it examines.
   while (stream.good ()) {
     char idx = stream.get ();
-    switch (idx) {
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-    case 5:
-    case 6:
-    case 7:
-    case 8:
-    case 9:
-    case 10:
-      vec.push_back ('\n');
-      break;
-    case 11:
-    case 12:
-    case 13:
-    case 14:
-    case 15:
-    case 16:
-    case 17:
-    case 18:
-    case 19:
-    case 20:
-      vec.push_back ('\r');
-      break;
-    default:
-      if (idx > 31 && idx < 127)
-        vec.push_back (idx);
-      break;
-    }
+    if (idx < 11)
+      idx = '\n'; // LF
+    else if (idx < 21)
+      idx = '\r'; // CR
+    else if (idx < 33)
+      idx = ' '; // SP
+    else if (idx > (char)190)
+      continue; // IGNORE, garbage filling
+    else if (idx > 127)
+      idx = idx >> 1; // Bitshift one bit down
+    vec.push_back (idx);
 
     // Checking if we have seen an entire line.
-    if (vec.size() > 1 && vec [vec.size() - 2] == '\r' && vec [vec.size() - 1] == '\n')
+    if (vec.size() >= 2 && vec [vec.size() - 2] == '\r' && vec [vec.size() - 1] == '\n')
       break;
   }
 
@@ -127,7 +109,6 @@ string string_helper::decode_uri (const string & uri)
 
       // Normal plain character.
       return_value += uri [idx];
-
     }
   }
 
