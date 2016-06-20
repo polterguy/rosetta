@@ -144,6 +144,7 @@ void static_file_handler::write_file (const string & filepath, exceptional_execu
     vector<tuple<string, string> > headers {
       {"Content-Type", mime_type },
       {"Date", date::now ().to_string ()},
+      {"Last-Modified", date::from_file_change (filepath).to_string ()},
       {"Content-Length", lexical_cast<string> (size)}};
 
     // Writing HTTP headers to connection.

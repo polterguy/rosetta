@@ -161,9 +161,8 @@ void create_default_configuration_file()
   // Request settings.
   config.set ("max-uri-length", 4096);
   config.set ("max-header-length", 8192);
-  config.set ("max-header-count", 25);
   config.set ("max-request-content-length", 4194304); // 4 MB
-  config.set ("request-header-read-timeout", 5);
+  config.set ("request-header-read-timeout", 10);
   config.set ("request-content-read-timeout", 300);
 
   // Response settings.
@@ -172,7 +171,7 @@ void create_default_configuration_file()
 
   // Connection settings.
   config.set ("connection-keep-alive-timeout", 5);
-  config.set ("max-connections-per-client", 8); // Internet Exploder settings.
+  config.set ("max-connections-per-client", 2);
 
   // Request Handlers, according to file extensions.
   config.set ("html-handler", "static-file-handler");

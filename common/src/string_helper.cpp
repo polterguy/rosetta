@@ -21,8 +21,10 @@
 #include "common/include/string_helper.hpp"
 
 using std::string;
+using std::vector;
 using std::istream;
 using std::getline;
+using std::istreambuf_iterator;
 using namespace boost;
 
 namespace rosetta {
@@ -31,51 +33,62 @@ namespace common {
 
 string string_helper::get_line (streambuf & buffer, int size)
 {
-  string return_value;
+  // Reading next line from stream.
+  vector<char> vec;
   istream stream (&buffer);
 
-  // If size is not given, we simply return the first line, otherwise we need to check for HTTP header
-  // value spanning multiple lines.
-  if (size == -1) {
+  // Iterating stream until CR/LF has been seen, ignoring everything but the normal US ASCII range of characters,
+  // and CR/LF, to allow for cloaking HTTP requests.
+  // Please notice, that with the current logic here, you can even create requests that have lines in them, where you can put
+  // "garbage data" between the CR and the LF to create a maximum amount of cloaking for your HTTP requests.
+  // In addition, everything from 1 to 10 is interpreted as a LF, and everything from 11 to 20 is interpreted as a CR.
+  // Which means, it becomes literally impossible for an adversary to see the difference between a cloaked HTTP request,
+  // and "random garbage", since it has nothing to look for, to even see the CR/LF sequence, to understand if there are any
+  // CR/LF sequences in the data.
+  while (stream.good ()) {
+    char idx = stream.get ();
+    switch (idx) {
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+      vec.push_back ('\n');
+      break;
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+    case 20:
+      vec.push_back ('\r');
+      break;
+    default:
+      if (idx > 31 && idx < 127)
+        vec.push_back (idx);
+      break;
+    }
 
-      // Reading single line from stream.
-      getline (stream, return_value);
-      trim_right_if (return_value, is_any_of ("\r"));
-
-  } else {
-
-    // Looping until we've read size no characters from stream.
-    do {
-
-      // Reading next line from stream.
-      string tmp;
-      getline (stream, tmp);
-
-      // Decrement size.
-      size -= (tmp.size() + 2);
-
-      // We do not left trim the first line we read for any occurrences of TAB or SP, only every consecutive lines, after the first line.
-      // After left trimming, we prepend a single SP character.
-      if (return_value.size () > 0) {
-
-        // This is not the first line we read, making sure we replace any occurrences of TAB or SP with a single SP.
-        trim_left_if (tmp, is_any_of ("\t "));
-        tmp = " " + tmp;
-      }
-
-      // Then we remove the trailing CR, before appending to return_value.
-      trim_right_if (tmp, is_any_of ("\r"));
-      return_value += tmp;
-
-    } while (size > 0);
+    // Checking if we have seen an entire line.
+    if (vec.size() > 1 && vec [vec.size() - 2] == '\r' && vec [vec.size() - 1] == '\n')
+      break;
   }
 
-  // Returning result to caller.
-  return return_value;
+  // Returning result to caller, ignoring CR/LF when creating return value.
+  return string (vec.begin (), vec.end () - 2);;
 }
 
 
-inline unsigned char from_hex (unsigned char ch) 
+unsigned char from_hex (unsigned char ch) 
 {
   if (ch <= '9' && ch >= '0')
     ch -= '0';
@@ -95,25 +108,25 @@ string string_helper::decode_uri (const string & uri)
   string return_value;
   
   // Iterating through entire string, looking for either '+' or '%', which is specially handled.
-  for (size_t i = 0; i < uri.length (); ++i) {
+  for (size_t idx = 0; idx < uri.length (); ++idx) {
     
     // Checking if this character should have special handling.
-    if (uri[i] == '+') {
+    if (uri [idx] == '+') {
 
       // '+' equals space " ".
       return_value += ' ';
 
-    } else if (uri[i] == '%' && uri.size() > i + 2) {
+    } else if (uri [idx] == '%' && uri.size() > idx + 2) {
 
-      // '%' notation of character.
+      // '%' notation of character, followed by two characters.
       // The first character is bit shifted 4 places, and OR'ed with the value of the second character.
-      return_value += (from_hex (uri [i+1]) << 4) | from_hex (uri [i+2]);
-      i += 2;
+      return_value += (from_hex (uri [idx + 1]) << 4) | from_hex (uri [idx + 2]);
+      idx += 2;
 
     } else {
 
       // Normal plain character.
-      return_value += uri[i];
+      return_value += uri [idx];
 
     }
   }

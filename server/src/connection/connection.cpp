@@ -55,20 +55,32 @@ connection::connection (class server * server, socket_ptr socket)
 
 connection::~connection ()
 {
-  // Closing socket gracefully.
-  error_code ignored_ec;
-  _socket->shutdown (tcp::socket::shutdown_both, ignored_ec);
-  _socket->close();
+  // Killing deadline timer.
+  kill_deadline_timer ();
+
+  // Closing socket gracefully, if it is open.
+  if (_socket->is_open ()) {
+
+    // Socket still open, making sure we close it.
+    error_code ignored_ec;
+    _socket->shutdown (tcp::socket::shutdown_both, ignored_ec);
+    _socket->close();
+  }
 }
 
 
 void connection::handle()
 {
+  // Settings deadline timer to "keep-alive" value, which means that if the client cannot send
+  // the initial HTTP-Request line in less than "keep-alive" amount of seconds,
+  // then the connection times out, also on the first initial request that created the connection.
+  // This prevents a client in establishing a connection, and never send any bytes, and such "lock" a connection,
+  // eating up resources on the server.
+  set_deadline_timer (_server->configuration().get<size_t> ("connection-keep-alive-timeout", 5));
+
   // Creating a new request, passing in an exceptional_executor object, which unless the request somehow
   // makes sure release() is invoked on the exceptional_executor, then the connection is automatically closed.
-  _request = request::create (this);
-
-  // Handles the request.
+  _request = request::create (this, _request_buffer);
   _request->handle (exceptional_executor ([this] () {
 
     // Closing connection.
@@ -79,9 +91,9 @@ void connection::handle()
 
 void connection::keep_alive ()
 {
-  // Settings deadline timer to "keep-alive" value.
-  size_t seconds = _server->configuration().get<size_t> ("connection-keep-alive-timeout", 5);
-  set_deadline_timer (boost::posix_time::seconds (seconds));
+  // Creating a new request, and handling it.
+  // Notice, this will keep our socket open, and also keep the stream buffer, which allows for "keep-alive" connections,
+  // while also supporting "pipelining" of requests.
   handle ();
 }
 
@@ -95,15 +107,15 @@ void connection::close()
 }
 
 
-void connection::set_deadline_timer (boost::posix_time::seconds seconds)
+void connection::set_deadline_timer (size_t seconds)
 {
-  // Cancel any previously registered tasks, before updating expire value, and registering a "close connection handler".
-  _timer.cancel ();
-  _timer.expires_from_now (seconds);
+  // Updating the timer's expiration, which will implicitly invoke any existing handlers, with an "operation aborted" error code.
+  _timer.expires_from_now (boost::posix_time::seconds (seconds));
   _timer.async_wait ([this] (const error_code & error) {
 
-    // We don't close in case an error, since when timer is canceled, handler is invoked, with an error code.
-    if (!error)
+    // We don't close if the operation was aborted, since when timer is canceled, the handler will be invoked with
+    // the "aborted" error_code, and every time we change the deadline timer, we implicitly cancel() any existing handlers.
+    if (error != boost::asio::error::operation_aborted)
       close ();
   });
 }

@@ -1,5 +1,5 @@
-
 /*
+
  * Rosetta web server, copyright(c) 2016, Thomas Hansen, phosphorusfive@gmail.com.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -38,7 +38,7 @@ class request;
 typedef shared_ptr<request> request_ptr;
 
 
-/// Wraps a single connection to our server, which means both the request and the response, and all associated objects.
+/// Wraps a single connection to our server, which might include multiple requests, and their associated response.
 class connection final : public std::enable_shared_from_this<connection>, public boost::noncopyable
 {
 public:
@@ -52,10 +52,10 @@ public:
   /// Handles a connection to our server.
   void handle ();
 
-  /// Keeps a connection alive for consecutive requests for an n amount of configurable seconds.
+  /// Keeps a connection alive for consecutive requests, for a configured amount of time.
   void keep_alive ();
 
-  /// Stops a connection.
+  /// Close the connection.
   void close ();
 
   /// Returns the socket for the current connection.
@@ -63,31 +63,33 @@ public:
 
 private:
 
-  /// Making request a friend class, such that it can access the socket,
-  /// server, streambuf, and other private data members.
+  /// Making request a friend class, such that it can access the socket, server, stream buffer, and other private data members.
   friend class request;
 
-  /// Creates a connection belonging to the specified connection_manager, on the given socket.
+  /// Creates a connection on the given socket, for the given server instance.
   explicit connection (class server * server, socket_ptr socket);
 
-  /// Sets the deadline timer for a specified amount of time before connection is closed unless timer is retouched.
-  void set_deadline_timer (boost::posix_time::seconds seconds);
+  /// Sets the deadline timer for a specified amount of time, before connection is closed.
+  void set_deadline_timer (size_t seconds);
 
-  /// Kills deadline timer altogether.
+  /// Kills the deadline timer altogether.
   void kill_deadline_timer ();
 
 
-  /// Server instance this connection is running on.
+  /// Server instance this connection belongs to.
   server * _server;
 
   /// Socket for connection.
   socket_ptr _socket;
 
-  /// Contains a reference to the request.
+  /// The request, will be created, and handled, when handle() on the connection is invoked.
   request_ptr _request;
 
-  /// Deadline timer, used to close connection if a timeout occurs.
+  /// Deadline timer, used to close connection, if a timeout occurs.
   deadline_timer _timer;
+
+  /// ASIO stream buffer, kept by connection, to support HTTP pipelining, across multiple requests.
+  streambuf _request_buffer;
 };
 
 

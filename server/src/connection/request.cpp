@@ -39,39 +39,33 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-request_ptr request::create (connection * connection)
+request_ptr request::create (connection * connection, boost::asio::streambuf & buffer)
 {
-  return request_ptr (new request (connection));
+  return request_ptr (new request (connection, buffer));
 }
 
 
-request::request (connection * connection)
-  : _connection (connection)
+request::request (connection * connection, boost::asio::streambuf & buffer)
+  : _connection (connection),
+    _request_buffer (buffer)
 { }
 
 
 void request::handle (exceptional_executor x)
 {
-  // Figuring out the maximum accepted length of the initial HTTP-Request line.
+  // Figuring out the maximum accepted length of the initial HTTP-Request line, before reading initial HTTP-Request line.
   auto max_uri_length = _connection->_server->configuration().get<size_t> ("max-uri-length", 4096);
   match_condition match (max_uri_length, "\r\n");
-
-  // If client spends more than x seconds sending the HTTP headers, we forcibly close connection.
-  size_t seconds = _connection->_server->configuration().get<size_t> ("request-header-read-timeout", 5);
-  _connection->set_deadline_timer (boost::posix_time::seconds (seconds));
-
-  // Reading initial HTTP-Request line.
   async_read_until (*_connection->_socket, _request_buffer, match, [this, match, x] (const error_code & error, size_t bytes_read) {
 
-    // Checking if socket has an error, or if reading the first line created an error (too long request).
+    // Checking if socket has an error, or if reading the first line, created an error (Too Long Request)
     if (error) {
 
       // Our socket was probably closed due to a timeout.
       x.release ();
-      return;
     } else if (match.has_error()) {
 
-      // HTTP-Version line was too long, probably too long URI, returning 414 to client.
+      // HTTP-Version line was too long, URI was too long, returning 414 to client.
       write_error_response (414, x);
     } else {
 
@@ -81,23 +75,31 @@ void request::handle (exceptional_executor x)
       // Splitting initial HTTP line into its three parts.
       vector<string> parts;
       boost::algorithm::split (parts, http_request_line, ::isspace);
-      std::remove (parts.begin(), parts.end(), "");
-      size_t no_parts = parts.size ();
 
-      // Now we can start deducting which type of request, and path, etc, this is, trying to be as fault tolerant as we can.
+      // Removing all empty parts of URI, meaning consecutive spaces.
+      std::remove (parts.begin(), parts.end(), "");
+
+      // Checking if the HTTP-Request line contains more than 3 entities, and if so, default behavior is to assume the URL has spaces.
+      while (parts.size () > 3) {
+
+        // Putting back any plain-text SP, assuming their SP in the URI of the request.
+        parts [1] += " " + parts [2];
+        parts.erase (parts.begin () + 2);
+      }
+
+      // Now we can start deducting which type of request, and path, etc, this is, trying to be as fault tolerant as we can, to
+      // support a maximum amount of HTTP "cloaking".
+      size_t no_parts = parts.size ();
       string type         = no_parts > 1 ? boost::algorithm::to_upper_copy (parts [0]) : "GET";
-      string path         = no_parts > 1 ? parts [1] : parts [0];
+      string uri          = no_parts > 1 ? parts [1] : parts [0];
       string version      = no_parts > 2 ? boost::algorithm::to_upper_copy (parts [2]) : "HTTP/1.1";
 
       // Decorating request.
-      decorate (type, path, version, x, [this] (exceptional_executor x) {
+      decorate (type, uri, version, x, [this] (exceptional_executor x) {
 
         // Reading HTTP headers into request.
+        _connection->set_deadline_timer (_connection->_server->configuration().get<size_t> ("request-header-read-timeout", 10));
         read_headers (x, [this] (exceptional_executor x) {
-
-          // Setting deadline timer to content-read value.
-          size_t seconds = _connection->_server->configuration().get<size_t> ("request-content-read-timeout", 300);
-          _connection->set_deadline_timer (boost::posix_time::seconds (seconds));
 
           // Reading content of HTTP request, if any.
           read_content (x, [this] (exceptional_executor x) {
@@ -124,6 +126,8 @@ void request::handle (exceptional_executor x)
                   x.release ();
                   _connection->keep_alive();
                 }
+
+                // Else; "x" will simply go out of scope, releasing the connection, closing the socket, etc ...
               });
             }
           });
@@ -141,20 +145,24 @@ void request::decorate (const string & type,
                         function<void(exceptional_executor x)> callback)
 {
   // Storing HTTP version of request.
-  _version = version;
+  if (version.find_first_of ("23456789") != string::npos)
+    _version = "HTTP/2.0"; // Creating an HTTP/2.0 request, if version string contains a number higher than "1".
+  else
+    _version = "HTTP/1.1"; // No version information provided, default behavior is to assume HTTP/1.1
 
   // Storing type of request.
   _type = type;
 
-  // Checking if path is "/" or empty, at which case we default it to the default file, referenced in configuration.
-  if (uri.size() == 0 || uri == "/") {
+  // Checking if path is one character or less, and if so, defaulting to "default-page" from configuration.
+  if (uri.size() <= 1) {
 
     // Serving default document.
     _uri = _connection->_server->configuration().get<string> ("default-page", "/index.html");
   } else {
 
-    // Checking if URI contains HTTP GET parameters.
-    auto index_of_pars = uri.find ("?");
+    // Checking if URI contains HTTP GET parameters, allowing for multiple different GET parameter delimiters, to support
+    // maximum amount of HTTP cloaking.
+    auto index_of_pars = uri.find_first_of ("?*$#~^€'§");
     if (index_of_pars <= 1) {
 
       // Default page was requested, with HTTP GET parameters.
@@ -205,18 +213,9 @@ void request::parse_parameters (const string & params)
 
 void request::read_headers (exceptional_executor x, function<void(exceptional_executor x)> functor)
 {
-  // Sanity check, we don't accept more than "max-header-count" HTTP headers from configuration.
-  auto max_header_count = _connection->_server->configuration().get<size_t> ("max-header-count", 25);
-  if (_headers.size() > max_header_count) {
-
-    // Writing error status response, and returning early.
-    write_error_response (413, x);
-    return;
-  }
-
   // Making sure each header don't exceed the maximum length defined in configuration.
   size_t max_header_length = _connection->_server->configuration().get<size_t> ("max-header-length", 8192);
-  match_condition match (max_header_length, "\r\n", "\t ");
+  match_condition match (max_header_length, "\r\n");
 
   // Now we can read the first header from socket, making sure it does not exceed max-header-length
   async_read_until (*_connection->_socket, _request_buffer, match, [this, x, match, functor] (const error_code & error, size_t bytes_read) {
@@ -237,31 +236,31 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
       return;
     }
 
-    // Now we can start parsing HTTP header, and check if this was our last HTTP header.
+    // Now we can start parsing HTTP headers.
     string line = string_helper::get_line (_request_buffer, bytes_read);
-    if (line == "") {
+    if (line.size () == 0) {
 
-      // We're now done reading all HTTP headers, giving control back to connection through function callback.
+      // No more headers.
       functor (x);
+      return;
+    }
+
+    // There are possibly more HTTP headers, continue reading until we see an empty line.
+    const size_t equals_idx = line.find (':');
+    if (equals_idx == string::npos) {
+
+      // Missing colon (:) in HTTP header, meaning, only HTTP-Header name, and no value.
+      // To be more fault tolerant towards non-conforming clients, we still let this one pass.
+      _headers [boost::algorithm::to_lower_copy (boost::algorithm::trim_copy (line))] = "";
     } else {
 
-      // There are possibly more HTTP headers, continue reading until we see an empty line.
-      const size_t equals_idx = line.find (':');
-      if (equals_idx == string::npos) {
-
-        // Missing colon (:) in HTTP header, meaning, only HTTP-Header name, and no value.
-        // To be more fault tolerant towards non-conforming clients, we still let this one pass.
-        _headers [boost::algorithm::to_lower_copy (boost::algorithm::trim_copy (line))] = "";
-      } else {
-
-        // Both name and key was supplied.
-        _headers [boost::algorithm::to_lower_copy (boost::algorithm::trim_copy (line.substr (0, equals_idx)))]
-          = boost::algorithm::trim_copy (line.substr (equals_idx + 1));
-      }
-
-      // Fetching next header by invoking self.
-      read_headers (x, functor);
+      // Both name and key was supplied.
+      _headers [boost::algorithm::to_lower_copy (boost::algorithm::trim_copy (line.substr (0, equals_idx)))]
+        = boost::algorithm::trim_copy (line.substr (equals_idx + 1));
     }
+
+    // Reading next header from socket.
+    read_headers (x, functor);
   });
 }
 
@@ -274,9 +273,14 @@ void request::read_content (exceptional_executor x, function<void(exceptional_ex
   // Checking if there is any Content-Length
   if (content_length_str == "") {
 
-    // No content, invoking callback functor immediately.
+    // No content, killing timer before invoking callback functor.
+    _connection->kill_deadline_timer ();
     functor (x);
   } else {
+
+    // Setting deadline timer to content-read value.
+    if ((*this)["content-length"].size () > 0)
+      _connection->set_deadline_timer (_connection->_server->configuration().get<size_t> ("request-content-read-timeout", 300));
 
     // Checking that content does not exceed max request content length, defaulting to 16 MB.
     auto content_length = lexical_cast<size_t> (content_length_str);

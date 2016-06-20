@@ -48,9 +48,16 @@ class request
 public:
 
   /// Constructs a new request of the specified type, path and version.
-  static request_ptr create (connection * connection);
+  static request_ptr create (connection * connection, boost::asio::streambuf & buffer);
 
-  /// Handles a request.
+  /// Handles a request by handling the entire body of the request, and then leave the execution up to the
+  /// correct request_handler, according to the configuration of server.
+  /// Notice, this method will "intelligently" try to figure out which resource is being requested, what type
+  /// of method is being used, and which HTTP version is used, by using sane defaults, and allowing for severely
+  /// malformed HTTP-Request lines and headers being sent. This is to allow "HTTP Cloaking Requests" to be sent
+  /// by the client, that makes it harder, and even impossible in some cases, to even deduct which type of traffic
+  /// the server and the client is engaging in, as a security feature, and counter measure of adversaries trying to
+  /// intercept and decrypt the messages sent back and forth between the client and the server.
   void handle (exceptional_executor x);
 
   /// Returns URI of request.
@@ -65,7 +72,7 @@ public:
 private:
 
   /// Constructs a new request of the specified type, path and version.
-  request (connection * connection);
+  request (connection * connection, boost::asio::streambuf & buffer);
 
   /// Decorates request according to initial HTTP-Request line sent, and returns true if request was successfully decorated.
   void decorate (const string & type,
@@ -106,7 +113,7 @@ private:
   request_handler_ptr _request_handler;
 
   /// Buffer for reading request.
-  boost::asio::streambuf _request_buffer;
+  boost::asio::streambuf & _request_buffer;
 };
 
 
