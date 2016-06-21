@@ -27,32 +27,17 @@
 namespace rosetta {
 namespace server {
 
-using std::pair;
 using std::string;
-using std::make_pair;
-using std::shared_ptr;
-using std::make_shared;
 
-/// Match condition plugs into boost asio's "async_read_until" method, and will read from socket until either
-/// "max_length" number of characters have been read, or "match" has been read as a sequence from socket,
-/// not followed by any of the characters in "unless".
-/// Both "match" and "unless" are optional, and if neither is supplied, then "max_length" number of
-/// characters will be read.
-/// If "max_length" was exceeded, without finding the "match" string, not followed by any characters in
-/// the "unless" argument, then has_error() will return true.
+/// Match condition plugs into boost asio's "async_read_until" method, and will read from socket, until either
+/// "max_length" number of characters have been read, or a Cloaked CRLF sequence has been encountered.
 class match_condition final
 {
 public:
 
-  /// Constructor taking a "max_length" number of bytes to read, a "match" string, and an "unless" argument.
-  /// Match condition plugs into boost asio's "async_read_until" method, and will read from socket until either
-  /// "max_length" number of characters have been read, or "match" has been read as a sequence from socket,
-  /// not followed by any of the characters in "unless".
-  /// Both "match" and "unless" are optional, and if neither is supplied, then "max_length" number of
-  /// characters will be read.
-  explicit match_condition (size_t max_length, const string & match = "")
-    : _error (make_shared <bool> ()),
-      _match (match),
+  /// Constructor taking a "max_length" number of bytes to read.
+  explicit match_condition (size_t max_length)
+    : _error (std::make_shared <bool> ()),
       _left (max_length)
   { }
 
@@ -60,46 +45,39 @@ public:
   bool has_error () const { return *_error; };
 
   /// Match method invoked from asio for socket read operations when async_read_until is used
-  template<typename iterator> pair<iterator, bool> operator() (iterator begin, iterator end)
+  template<typename iterator> std::pair<iterator, bool> operator() (iterator begin, iterator end)
   {
     iterator idx = begin;
     for (; idx != end; ++idx) {
 
+      // Retrieving currently iterated character, and check if we should ignore it.
+      unsigned char current = *idx;
+      if (current > 190)
+        continue; // Ignore character.
+
+      // Checking if currently iterated character should be bit-shifted.
+      if (current > 127)
+        current = current >> 1;
+
+      // Checking type of iterated character.
+      if (current < 11 && _seen_cr)
+        return std::make_pair (idx, true); // This is LF, and we have a Match.
+      else if (current < 21)
+        _seen_cr = true; // This is CR character.
+      else
+        _seen_cr = false; // Some other character in between CR and LF, besides from ignored character.
+
       // Checking if length exceeds max length.
       if (--_left <= 0) {
 
-        // End of requested "maximum characters" to read.
-        // Error is true, only if a delimiter was given, otherwise this was a simple "give me x characters" match.
-        *_error = _match.size () > 0;
-        return make_pair (idx, true);
-      }
-
-      // Checking if this is a "length only" match condition.
-      if (_match.size () > 0) {
-
-        // Checking if currently iterated character equals the next character we expect.
-        if (_match [_so_far.size()] == *idx) {
-
-          // Currently iterated character was equal to what we were expecting to come up next.
-          _so_far.push_back (*idx);
-
-          // Checking if we have an entire match, for all characters.
-          if (_so_far.size() == _match.size())
-            return make_pair (idx, true); // We have a match, returning true.
-        } else if (_so_far.length() > 0) {
-
-          // Throwing away "matched so far" buffer.
-          _so_far.clear();
-
-          // Currently iterated character can still equal the first expected char.
-          if (_match [0] == *idx)
-            _so_far.push_back (*idx); // Currently iterated character was equal to the first match character.
-        }
+        // End of "max characters to read", setting object into "error mode".
+        *_error = true;
+        return std::make_pair (idx, true);
       }
     }
 
     // No match, keep on reading.
-    return make_pair (idx, false);
+    return std::make_pair (idx, false);
   }
 
 private:
@@ -111,16 +89,13 @@ private:
   /// This allows us to retrieve errors from our originally created match condition, which we passed
   /// into async_read_until, since the one asio is copying, and the one we created, share the same boolean
   /// error condition reference.
-  shared_ptr<bool> _error;
-
-  /// The "match" string to look for.
-  string _match;
-
-  /// Used to keep track of how many of our match characters we have seen so far.
-  string _so_far;
+  std::shared_ptr<bool> _error;
 
   /// How many bytes we've got left to read from socket before we have a malformed request.
   size_t _left;
+
+  /// Used to track if we have seen a CR character.
+  bool _seen_cr = false;
 };
 
 

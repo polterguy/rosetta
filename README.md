@@ -10,16 +10,25 @@ Coming soon
 ## HTTP Cloaking
 
 Rosetta supports something called **HTTP cloaking**. This simply means that
-it can *"hide"* an HTTP request, in something that wouldn't normally look
-like an HTTP request, for an adversary. The way it does this, is by being able
-to accept HTTP envelopes that other server wouldn't normally even recognize
-as HTTP traffic at all.
+it can understand a *"hidden"* an HTTP request, in something that wouldn't
+normally look like an HTTP request, for a man in the middle. The way it does
+this, is by being able to accept HTTP envelopes that other servers wouldn't
+normally even recognize as HTTP traffic at all.
 
-For instance, the HTTP envelope parser accepts any characters between [0-11>
-as a LF, any character between [11-21> as CR and any character between
-[21-33> as SP. In addition it ignores any characters between 190 and 255,
-and bit shifts down one position any character above 127, before it interprets
-what characters it is being sent in the HTTP envelope.
+HTTP Cloaking literally translates into; *"Send me garbage data, that nobody
+else will be able to understand, and I will be able to make sense of it, somehow."*
+
+The advantages is that it eliminates a man in the middle to even understand
+what type of traffic you're sending and receiving, if your client supports
+Cloaking. It therefor helps you to anonymize your type of traffic.
+
+### Technicalities
+
+The HTTP envelope parser accepts any characters between [0-11> as a LF,
+any character between [11-21> as CR, and any character between [21-33>
+as SP. In addition it ignores any characters between [191-256>,
+and bit shifts down one position any character between [128-191>, before
+it interprets what characters it is being sent in the HTTP request envelope.
 
 In addition, a GET request can be identified as either "GET", "get", "gEt",
 "xqwG" or "-.,g". It simply looks for the first occurrence of "g", "h", "p",
@@ -36,37 +45,37 @@ Both the interpretation of the HTTP method, version, and URI, is done after
 the original bitshift/byte change has been performed.
 
 On top of this, a perfectly valid Rosetta HTTP request, does not need to
-contain anything, besides the URL in the HTTP-Request line, since both
-the method, and the version, are optional fields. If missing, Rosetta will
-default the request method to GET, and the HTTP version to HTTP/1.1.
+contain anything, since both the method, URI and the version, are optional
+fields. If missing, Rosetta will default the request method to GET, and
+URI to / and the HTTP version to HTTP/1.1.
 
-And in fact, the absolutely simplest possible HTTP GET request, does not
-need to contain anything but CR/LF, which again might be interchanged with
-any of the characters between [0-11> / [11-21>, which would be interpreted
-as a GET request, for the default page, whatever that is in your system.
+The simplest possible HTTP GET request, does not need to contain anything
+but CR/LF, which again might be interchanged with any of the characters
+between [0-11> for LF, and [11-21> for CR, which would be interpreted as
+a perfectly valid GET request, for the default page, whatever that is
+in your system.
 
 This means you could request the default HTML page in a Rosetta server, with
 for instance 0x05 and 0xF5, for instance, which would be interpreted as
-a CR/LF sequence by the HTTP envelope parser. Or 0x00 and 0x0b, etc.
+a CR/LF sequence by the HTTP envelope parser. Or 0x00 and 0x0b, etc. And
+you could put as many characters between the CR and LF in the range of
+[191-256> as you wish.
 
 In fact, even without considering adding "garbage characters", which are
 characters from 190 and up to 255, there exists 10x10 different ways
 of creating a simple CR/LF sequence in Rosetta. Once you start adding
 garbage characters to the stream, to further increase the strength of your
 cloaking, then the amount of possible ways to create a valid CR/LF sequence
-to a Rosetta server, literally becomes infinite! This is because you can
-put an infinite amount of characters between your CR and LF, that are in
-the range of [190-256>
+to a Rosetta server, literally becomes infinite.
 
 Any HTTP header fields, use the first character not in the range of
 [a-z, A-Z, 0-9 or '-'] as the delimiter between the HTTP header name, and
 its value. In addition, when parsing HTTP header fields, the name of them
 is turned into lowercase, and stored, and referred to, internally in Rosetta,
-as lowercase. In addition, the headers that the server itself is parsing,
-is also turned into lowercases, before the server checks their values.
-And any SP characters are trimmed away. This process is done after the
-initial bit-shifting process, which means that a perfectly valid HTTP
-header can look something like this for instance;
+as lowercase. Any SP/TAB characters are trimmed away, from both the name
+and the value. This process is done after the initial bit-shifting process,
+which means that a perfectly valid HTTP header can look something like this
+for instance;
 
   coNneCtion &   keep-alive
 
@@ -75,89 +84,76 @@ Which of course means;
 Connection:keep-alive
 
 In addition, the header, name and value, can contain any ignored bytes, in
-the range of [190-256>, at any position, to create "garbage character", making
-the header field, more difficult to deduct. And the CR/LF sequence, can be
-any characters between [0-11> && [11-21>. And SP here means any character in
-the range of [21-33>.
+the range of [191-256>, at any position, to create "garbage characters", making
+the header field, more difficult to interpret for an adversary man in the middle.
+And the CR/LF sequence, can be any characters between [0-11> && [11-21>. And SP
+here means any character i the range of [21-33>.
 
 The URI can use any of these letters as delimiter between the actual URI,
 and the HTTP GET parameters [?*$~^€§]. Again, this is done after the initial
 bit-shifting process, and discarding of invalid characters, etc.
 
-In addition, a Rosetta box, does not store any logs, what so ever, does
-not identify itself in any ways, and tries to keep the amount of HTTP
-headers it needs for a valid HTTP request to a minimum. For instance,
-Rosetta does not require you to send the *"Host"* HTTP header, since
-by default, it simply swallows everything, and accepts everything.
-
-Rosetta also does not implement by default the TRACE, CONNECT or OPTIONS
-methods.
-
-It also keeps the amount of headers it returns, back to the client,
-to a minimum. This is so to reduce the "knowns what to look for", for
-any adversary, trying to attack the server, and understand the messages
-sent.
+This means, that if you create a Cloaked HTTP request, it would be impossible
+for an adversary man in the middle, to even know what type of traffic you
+are sending. And it would appear outwards like any *"random binary bytes
+sent from any random game you are currently playing"*.
 
 ## Why Cloak?
 
-To understand the reasoning for this, one must understand how a brute force
-decryption attack on an HTTP message works. However, to explain it simple;
-It is highly likely mathematically, at least 10 orders of magnitude more
-CPU intensive, to brute force decrypt an HTTP message, if the adversary
-does not know what it is looking for. In addition, the very act of brute
-force decrypting an HTTP message that has been *"cloaked"*, would highly likely
-create many more false positives, than a non-cloaked HTTP message. This
-means that the CPU powers necessary to brute force decrypt a severely cloaked
-HTTP message, is forced to run the same algorithm for each time it thinks it
-finds a match, as the Rosetta web server must do to de-cloak the messages
-it receives.
+By using HTTP Cloaking, you can *"hide"* your HTTP requests, as something
+that others, proxies and similar men in the middle, would not normally
+recognize as HTTP. This makes it near impossible for a man in the middle
+to understand what type of traffic you are sending over a network, since
+a Cloaket HTTP request would be perceived as "random binary bytes" sent
+from a client to a server. And any attempts at trying to understand what
+type of traffic is being sent, would imply analyzing the message, or
+implementing pattern recognition, which would highly likely create false
+positives, making any man in the middle interpret other types of traffic
+as HTTP traffic.
 
-For Rosetta, doing this once, for each message, is quite cheap in regards to
-CPU and other resources. For a brute force decryption attack, that needs to
-do this possibly trillions of times, for each candidate for a match it finds,
-this makes the task of brute force decryption becomes possibly several orders
-of magnitudes more expensive in regards to processor power.
+In addition it makes it literally impossible for a man in the middle to
+tamper with, and/or change your HTTP message, since it wouldn't even
+know with certainty, if this is an HTTP message, or any other types
+of random binary data sent between two computers.
 
-In addition, knowing for certainty, if it has a positively de-cloaked message,
-or simply a false positive, would require analyzing the actual message,
-which again might be impossible, if further decryption layers have been added,
-on top of the normal SSL encryption.
+In addition, when you combine Cloaking with additional layers of encryption,
+in addition to HTTPS, such as OpenPGP or AES, inbetween the HTTPS and the
+message transmission, then unless an adversary knows which key you used
+to encrypt your message with, and has access to it, a brute force decryption
+of the HTTP message, would be significantly more CPU resource demanding.
 
-Notice please though, that HTTP cloaking is an **addition** to encrypting
-your HTTP traffic, and not a "substitute". In itself, without encryption,
-it is close to pointless. But combined with traditional encryption, such as SSL
-and/or OpenPGP, it makes it mathematically, several orders of magnitudes more
-difficult to retrieve the HTTP request that was originally sent from the client.
-This is so since an adversary would not even know what to look for, when doing
-a brute force decryption attack, with for instance a pre-calculated decryption-key
-databases, and similar techniques, without being forced into doing some sort of
-pattern recognition, or other expensive analyzing of possible matches, which
-would result in lots of false positives for the algorithm, and much, much,
-much more CPU and resource requirements, than if it knows it is simply looking
-for the capital letters *"GET"*.
+This is because anyone trying to brute force decrypt a message, would not
+even know what to look for. And even if they were able to actually decrypt
+the message, using a database of pre-fabricated cryptography keys for instance,
+they would not be able to discriminate a valid HTTP message from "random garbage".
 
-To give you an example, the Enigma machine, was apparently, according to modern
-dogma, broken because of the fact that every single message the Germans transmitted,
-ended with the letters; *"Heil Hitler"* - This made it orders of magnitude
-more easy for Alan Turing to create a code-breaker, since he knew how a positive
-match looked like. Or at least the last 11 characters of a successful crack.
+Meaning, even if they were able to successfully decrypt your message, they
+would not be able to recognize the decrypted message from any *"random crap"*
+their decryption algorithm would produce for a miss.
 
-The strictness of the HTTP standard itself, is that same "red flag", which
-allows an adversary to know what it is looking for, the same way Alan Turing
-knew what he was looking for, since every single successful code-breaking
-result, would with a 80% probability start out with the letters *"GET"*, 15%
-probability start with the letters *"POST"* (which could be deducted from
-its size, to further reduce the checklist), and 5% probability with the words;
-*"PUT"*, *"DELETE"*, *"HEAD"* and so on.
+In addition, you can create smaller HTTP requests, reducing the bandwidth
+consumption of your HTTP traffic, since you can strip away almost the
+entire HTTP envelope, and Rosetta will still be able to understand your request.
 
-By *"cloaking"* the message, a code-breaking machine, wouldn't even know how
-a positive match looks like, and would be completely left in the wild, in regards
-to any brute force attack to try to find the decryption key. And would have
-to actually read and analyze the contents of the HTTP message, for every single
-possible match, to analyze if it actually is a match or not. This process is
-simply too expensive, for any computers today to be able to do it, even if
-they possessed the CPU capability of actually decrypting the message in the
-first place.
+### Disclaimer, this is **not** cryptography
+
+Please notice that HTTP Cloaking is not an alternative to encryption. You
+should still use encryption on your HTTP traffic. Also notice that no known
+client, as of today, are able to create Cloaked HTTP requests. So this is a
+feature, which at the moment, is only for Rosetta to Rosetta web service
+communication.
+
+### Performance penalties of Cloaking your HTTP requests
+
+The performance penalty of implementing support for understanding
+Cloaked HTTP requests, is almost insignificant. This is because any
+serious HTTP envelope parser, still needs to look for *"garbage data"*,
+to protect itself from injecting malicious data into the server. The
+only difference between Rosetta and any other web server in this regard,
+is that Rosetta instead of discarding the *"garbage data"*, tries to
+transform it, into something it can understand.
+
+So there is little, if any, performance penalty of implementing HTTP Cloaking.
 
 ## License
 

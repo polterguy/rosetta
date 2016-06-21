@@ -55,7 +55,7 @@ void request::handle (exceptional_executor x)
 {
   // Figuring out the maximum accepted length of the initial HTTP-Request line, before reading initial HTTP-Request line.
   auto max_uri_length = _connection->_server->configuration().get<size_t> ("max-uri-length", 4096);
-  match_condition match (max_uri_length, "\r\n");
+  match_condition match (max_uri_length);
   async_read_until (*_connection->_socket, _request_buffer, match, [this, match, x] (const error_code & error, size_t bytes_read) {
 
     // Checking if socket has an error, or if reading the first line, created an error (Too Long Request)
@@ -218,7 +218,7 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
 
   // Making sure each header don't exceed the maximum length defined in configuration.
   size_t max_header_length = _connection->_server->configuration().get<size_t> ("max-header-length", 8192);
-  match_condition match (max_header_length, "\r\n");
+  match_condition match (max_header_length);
 
   // Now we can read the first header from socket, making sure it does not exceed max-header-length
   async_read_until (*_connection->_socket, _request_buffer, match, [this, x, match, functor] (const error_code & error, size_t bytes_read) {
@@ -273,7 +273,7 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
 void request::read_content (exceptional_executor x, function<void(exceptional_executor x)> functor)
 {
   // Checking if there is any content first.
-  string content_length_str = (*this)["Content-Length"];
+  string content_length_str = (*this)["content-length"];
 
   // Checking if there is any Content-Length
   if (content_length_str == "") {
@@ -284,8 +284,7 @@ void request::read_content (exceptional_executor x, function<void(exceptional_ex
   } else {
 
     // Setting deadline timer to content-read value.
-    if ((*this)["content-length"].size () > 0)
-      _connection->set_deadline_timer (_connection->_server->configuration().get<size_t> ("request-content-read-timeout", 300));
+    _connection->set_deadline_timer (_connection->_server->configuration().get<size_t> ("request-content-read-timeout", 300));
 
     // Checking that content does not exceed max request content length, defaulting to 16 MB.
     auto content_length = lexical_cast<size_t> (content_length_str);
@@ -299,7 +298,7 @@ void request::read_content (exceptional_executor x, function<void(exceptional_ex
 
     // Reading content into streambuf.
     match_condition match (content_length);
-    async_read_until (*_connection->_socket, _request_buffer, match, [this, match, content_length, functor, x] (const error_code & error, size_t bytes_read) {
+    /*async_read_until (*_connection->_socket, _request_buffer, match, [this, match, content_length, functor, x] (const error_code & error, size_t bytes_read) {
 
       // Checking for socket errors.
       if (error)
@@ -312,7 +311,7 @@ void request::read_content (exceptional_executor x, function<void(exceptional_ex
       // Invoking functor callback supplied by caller.
       // Notice, at this point, we simply keep the content in our connection's streambuf for later references.
       functor (x);
-    });
+    });*/
   }
 }
 

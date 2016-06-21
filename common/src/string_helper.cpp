@@ -19,6 +19,7 @@
 #include <istream>
 #include <boost/algorithm/string.hpp>
 #include "common/include/string_helper.hpp"
+#include "common/include/rosetta_exception.hpp"
 
 using std::string;
 using std::vector;
@@ -33,37 +34,39 @@ namespace common {
 
 string string_helper::get_line (streambuf & buffer, int size)
 {
-  // Reading next line from stream.
+  // Reading next line from stream, and putting into vector buffer, for efficiency.
   vector<char> vec;
   istream stream (&buffer);
 
-  // Iterating stream until CR/LF has been seen, ignoring everything but the normal US ASCII range of characters,
-  // and CR/LF, to allow for cloaking HTTP requests.
-  // Please notice, that with the current logic here, you can even create requests that have lines in them, where you can put
-  // "garbage data" between the CR and the LF to create a maximum amount of cloaking for your HTTP requests.
-  // In addition, everything between [0 11> is interpreted as a LF, and everything between [11 21> is interpreted as a CR, and
-  // everything between [21 32> is interpreted as a SP.
-  // This means, it becomes literally impossible for an adversary to see the difference between a cloaked HTTP request,
-  // and "random garbage", since it has nothing to look for, not even to see a CR/LF sequence, to understand if there are any
-  // CR/LF sequences, or even SP in the data it examines.
+  // Iterating stream until CR/LF has been seen, and returning the line to caller, transformed
+  // from its Cloaked version.
   while (stream.good ()) {
-    char idx = stream.get ();
+
+    // Get next character from stream, and interpret it according to the Cloaking rules.
+    unsigned char idx = stream.get ();
     if (idx < 11)
       idx = '\n'; // LF
     else if (idx < 21)
       idx = '\r'; // CR
     else if (idx < 33)
       idx = ' '; // SP
-    else if (idx > (char)190)
-      continue; // IGNORE, garbage filling
+    else if (idx > (unsigned char)190)
+      continue; // IGNORE, garbage filling bytes.
     else if (idx > 127)
-      idx = idx >> 1; // Bitshift one bit down
+      idx = idx >> 1; // Bit-shift one bit down
+    // else; Plain US ASCII character, in the range of [32-128>
+
+    // Appending possibly transformed character into vector.
     vec.push_back (idx);
 
     // Checking if we have seen an entire line.
     if (vec.size() >= 2 && vec [vec.size() - 2] == '\r' && vec [vec.size() - 1] == '\n')
-      break;
+      break; // We have passed the CRLF sequence.
   }
+
+  // Sanity checking line.
+  if (vec.size() < 2)
+    throw rosetta_exception ("Oops, bad line of data given to string_helper::get_line!");
 
   // Returning result to caller, ignoring CR/LF when creating return value.
   return string (vec.begin (), vec.end () - 2);;
