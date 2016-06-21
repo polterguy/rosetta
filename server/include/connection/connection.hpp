@@ -25,17 +25,15 @@
 #include "server/include/server.hpp"
 
 using std::string;
-using boost::asio::ip::tcp;
-using namespace boost::asio;
 
 namespace rosetta {
 namespace server {
 
 class connection;
-typedef shared_ptr<connection> connection_ptr;
+typedef std::shared_ptr<connection> connection_ptr;
 
 class request;
-typedef shared_ptr<request> request_ptr;
+typedef std::shared_ptr<request> request_ptr;
 
 
 /// Wraps a single connection to our server, which might include multiple requests, and their associated response.
@@ -86,10 +84,10 @@ private:
   request_ptr _request;
 
   /// Deadline timer, used to close connection, if a timeout occurs.
-  deadline_timer _timer;
+  boost::asio::deadline_timer _timer;
 
   /// ASIO stream buffer, kept by connection, to support HTTP pipelining, across multiple requests.
-  streambuf _request_buffer;
+  boost::asio::streambuf _request_buffer;
 };
 
 

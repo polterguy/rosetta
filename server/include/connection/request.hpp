@@ -27,22 +27,19 @@
 namespace rosetta {
 namespace server {
 
-using std::map;
 using std::string;
-using std::function;
-using std::shared_ptr;
 using namespace rosetta::common;
 
 class request;
-typedef shared_ptr<request> request_ptr;
+typedef std::shared_ptr<request> request_ptr;
 
 class request_handler;
-typedef shared_ptr<request_handler> request_handler_ptr;
+typedef std::shared_ptr<request_handler> request_handler_ptr;
 
 class connection;
 
 
-/// Wraps a single HTTP request
+/// Wraps a single HTTP request.
 class request
 {
 public:
@@ -79,16 +76,16 @@ private:
                  const string & uri,
                  const string & version,
                  exceptional_executor x,
-                 function<void(exceptional_executor x)> callback);
+                 std::function<void(exceptional_executor x)> callback);
 
   /// Parses GET parameters.
   void parse_parameters (const string & params);
 
   /// Reads and parses the HTTP headers from the given connection.
-  void read_headers (exceptional_executor x, function<void(exceptional_executor x)> callback);
+  void read_headers (exceptional_executor x, std::function<void(exceptional_executor x)> callback);
 
   /// Reads and parses the HTTP headers from the given connection.
-  void read_content (exceptional_executor x, function<void(exceptional_executor x)> callback);
+  void read_content (exceptional_executor x, std::function<void(exceptional_executor x)> callback);
 
 
   /// The connection this instance belongs to.
@@ -104,10 +101,10 @@ private:
   string _version;
 
   /// Headers.
-  map<string, string> _headers;
+  std::map<string, string> _headers;
 
   /// HTTP parameters.
-  map<string, string> _parameters;
+  std::map<string, string> _parameters;
 
   /// Request handler.
   request_handler_ptr _request_handler;

@@ -26,15 +26,6 @@
 #include "server/include/connection/connection.hpp"
 #include "server/include/exceptions/program_exception.hpp"
 
-using std::cerr;
-using std::move;
-using std::endl;
-using std::vector;
-using std::shared_ptr;
-using std::make_shared;
-using boost::thread;
-using boost::bind;
-using boost::asio::io_service;
 
 namespace rosetta {
 namespace server {
@@ -48,16 +39,16 @@ thread_pool_server::thread_pool_server (const class configuration & configuratio
 
 void thread_pool_server::run ()
 {
-  typedef shared_ptr<thread> thread_ptr;
+  typedef std::shared_ptr<boost::thread> thread_ptr;
   
   // Creating thread pool according to size from configuration.
   size_t thread_pool_size = configuration ().get ("threads", 128);
-  vector<thread_ptr> threads;
+  std::vector<thread_ptr> threads;
 
   for (size_t i = 0; i < thread_pool_size; ++i) {
     
     // Creating thread, and binding it to thread_pool_server::thread_run().
-    thread_ptr thread (make_shared<thread> (bind (&thread_pool_server::thread_run, this)));
+    thread_ptr thread (std::make_shared<boost::thread> (boost::bind (&thread_pool_server::thread_run, this)));
     threads.push_back (thread);
   }
 
@@ -88,7 +79,7 @@ void thread_pool_server::thread_run ()
     } catch (const std::exception & error) {
       
       // Unhandled exception, logging to std error object, before restarting io_server object.
-      cerr << "Unhandled exception occurred, message was; '" << error.what() << "'" << endl;
+      std::cerr << "Unhandled exception occurred, message was; '" << error.what() << "'" << std::endl;
     }
   }
 }

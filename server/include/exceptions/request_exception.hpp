@@ -22,7 +22,7 @@
 #include "common/include/rosetta_exception.hpp"
 
 using std::string;
-using rosetta::common::rosetta_exception;
+using namespace rosetta::common;
 
 namespace rosetta {
 namespace server {

@@ -23,11 +23,8 @@
 #include "server/include/single_thread_server.hpp"
 #include "server/include/connection/connection.hpp"
 
-using std::move;
 using std::string;
-using std::make_shared;
-using namespace boost::system;
-using namespace boost::asio::ip;
+using boost::system::error_code;
 
 namespace rosetta {
 namespace server {
@@ -45,11 +42,11 @@ server_ptr server::create (const class configuration & configuration)
   if (thread_model == "single-thread") {
 
     // Single threaded server.
-    return server_ptr (make_shared<single_thread_server> (configuration));
+    return server_ptr (std::make_shared<single_thread_server> (configuration));
   } else if (thread_model == "thread-pool") {
 
     // Thread pool server.
-    return server_ptr (make_shared<thread_pool_server> (configuration));
+    return server_ptr (std::make_shared<thread_pool_server> (configuration));
   } else {
 
     // Unknown server thread model.
@@ -82,14 +79,14 @@ server::server (const class configuration & configuration)
   string port    = _configuration.get<string> (PORT_CONFIG_KEY, "8080");
   
   // Resolving address and port, for then to open endpoint
-  tcp::resolver resolver (_service);
-  tcp::endpoint endpoint = *resolver.resolve ({address, port});
+  boost::asio::ip::tcp::resolver resolver (_service);
+  boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve ({address, port});
   
   // Letting endpoint decide whether or not we should use IP version 4 or 6
   _acceptor.open (endpoint.protocol());
   
   // Allowing the acceptor to reuse address, before binding to endpoint
-  _acceptor.set_option(tcp::acceptor::reuse_address (true));
+  _acceptor.set_option (boost::asio::ip::tcp::acceptor::reuse_address (true));
   _acceptor.bind (endpoint);
   
   // Start listening on acceptor.
@@ -104,7 +101,7 @@ connection_ptr server::create_connection (socket_ptr socket)
 {
   // Counting existing connections from client.
   size_t no_connections_for_ip = 0;
-  ip::address client_address = socket->remote_endpoint().address();
+  boost::asio::ip::address client_address = socket->remote_endpoint().address();
   for (auto & idx : _connections) {
     if (idx->socket()->remote_endpoint().address() == client_address)
       ++no_connections_for_ip;
@@ -116,7 +113,7 @@ connection_ptr server::create_connection (socket_ptr socket)
 
     // We refuse this connection.
     error_code ignored_ec;
-    socket->shutdown (tcp::socket::shutdown_both, ignored_ec);
+    socket->shutdown (boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
     return nullptr;
   }
 
@@ -138,7 +135,7 @@ void server::remove_connection (connection_ptr connection)
 void server::on_accept ()
 {
   // Waiting for next request.
-  auto socket = make_shared<tcp::socket> (io_service ());
+  auto socket = std::make_shared<boost::asio::ip::tcp::socket> (io_service ());
   _acceptor.async_accept(*socket, [this, socket] (const error_code & error) {
 
     // Checking that our acceptor is still open, and not killed

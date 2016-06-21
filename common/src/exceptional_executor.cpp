@@ -23,10 +23,9 @@ namespace rosetta {
 namespace common {
 
 using std::string;
-using std::function;
 
 
-exceptional_executor::exceptional_executor (function<void ()> functor)
+exceptional_executor::exceptional_executor (std::function<void ()> functor)
   : _functor (functor)
 {
   if (functor == nullptr)

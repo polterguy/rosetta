@@ -22,7 +22,6 @@
 #include <boost/asio.hpp>
 
 using std::string;
-using boost::asio::streambuf;
 
 namespace rosetta {
 namespace common {
@@ -37,7 +36,7 @@ public:
   /// Will verify that no "garbage data" is transmitted, which means anything not being either between [32-127),
   /// or CR, LF or TAB. Will also verify that CR/LF is only found at the end, and that there is a valid CR/LF sequence.
   /// If the given streambuf's content does not match these criteria, the method will throw an exception.
-  static string get_line (streambuf & buffer);
+  static string get_line (boost::asio::streambuf & buffer);
   
   /// Decodes the given URI from its URI encoded notation.
   static string decode_uri (const string & uri);

@@ -22,7 +22,6 @@
 #include <exception>
 
 using std::string;
-using std::exception;
 
 namespace rosetta {
 namespace common {
@@ -30,7 +29,7 @@ namespace common {
 
 /// Base exception class for Rosetta.
 /// All exceptions thrown by Rosetta will inherit, either directly, or indirectly from this class.
-class rosetta_exception : public exception
+class rosetta_exception : public std::exception
 {
 public:
    

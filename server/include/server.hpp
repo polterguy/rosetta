@@ -23,23 +23,18 @@
 #include <boost/asio.hpp>
 #include "common/include/configuration.hpp"
 
-using std::set;
-using std::shared_ptr;
-using boost::asio::ip::tcp;
-using boost::asio::io_service;
-using boost::asio::signal_set;
 using namespace rosetta::common;
 
 namespace rosetta {
 namespace server {
 
 class connection;
-typedef shared_ptr<connection> connection_ptr;
+typedef std::shared_ptr<connection> connection_ptr;
 
 class server;
-typedef shared_ptr<server> server_ptr;
+typedef std::shared_ptr<server> server_ptr;
 
-typedef shared_ptr<tcp::socket> socket_ptr;
+typedef std::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 
 
 /// This is the main server object, and there will only be one server running in your application.
@@ -57,13 +52,10 @@ public:
   const class configuration & configuration () const { return _configuration; };
 
   /// Returns the io_service belonging to this instance.
-  class io_service & io_service () { return _service; }
+  class boost::asio::io_service & io_service () { return _service; }
 
   /// Removes the specified connection.
   virtual void remove_connection (connection_ptr connection);
-
-  /// Returns the version number of the Rosetta server.
-  string server_version() const { return "1.0"; }
 
 protected:
 
@@ -74,7 +66,7 @@ protected:
   virtual connection_ptr create_connection (socket_ptr socket);
 
   /// Only io service object in application.
-  class io_service _service;
+  boost::asio::io_service _service;
 
 private:
 
@@ -89,13 +81,13 @@ private:
   const class configuration _configuration;
 
   /// The signal_set is used to register for process termination notifications.
-  signal_set _signals;
-  
+  boost::asio::signal_set _signals;
+
   /// Acceptor which listens for incoming connections
-  tcp::acceptor _acceptor;
+  boost::asio::ip::tcp::acceptor _acceptor;
 
   /// All live connections to our server.
-  set<connection_ptr> _connections;
+  std::set<connection_ptr> _connections;
 };
 
 

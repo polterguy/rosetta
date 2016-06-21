@@ -25,10 +25,8 @@
 #include <boost/asio.hpp>
 #include "server/include/exceptions/request_exception.hpp"
 
-using namespace rosetta::common;
-
 namespace rosetta {
-namespace server {
+namespace common {
 
 using std::string;
 
@@ -90,13 +88,13 @@ private:
 };
 
 
-} // namespace server
+} // namespace common
 } // namespace rosetta
 
 // We have to declare our partial template specialization within the asio namespace.
 namespace boost {
 namespace asio {
-template <> struct is_match_condition<rosetta::server::match_condition> : public true_type {};
+template <> struct is_match_condition<rosetta::common::match_condition> : public true_type {};
 }
 }
 

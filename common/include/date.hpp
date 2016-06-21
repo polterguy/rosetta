@@ -22,7 +22,6 @@
 #include <boost/date_time/local_time/local_time.hpp>
 
 using std::string;
-using namespace boost::local_time;
 
 namespace rosetta {
 namespace common {
@@ -57,10 +56,10 @@ private:
   date ();
 
   /// Creates a new date, with its value being the specified "date".
-  date (const local_date_time & date);
+  date (const boost::local_time::local_date_time & date);
 
   /// Actual content of date object.
-  local_date_time _date;
+  boost::local_time::local_date_time _date;
 };
 
 

@@ -22,10 +22,6 @@
 #include "server/include/single_thread_server.hpp"
 #include "server/include/connection/connection.hpp"
 
-using std::cerr;
-using std::endl;
-using std::move;
-
 namespace rosetta {
 namespace server {
 
@@ -55,7 +51,7 @@ void single_thread_server::run ()
     } catch (const std::exception & error) {
       
       // Unhandled exception, logging to std error object, before restarting io_server object.
-      cerr << "Unhandled exception occurred, message was; '" << error.what() << "'" << endl;
+      std::cerr << "Unhandled exception occurred, message was; '" << error.what() << "'" << std::endl;
     }
   }
 }

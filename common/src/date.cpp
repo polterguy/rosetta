@@ -21,21 +21,17 @@
 #include "common/include/date.hpp"
 
 using std::string;
-using std::locale;
-using std::stringstream;
-using namespace boost::filesystem;
-using namespace boost::posix_time;
 
 namespace rosetta {
 namespace common {
 
 
 date::date ()
-  : _date (local_sec_clock::local_time (time_zone_ptr ()))
+  : _date (boost::local_time::local_sec_clock::local_time (boost::local_time::time_zone_ptr ()))
 { }
 
 
-date::date (const local_date_time & date)
+date::date (const boost::local_time::local_date_time & date)
   : _date (date)
 { }
 
@@ -48,8 +44,8 @@ date date::now()
 
 date date::from_file_change(const string & filepath)
 {
-  ptime pt = from_time_t (last_write_time (filepath));
-  return date (local_date_time (pt, time_zone_ptr ()));
+  boost::posix_time::ptime pt = boost::posix_time::from_time_t (boost::filesystem::last_write_time (filepath));
+  return date (boost::local_time::local_date_time (pt, boost::local_time::time_zone_ptr ()));
 }
 
 
@@ -57,23 +53,23 @@ date date::parse (const string & value)
 {
   // Figuring out which date format this is, to support HTTP/1.0
   size_t pos_of_comma = value.find (",");
-  local_time_input_facet * lt = nullptr;
+  boost::local_time::local_time_input_facet * lt = nullptr;
   if (pos_of_comma == 3) {
 
     // Standard HTTP/1.1 date format, RFC 1123.
-    lt = new local_time_input_facet("%a, %d %b %Y %H:%M:%S GMT");
+    lt = new boost::local_time::local_time_input_facet("%a, %d %b %Y %H:%M:%S GMT");
 
   } else if (pos_of_comma != string::npos) {
 
     // RFC 850
-    lt = new local_time_input_facet("%A, %d-%b-%y %H:%M:%S GMT");
+    lt = new boost::local_time::local_time_input_facet("%A, %d-%b-%y %H:%M:%S GMT");
 
   } else {
     
     // ANSI C's asctime() format.
     // TODO: Doesn't work on my Mac.
     // According to boost date_time, the %e formatting flag is "missing on some platforms" (quote)
-    lt = new local_time_input_facet("%a %b %e %H:%M:%S %Y");
+    lt = new boost::local_time::local_time_input_facet("%a %b %e %H:%M:%S %Y");
   }
 
   // Turning given string into a date using stringstream.
@@ -87,9 +83,9 @@ date date::parse (const string & value)
 
 string date::to_string () const
 {
-  local_time_facet * lf (new local_time_facet("%a, %d %b %Y %H:%M:%S GMT"));
-  stringstream ss;
-  ss.imbue (locale (ss.getloc(), lf));
+  boost::local_time::local_time_facet * lf (new boost::local_time::local_time_facet("%a, %d %b %Y %H:%M:%S GMT"));
+  std::stringstream ss;
+  ss.imbue (std::locale (ss.getloc(), lf));
   ss << _date;
   return ss.str();
 }

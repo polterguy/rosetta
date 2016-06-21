@@ -20,8 +20,6 @@
 
 #include <functional>
 
-using std::function;
-
 namespace rosetta {
 namespace common {
 
@@ -39,7 +37,7 @@ class exceptional_executor final
 public:
 
   /// Constructor taking a function that will evaluate when object goes out of scope, unless release() is called before.
-  exceptional_executor (function<void ()> functor);
+  exceptional_executor (std::function<void ()> functor);
 
   /// Destructor that invokes functor object unless release is invoked before destruction occurs.
   ~exceptional_executor ();
@@ -56,7 +54,7 @@ public:
 private:
 
   /// Function object that will evaluate when instance is destroyed, unless released before destructor is invoked.
-  mutable function<void ()> _functor;
+  mutable std::function<void ()> _functor;
 };
 
 

@@ -23,11 +23,8 @@
 #include "server/include/server.hpp"
 #include "server/include/exceptions/argument_exception.hpp"
 
-using std::cout;
-using std::cerr;
 using std::endl;
 using std::string;
-using std::exception;
 using namespace rosetta::common;
 using namespace rosetta::server;
 
@@ -61,10 +58,10 @@ int main (int argc, char* argv[])
     // This method won't return before server is somehow stopped, or a severe exception,
     // that we do not know how to handle occurs.
     server->run();
-  } catch (const exception & err) {
+  } catch (const std::exception & err) {
     
     // Giving feedback to std error with exception message.
-    cerr << "Unhandled Rosetta exception; '" << err.what() << "'" << endl;
+    std::cerr << "Unhandled Rosetta exception; '" << err.what() << "'" << endl;
   }
 }
 
@@ -73,7 +70,7 @@ int main (int argc, char* argv[])
 void show_copyright_server_info (const configuration & config)
 {
   // Showing copyright notice, providing callback to inject information about how to access website.
-  configuration::serialize_copyright (cout, [config] (ostream & stream) {
+  configuration::serialize_copyright (std::cout, [config] (std::ostream & stream) {
     
     // Serializing information about how to view website, making sure we've accommodated for 80 characters per line.
     string s = "# Open your browser and go to; 'http://localhost:"
@@ -94,7 +91,7 @@ void show_copyright_server_info (const configuration & config)
     if (thread_model == "multi-thread") {
     
       // Serializing number of threads.
-      s = "# Thread pool size; " + lexical_cast<string> (config.get<size_t> ("threads"));
+      s = "# Thread pool size; " + boost::lexical_cast<string> (config.get<size_t> ("threads"));
       while (s.size() < 79) { s += " "; }
       stream << s << "#" << endl;
     }
@@ -104,7 +101,7 @@ void show_copyright_server_info (const configuration & config)
 
 /// Parses arguments, and returns file path to configuration file used
 /// Returns true if server should be started, otherwise false
-string get_configuration_file (int argc, char* argv[])
+string get_configuration_file (int argc, char * argv[])
 {
   // Sanity check
   if (argc > 2) {

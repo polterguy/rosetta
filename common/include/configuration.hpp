@@ -24,12 +24,7 @@
 #include <boost/lexical_cast.hpp>
 #include "common/include/configuration_exception.hpp"
 
-using std::map;
 using std::string;
-using std::ostream;
-using std::function;
-using boost::lexical_cast;
-using namespace rosetta::common;
 
 namespace rosetta {
 namespace common {
@@ -63,7 +58,7 @@ public:
     }
     
     // Key was found, performing lexical_cast to type requested by caller.
-    return lexical_cast<T> (iter->second);
+    return boost::lexical_cast<T> (iter->second);
   }
 
   /// Returns value of specified key as type T.
@@ -78,13 +73,13 @@ public:
     }
     
     // Key was found, performing lexical_cast to type requested by caller.
-    return lexical_cast<T> (iter->second);
+    return boost::lexical_cast<T> (iter->second);
   }
 
   /// Sets configuration key to specified value.
   template<typename T> void set (const string & key, const T & value)
   {
-    _settings[key] = lexical_cast<string> (value);
+    _settings[key] = boost::lexical_cast<string> (value);
   }
 
   /// Loads configuration settings from given file.
@@ -101,12 +96,12 @@ public:
   /// Prints out the copyright notice on the given stream.
   /// If you wish to inject additional information, inside the "copyright box", you can provide
   /// a callback functor, where you write your own additional information to the stream.
-  static void serialize_copyright (ostream & stream, function<void(ostream & stream)> functor = nullptr);
+  static void serialize_copyright (std::ostream & stream, std::function<void(std::ostream & stream)> functor = nullptr);
 
 private:
 
   // Contains our actual settings, as parsed from configuration file
-  map<string, string> _settings;
+  std::map<string, string> _settings;
 };
 
 

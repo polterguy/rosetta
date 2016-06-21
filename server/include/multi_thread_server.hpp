@@ -22,11 +22,6 @@
 #include <boost/asio.hpp>
 #include "server/include/server.hpp"
 
-using std::shared_ptr;
-using boost::asio::strand;
-using boost::asio::ip::tcp;
-using boost::asio::io_service;
-using boost::asio::signal_set;
 using namespace rosetta::common;
 
 namespace rosetta {
@@ -57,7 +52,7 @@ private:
 
 
   /// Strand object, to synchronize access to resources that are common for multiple threads.
-  strand _strand;
+  boost::asio::strand _strand;
 };
 
 

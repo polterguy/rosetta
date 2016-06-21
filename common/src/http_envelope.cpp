@@ -18,22 +18,20 @@
 #include <string>
 #include <istream>
 #include <boost/algorithm/string.hpp>
-#include "common/include/string_helper.hpp"
+#include "common/include/http_envelope.hpp"
 #include "common/include/rosetta_exception.hpp"
 
 using std::string;
-using std::vector;
-using std::istream;
 
 namespace rosetta {
 namespace common {
 
 
-string string_helper::get_line (streambuf & buffer)
+string string_helper::get_line (boost::asio::streambuf & buffer)
 {
   // Reading next line from stream, and putting into vector buffer, for efficiency.
-  vector<unsigned char> vec;
-  istream stream (&buffer);
+  std::vector<unsigned char> vec;
+  std::istream stream (&buffer);
 
   // Iterating stream until CR/LF has been seen, and returning the line to caller.
   bool seen_lf = false;
@@ -57,16 +55,15 @@ string string_helper::get_line (streambuf & buffer)
     vec.push_back (idx);
   }
 
-  // Checking that the last two characters in vector are CR/LF sequence.
-  if (vec.size() < 2 || *(vec.end () - 1) != '\n' || *(vec.end () - 2) != '\r')
-    throw rosetta_exception ("Garbage data found in HTTP envelope, no valid CR/LF sequence found before end of stream.");
+  // Checking that the last character in vector is a LF sequence, before erasing it.
+  if (vec.size() < 1 || *(vec.end () - 1) != '\n')
+    throw rosetta_exception ("Garbage data found in HTTP envelope, no LF found before end of stream.");
+  vec.erase (--vec.end());
 
-  // Now removing the last two characters, before checking for anymore CR characters in the middle of the stream, which is an error.
-  vec.erase (vec.end() - 2, vec.end ());
-  if (std::find (vec.begin(), vec.end(), '\r') != vec.end ())
-    throw rosetta_exception ("Garbage data found in HTTP envelope, CR character found in the middle of a line sent from client.");
+  // Then erasing all CR characters, regardless of where they are in the string. Ref; 19.3 of the HTTP/1.1 standard.
+  vec.erase (std::remove (vec.begin (), vec.end (), '\r'), vec.end());
 
-  // Returning result to caller, by transforming vector to string, which should now not contain any CR or LF anywhere.
+  // Returning result to caller, by transforming vector to string, now without any CR or LF anywhere.
   return string (vec.begin (), vec.end ());
 }
 

@@ -18,25 +18,15 @@
 #include <fstream>
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
-#include "common/include/string_helper.hpp"
 #include "common/include/date.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
-#include "server/include/connection/match_condition.hpp"
 #include "server/include/exceptions/request_exception.hpp"
 
 namespace rosetta {
 namespace server {
-  
-using std::move;
-using std::vector;
-using std::ifstream;
-using std::shared_ptr;
-using std::istreambuf_iterator;
-using boost::split;
+
 using boost::system::error_code;
-using boost::posix_time::seconds;
-using boost::algorithm::to_lower_copy;
 using namespace rosetta::common;
 
 
@@ -63,7 +53,7 @@ connection::~connection ()
 
     // Socket still open, making sure we close it.
     error_code ignored_ec;
-    _socket->shutdown (tcp::socket::shutdown_both, ignored_ec);
+    _socket->shutdown (boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
     _socket->close();
   }
 }

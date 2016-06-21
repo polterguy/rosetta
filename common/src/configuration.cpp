@@ -17,21 +17,13 @@
 
 #include <vector>
 #include <string>
-#include <ostream>
 #include <fstream>
 #include <boost/algorithm/string.hpp>
 #include "common/include/configuration.hpp"
 #include "common/include/configuration_exception.hpp"
 
 using std::endl;
-using std::vector;
-using std::getline;
-using std::ifstream;
-using std::ofstream;
-using boost::split;
-using boost::algorithm::trim;
-using boost::algorithm::trim_left;
-using boost::algorithm::trim_right;
+using std::string;
 
 namespace rosetta {
 namespace common {
@@ -50,7 +42,7 @@ configuration::configuration (const string & file_path)
 void configuration::load (const string & file_path)
 {
   // Creating a file input stream with the given path
-  ifstream stream (file_path);
+  std::ifstream stream (file_path);
   
   // Reading lines from file
   while (stream.good ()) {
@@ -58,7 +50,7 @@ void configuration::load (const string & file_path)
     // Reading a single line, and trimming it for whitespace characters
     string line;
     getline (stream, line);
-    trim (line);
+    boost::trim (line);
     
     // Checking if this is an empty value, or a comment
     if (line == "" || line[0] == '#')
@@ -69,9 +61,9 @@ void configuration::load (const string & file_path)
       throw configuration_exception ("Configuration file corrupt, missing 'value' for key close to '" + line + "'");
     
     // Finding "key" and "value"
-    vector<string> entities;
+    std::vector<string> entities;
     bool first = true;
-    split (entities, line, [& first] (auto c) {
+    boost::algorithm::split (entities, line, [& first] (auto c) {
       if (first && c == '=') {
         first = false;
         return true;
@@ -80,8 +72,8 @@ void configuration::load (const string & file_path)
     });
     
     // Trimming both key and value
-    trim_right (entities[0]);
-    trim_left (entities[1]);
+    boost::algorithm::trim_right (entities[0]);
+    boost::algorithm::trim_left (entities[1]);
 
     // Next sanity check
     if (entities[0].length () == 0)
@@ -99,10 +91,10 @@ void configuration::load (const string & file_path)
 void configuration::save (const string & file_path)
 {
   // Creating a file output stream with the given path
-  ofstream stream (file_path);
+  std::ofstream stream (file_path);
   
   // Writing initial copyright notice, and header information
-  serialize_copyright (stream, [](ostream & s){
+  serialize_copyright (stream, [] (std::ostream & s){
     s << "# This file provides the settings for your system in a 'key=value' fashion.    #" << endl;
   });
   
@@ -115,7 +107,7 @@ void configuration::save (const string & file_path)
 }
 
 
-void configuration::serialize_copyright (ostream & stream, function<void(ostream & s)> functor)
+void configuration::serialize_copyright (std::ostream & stream, std::function<void(std::ostream & s)> functor)
 {
   stream << endl;
   stream << "################################################################################" << endl;

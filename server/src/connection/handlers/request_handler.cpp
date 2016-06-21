@@ -26,20 +26,17 @@
 
 namespace rosetta {
 namespace server {
-  
-using std::get;
+
 using std::string;
 using boost::system::error_code;
-using boost::asio::buffer;
-using boost::asio::async_write;
 
 
 request_handler_ptr request_handler::create (server * server, socket_ptr socket, request * request)
 {
   // First we retrieve the request URI, and find the file name, without the folder.
   const string & request_uri = request->uri ();
-  vector<string> uri_components;
-  split (uri_components, request_uri, boost::is_any_of ("/"));
+  std::vector<string> uri_components;
+  boost::split (uri_components, request_uri, boost::is_any_of ("/"));
   const string & request_filename = uri_components.back ();
 
   // Then figuring out the extension of the file, if there is any.
@@ -66,10 +63,10 @@ request_handler::request_handler (server * server, socket_ptr socket, request * 
 { }
 
 
-void request_handler::write_status (unsigned int status_code, exceptional_executor x, function<void (exceptional_executor x)> callback)
+void request_handler::write_status (unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
 {
   // Creating status line, and serializing to socket.
-  string status_line = "HTTP/1.1 " + lexical_cast<string> (status_code) + " ";
+  string status_line = "HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ";
   switch (status_code) {
   case 200:
     status_line += "OK";
@@ -104,7 +101,7 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
   status_line += "\r\n";
 
   // Writing status line to socket.
-  async_write (*_socket, buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (*_socket, boost::asio::buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -115,10 +112,10 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
 }
 
 
-void request_handler::write_header (const string & key, const string & value, exceptional_executor x, function<void (exceptional_executor x)> callback)
+void request_handler::write_header (const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
 {
   // Writing HTTP header on socket.
-  async_write (*_socket, buffer (key + ": " + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (*_socket, boost::asio::buffer (key + ": " + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -129,7 +126,7 @@ void request_handler::write_header (const string & key, const string & value, ex
 }
 
 
-void request_handler::write_headers (vector<tuple<string, string> > headers, exceptional_executor x, function<void (exceptional_executor x)> callback)
+void request_handler::write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
 {
   if (headers.size() == 0) {
 
@@ -139,8 +136,8 @@ void request_handler::write_headers (vector<tuple<string, string> > headers, exc
   } else {
 
     // Retrieving next key/value pair.
-    string key = get<0> (headers [0]);
-    string value = get<1> (headers [0]);
+    string key = std::get<0> (headers [0]);
+    string value = std::get<1> (headers [0]);
 
     // Popping off currently written header from list of headers.
     headers.erase (headers.begin (), headers.begin () + 1);

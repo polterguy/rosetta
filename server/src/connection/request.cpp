@@ -23,11 +23,11 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 #include "common/include/date.hpp"
-#include "common/include/string_helper.hpp"
+#include "common/include/http_envelope.hpp"
+#include "common/include/match_condition.hpp"
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
-#include "server/include/connection/match_condition.hpp"
 #include "server/include/exceptions/request_exception.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
 
@@ -73,7 +73,7 @@ void request::handle (exceptional_executor x)
       string http_request_line = string_helper::get_line (_request_buffer);
 
       // Splitting initial HTTP line into its three parts.
-      vector<string> parts;
+      std::vector<string> parts;
       boost::algorithm::split (parts, http_request_line, ::isspace);
 
       // Removing all empty parts of URI, meaning consecutive spaces.
@@ -142,7 +142,7 @@ void request::decorate (const string & type,
                         const string & uri,
                         const string & version,
                         exceptional_executor x,
-                        function<void(exceptional_executor x)> callback)
+                        std::function<void(exceptional_executor x)> callback)
 {
   // Storing HTTP version of request.
   if (version.find_first_of ("23456789") != string::npos)
@@ -198,7 +198,7 @@ void request::decorate (const string & type,
 void request::parse_parameters (const string & params)
 {
   // Splitting up into separate parameters, and looping through each parameter.
-  vector<string> pars;
+  std::vector<string> pars;
   split (pars, params, boost::is_any_of ("&"));
   for (string & idx : pars) {
     
@@ -211,7 +211,7 @@ void request::parse_parameters (const string & params)
 }
 
 
-void request::read_headers (exceptional_executor x, function<void(exceptional_executor x)> functor)
+void request::read_headers (exceptional_executor x, std::function<void(exceptional_executor x)> functor)
 {
   // Making sure each header don't exceed the maximum length defined in configuration.
   size_t max_header_length = _connection->_server->configuration().get<size_t> ("max-header-length", 8192);
@@ -271,7 +271,7 @@ void request::read_headers (exceptional_executor x, function<void(exceptional_ex
 }
 
 
-void request::read_content (exceptional_executor x, function<void(exceptional_executor x)> functor)
+void request::read_content (exceptional_executor x, std::function<void(exceptional_executor x)> functor)
 {
   // Checking if there is any content first.
   string content_length_str = (*this)["content-length"];
@@ -288,7 +288,7 @@ void request::read_content (exceptional_executor x, function<void(exceptional_ex
     _connection->set_deadline_timer (_connection->_server->configuration().get<size_t> ("request-content-read-timeout", 300));
 
     // Checking that content does not exceed max request content length, defaulting to 16 MB.
-    auto content_length = lexical_cast<size_t> (content_length_str);
+    auto content_length = boost::lexical_cast<size_t> (content_length_str);
     auto max_content_length = _connection->_server->configuration().get<size_t> ("max-request-content-length", 4194304);
     if (content_length > max_content_length) {
 
@@ -334,7 +334,7 @@ const string & request::operator [] (const string & key) const
 void request::write_error_response (int status_code, exceptional_executor x)
 {
   // Creating status line, and serializing to socket.
-  string status_line = "HTTP/1.1 " + lexical_cast<string> (status_code) + " ";
+  string status_line = "HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ";
   switch (status_code) {
   case 403:
     status_line += "Forbidden";
@@ -364,21 +364,21 @@ void request::write_error_response (int status_code, exceptional_executor x)
   _connection->kill_deadline_timer ();
 
   // Writing status line to socket.
-  async_write (*_connection->_socket, buffer (status_line), [this, x, status_code] (const error_code & error, size_t bytes_written) {
+  async_write (*_connection->_socket, boost::asio::buffer (status_line), [this, x, status_code] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
       throw request_exception ("Socket error while returning HTTP error status line back to client.");
 
     // Figuring out error file to use, and its size.
-    string path = "error-pages/" + lexical_cast<string> (status_code) + ".html";
+    string path = "error-pages/" + boost::lexical_cast<string> (status_code) + ".html";
     size_t size = boost::filesystem::file_size (path);
 
     // Writing default headers for an error request.
     string headers = "Date: " + date::now ().to_string () + "\r\n";
     headers       += "Content-Type: text/html; charset=utf-8\r\n";
-    headers       += "Content-Length: " + lexical_cast<string> (size) + "\r\n\r\n";
-    async_write (*_connection->_socket, buffer (headers), [this, x, path] (const error_code & error, size_t bytes_written) {
+    headers       += "Content-Length: " + boost::lexical_cast<string> (size) + "\r\n\r\n";
+    async_write (*_connection->_socket, boost::asio::buffer (headers), [this, x, path] (const error_code & error, size_t bytes_written) {
 
       // Sanity check.
       if (error)
@@ -386,8 +386,8 @@ void request::write_error_response (int status_code, exceptional_executor x)
 
       // Writing file to socket.
       std::ifstream fs (path, std::ios_base::binary);
-      vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
-      async_write (*_connection->_socket, buffer (file_content), [x] (const error_code & error, size_t bytes_written) {
+      std::vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
+      async_write (*_connection->_socket, boost::asio::buffer (file_content), [x] (const error_code & error, size_t bytes_written) {
 
         // Sanity check.
         if (error)

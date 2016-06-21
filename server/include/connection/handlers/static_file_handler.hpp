@@ -28,17 +28,13 @@ namespace rosetta {
 namespace server {
 
 using std::string;
-using std::function;
-using std::shared_ptr;
-using boost::asio::buffer;
-using boost::asio::ip::tcp;
 using namespace rosetta::common;
 
 class server;
 class request;
 class connection;
 
-typedef shared_ptr<tcp::socket> socket_ptr;
+typedef std::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 
 
 /// Handles an HTTP request.
@@ -50,12 +46,12 @@ public:
   static_file_handler (server * server, socket_ptr socket, request * request, const string & extension);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, function<void (exceptional_executor x)> callback) override;
+  virtual void handle (exceptional_executor x, std::function<void (exceptional_executor x)> callback) override;
 
 private:
 
   /// Returns a file back to client.
-  void write_file (const string & filepath, exceptional_executor x, function<void (exceptional_executor x)> callback);
+  void write_file (const string & filepath, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
 
   /// Returns the MIME type according to file extension.
   string get_mime ();

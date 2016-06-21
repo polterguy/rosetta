@@ -28,20 +28,15 @@
 namespace rosetta {
 namespace server {
 
-using std::tuple;
 using std::string;
-using std::vector;
-using std::function;
-using std::shared_ptr;
-using boost::asio::ip::tcp;
 using namespace rosetta::common;
 
 class server;
 class request;
 class connection;
 class request_handler;
-typedef shared_ptr<request_handler> request_handler_ptr;
-typedef shared_ptr<tcp::socket> socket_ptr;
+typedef std::shared_ptr<request_handler> request_handler_ptr;
+typedef std::shared_ptr<boost::asio::ip::tcp::tcp::socket> socket_ptr;
 
 
 /// Handles an HTTP request.
@@ -53,7 +48,7 @@ public:
   static request_handler_ptr create (server * server, socket_ptr socket, request * request);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, function<void (exceptional_executor x)> callback) = 0;
+  virtual void handle (exceptional_executor x, std::function<void (exceptional_executor x)> callback) = 0;
 
 protected:
 
@@ -61,13 +56,13 @@ protected:
   request_handler (server * server, socket_ptr socket, request * request);
 
   /// Writing given HTTP headetr with given value back to client.
-  void write_status (unsigned int status_code, exceptional_executor x, function<void (exceptional_executor x)> callback);
+  void write_status (unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
 
   /// Writing given HTTP header with given value back to client.
-  void write_header (const string & key, const string & value, exceptional_executor x, function<void (exceptional_executor x)> callback);
+  void write_header (const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
 
   /// Writing given HTTP headers with given value back to client.
-  void write_headers (vector<tuple<string, string> > headers, exceptional_executor x, function<void (exceptional_executor x)> callback);
+  void write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
 
 
   /// The server object.
