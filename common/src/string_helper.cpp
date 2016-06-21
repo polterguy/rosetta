@@ -24,52 +24,50 @@
 using std::string;
 using std::vector;
 using std::istream;
-using std::getline;
-using std::istreambuf_iterator;
-using namespace boost;
 
 namespace rosetta {
 namespace common {
 
 
-string string_helper::get_line (streambuf & buffer, int size)
+string string_helper::get_line (streambuf & buffer)
 {
   // Reading next line from stream, and putting into vector buffer, for efficiency.
-  vector<char> vec;
+  vector<unsigned char> vec;
   istream stream (&buffer);
 
-  // Iterating stream until CR/LF has been seen, and returning the line to caller, transformed
-  // from its Cloaked version.
-  while (stream.good ()) {
+  // Iterating stream until CR/LF has been seen, and returning the line to caller.
+  bool seen_lf = false;
+  while (stream.good () && !seen_lf) {
 
-    // Get next character from stream, and interpret it according to the Cloaking rules.
+    // Get next character from stream, and checking which type of character it is.
     unsigned char idx = stream.get ();
-    if (idx < 11)
-      idx = '\n'; // LF
-    else if (idx < 21)
-      idx = '\r'; // CR
-    else if (idx < 33)
-      idx = ' '; // SP
-    else if (idx > (unsigned char)190)
-      continue; // IGNORE, garbage filling bytes.
-    else if (idx > 127)
-      idx = idx >> 1; // Bit-shift one bit down
-    // else; Plain US ASCII character, in the range of [32-128>
+    switch (idx) {
+    case '\t':
+    case '\r':
+      break; // Good character.
+    case '\n':
+      seen_lf = true;
+      break; // Good character, reading stops here.
+    default:
+      if (idx < 32 || idx == 127) // Malicious/bad character.
+        throw rosetta_exception ("Garbage data found in HTTP envelope, control character found in envelope.");
+    }
 
-    // Appending possibly transformed character into vector.
+    // Appending character into vector.
     vec.push_back (idx);
-
-    // Checking if we have seen an entire line.
-    if (vec.size() >= 2 && vec [vec.size() - 2] == '\r' && vec [vec.size() - 1] == '\n')
-      break; // We have passed the CRLF sequence.
   }
 
-  // Sanity checking line.
-  if (vec.size() < 2)
-    throw rosetta_exception ("Oops, bad line of data given to string_helper::get_line!");
+  // Checking that the last two characters in vector are CR/LF sequence.
+  if (vec.size() < 2 || *(vec.end () - 1) != '\n' || *(vec.end () - 2) != '\r')
+    throw rosetta_exception ("Garbage data found in HTTP envelope, no valid CR/LF sequence found before end of stream.");
 
-  // Returning result to caller, ignoring CR/LF when creating return value.
-  return string (vec.begin (), vec.end () - 2);;
+  // Now removing the last two characters, before checking for anymore CR characters in the middle of the stream, which is an error.
+  vec.erase (vec.end() - 2, vec.end ());
+  if (std::find (vec.begin(), vec.end(), '\r') != vec.end ())
+    throw rosetta_exception ("Garbage data found in HTTP envelope, CR character found in the middle of a line sent from client.");
+
+  // Returning result to caller, by transforming vector to string, which should now not contain any CR or LF anywhere.
+  return string (vec.begin (), vec.end ());
 }
 
 

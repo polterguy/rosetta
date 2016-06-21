@@ -23,6 +23,9 @@
 #include <utility>
 #include <stdexcept>
 #include <boost/asio.hpp>
+#include "server/include/exceptions/request_exception.hpp"
+
+using namespace rosetta::common;
 
 namespace rosetta {
 namespace server {
@@ -30,7 +33,8 @@ namespace server {
 using std::string;
 
 /// Match condition plugs into boost asio's "async_read_until" method, and will read from socket, until either
-/// "max_length" number of characters have been read, or a Cloaked CRLF sequence has been encountered.
+/// "max_length" number of characters have been read, or a CRLF sequence has been encountered.
+/// If it stops due to "max_length" characters have been read, it will return true for has_error().
 class match_condition final
 {
 public:
@@ -41,31 +45,21 @@ public:
       _left (max_length)
   { }
 
-  /// Returns true if there was an error due to too many characters before delimiter was seen
+  /// Returns true if there was an error due to too many characters before delimiter was seen.
   bool has_error () const { return *_error; };
 
-  /// Match method invoked from asio for socket read operations when async_read_until is used
+  /// Match method for using async_read_until from boost asio, for reading a line of data in an HTTP envelope.
+  /// Notice that this method does not validate the validity of the characters read in any ways. It simply reads
+  /// until either "max_length" has been seen, or LF has been seen.
+  /// If it stops due to "max_length" characters have been read, it will return true for has_error().
   template<typename iterator> std::pair<iterator, bool> operator() (iterator begin, iterator end)
   {
     iterator idx = begin;
     for (; idx != end; ++idx) {
 
-      // Retrieving currently iterated character, and check if we should ignore it.
-      unsigned char current = *idx;
-      if (current > 190)
-        continue; // Ignore character.
-
-      // Checking if currently iterated character should be bit-shifted.
-      if (current > 127)
-        current = current >> 1;
-
-      // Checking type of iterated character.
-      if (current < 11 && _seen_cr)
-        return std::make_pair (idx, true); // This is LF, and we have a Match.
-      else if (current < 21)
-        _seen_cr = true; // This is CR character.
-      else
-        _seen_cr = false; // Some other character in between CR and LF, besides from ignored character.
+      // Checking the type of character.
+      if (*idx == '\n')
+        return std::make_pair (idx, true);
 
       // Checking if length exceeds max length.
       if (--_left <= 0) {
@@ -93,9 +87,6 @@ private:
 
   /// How many bytes we've got left to read from socket before we have a malformed request.
   size_t _left;
-
-  /// Used to track if we have seen a CR character.
-  bool _seen_cr = false;
 };
 
 
