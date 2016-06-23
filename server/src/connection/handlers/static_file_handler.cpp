@@ -36,7 +36,7 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-static_file_handler::static_file_handler (connection_ptr connection, request * request, const string & extension)
+static_file_handler::static_file_handler (connection * connection, request * request, const string & extension)
   : request_handler (connection, request),
     _extension (extension)
 { }
@@ -66,7 +66,7 @@ void static_file_handler::handle (exceptional_executor x, std::function<void (ex
       has_error = true;
   }
 
-  // Checking if we have an error, and if so, writing status error 500, and returning early.
+  // Checking if we have an error, and if so, writing status error 404, and returning early.
   if (has_error) {
     _request->write_error_response (x, 404);
     return;

@@ -38,7 +38,7 @@ string get_line (boost::asio::streambuf & buffer);
 string decode_uri (const string & uri);
 
 
-request_envelope::request_envelope (connection_ptr connection, request * request)
+request_envelope::request_envelope (connection * connection, request * request)
   : _connection (connection),
     _request (request)
 { }

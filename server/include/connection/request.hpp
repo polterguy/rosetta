@@ -30,23 +30,22 @@ namespace server {
 
 using std::string;
 
+class connection;
+
 class request_handler;
 typedef std::shared_ptr<request_handler> request_handler_ptr;
-
-class connection;
-typedef std::shared_ptr<connection> connection_ptr;
 
 class request;
 typedef std::shared_ptr<request> request_ptr;
 
 
 /// Wraps a single HTTP request.
-class request : boost::noncopyable
+class request : public std::enable_shared_from_this<request>, public boost::noncopyable
 {
 public:
 
   /// Creates a new request, and returns as a shared_ptr.
-  static request_ptr create (connection_ptr connection);
+  static request_ptr create (connection * connection);
 
   /// Handles a request, and invokes the given function when finished.
   void handle (exceptional_executor x);
@@ -60,14 +59,14 @@ public:
 private:
 
   /// Creates an instance of this class on the given connection.
-  request (connection_ptr connection);
+  request (connection * connection);
 
   /// Reading content of request.
   void read_content (exceptional_executor x, std::function<void (exceptional_executor x)> functor);
 
 
   /// Connection this request belongs to.
-  connection_ptr _connection;
+  connection * _connection;
 
   /// Envelope for request, HTTP-Request line and headers.
   request_envelope _envelope;

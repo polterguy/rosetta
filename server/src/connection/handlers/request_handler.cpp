@@ -35,7 +35,7 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-request_handler_ptr request_handler::create (connection_ptr connection, request * request, int status_code)
+request_handler_ptr request_handler::create (connection * connection, request * request, int status_code)
 {
   if (status_code >= 400) {
 
@@ -59,13 +59,13 @@ request_handler_ptr request_handler::create (connection_ptr connection, request 
 }
 
 
-request_handler::request_handler (connection_ptr connection, request * request)
+request_handler::request_handler (connection * connection, request * request)
   : _connection (connection),
     _request (request)
 { }
 
 
-void request_handler::write_status (unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void request_handler::write_status (unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
 {
   // Creating status line, and serializing to socket.
   string status_line = "HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ";
@@ -103,38 +103,38 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
   status_line += "\r\n";
 
   // Writing status line to socket.
-  async_write (_connection->socket(), boost::asio::buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (_connection->socket(), boost::asio::buffer (status_line), [functor, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
       return; // Simply let x go out of scope should clean things up.
     else
-      callback (x);
+      functor (x);
   });
 }
 
 
-void request_handler::write_header (const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void request_handler::write_header (const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
 {
   // Writing HTTP header on socket.
-  async_write (_connection->socket(), boost::asio::buffer (key + ":" + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (_connection->socket(), boost::asio::buffer (key + ":" + value + "\r\n"), [functor, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
       return; // Simply letting x go out of scope, should clean things up.
     else
-      callback (x);
+      functor (x);
   });
 }
 
 
-void request_handler::write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void request_handler::write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
 {
   if (headers.size() == 0) {
 
     // No more headers.
-    if (callback != nullptr)
-      callback (x);
+    if (functor != nullptr)
+      functor (x);
   } else {
 
     // Retrieving next key/value pair.
@@ -145,10 +145,10 @@ void request_handler::write_headers (std::vector<std::tuple<string, string> > he
     headers.erase (headers.begin (), headers.begin () + 1);
 
     // Writing header.
-    write_header (key, value, x, [this, headers, callback] (exceptional_executor x) {
+    write_header (key, value, x, [this, headers, functor] (exceptional_executor x) {
 
       // Invoking self.
-      write_headers (headers, x, callback);
+      write_headers (headers, x, functor);
     });
   }
 }

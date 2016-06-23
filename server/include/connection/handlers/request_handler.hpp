@@ -34,7 +34,6 @@ using namespace rosetta::common;
 class request;
 
 class connection;
-typedef std::shared_ptr<connection> connection_ptr;
 
 class request_handler;
 typedef std::shared_ptr<request_handler> request_handler_ptr;
@@ -46,7 +45,7 @@ class request_handler : public boost::noncopyable
 public:
 
   /// Creates the specified type of handler, according to file extension given, and configuration of server.
-  static request_handler_ptr create (connection_ptr connection, request * request, int status_code = -1);
+  static request_handler_ptr create (connection * connection, request * request, int status_code = -1);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, std::function<void (exceptional_executor x)> callback) = 0;
@@ -54,7 +53,7 @@ public:
 protected:
 
   /// Protected constructor, to make sure only factory method can create instances.
-  request_handler (connection_ptr connection, request * request);
+  request_handler (connection * connection, request * request);
 
   /// Writing given HTTP headetr with given value back to client.
   void write_status (unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
@@ -73,7 +72,7 @@ protected:
 
 
   /// The connection this instance belongs to.
-  connection_ptr _connection;
+  connection * _connection;
 
   /// The request that owns this instance.
   request * _request;

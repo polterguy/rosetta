@@ -30,7 +30,6 @@ using namespace rosetta::common;
 
 class request;
 class connection;
-typedef std::shared_ptr<connection> connection_ptr;
 
 /// Helper for reading the request envelope, HTTP-Request line and headers.
 class request_envelope
@@ -38,7 +37,7 @@ class request_envelope
 public:
 
   /// Creates an instance of class.
-  request_envelope (connection_ptr connection, request * request);
+  request_envelope (connection * connection, request * request);
 
   /// Reads the request envelope from the connection, and invokes given callback afterwards.
   void read (exceptional_executor x, std::function<void (exceptional_executor x)> functor);
@@ -71,7 +70,7 @@ private:
 
 
   /// Connection this instance belongs to.
-  connection_ptr _connection;
+  connection * _connection;
 
   /// Request this instance belongs to.
   request * _request;

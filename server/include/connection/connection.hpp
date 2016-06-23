@@ -32,6 +32,9 @@ namespace server {
 class connection;
 typedef std::shared_ptr<connection> connection_ptr;
 
+class request;
+typedef std::shared_ptr<request> request_ptr;
+
 
 /// Wraps a single connection to our server, which might include multiple requests, and their associated response.
 class connection final : public std::enable_shared_from_this<connection>, public boost::noncopyable
@@ -68,7 +71,7 @@ private:
   explicit connection (class server * server, socket_ptr socket);
 
   /// Close the connection.
-  void close();
+  void ensure_close();
 
   /// Server instance this connection belongs to.
   class server * _server;
@@ -81,6 +84,12 @@ private:
 
   /// ASIO request stream buffer, kept by connection, to support HTTP pipelining, across multiple requests.
   streambuf _buffer;
+
+  /// Request for connection.
+  request_ptr _request;
+
+  /// True if connection is on its way to be killed.
+  bool _killed = false;
 };
 
 

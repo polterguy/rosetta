@@ -38,13 +38,13 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-request_ptr request::create (connection_ptr connection)
+request_ptr request::create (connection * connection)
 {
   return std::shared_ptr<request> (new request (connection));
 }
 
 
-request::request (connection_ptr connection)
+request::request (connection * connection)
   : _connection (connection),
     _envelope (connection, this)
 { }
@@ -52,7 +52,7 @@ request::request (connection_ptr connection)
 
 void request::handle (exceptional_executor x)
 {
-  // Reading envelope.
+  // Reading envelope, passing in reference to "self"
   _envelope.read (x, [this] (exceptional_executor x) {
 
     // Settings deadline timer.
@@ -70,9 +70,8 @@ void request::handle (exceptional_executor x)
         if (boost::algorithm::to_lower_copy (_envelope.get_header ("Connection")) != "close") {
 
           // Connection should be kept alive, releasing exceptional_executor, and invoke handle() on connection, should do the trick.
-          // Notice; ORDER COUNTS!!
-          _connection->handle ();
           x.release ();
+          _connection->handle ();
         } // else - x goes out of scope, and releases connection, and all resources associated with it ...
       });
     });
@@ -117,10 +116,9 @@ void request::read_content (exceptional_executor x, std::function<void (exceptio
 
 void request::write_error_response (exceptional_executor x, int status_code)
 {
-  // Creating an error handler, and putting it into the anonymous function as a shared pointer,
-  // to let it live until handler is finished writing error back to client.
-  auto handler = request_handler::create (_connection, this, status_code);
-  handler->handle (x, [this, handler] (exceptional_executor x) {
+  // Creating an error handler.
+  _request_handler = request_handler::create (_connection, this, status_code);
+  _request_handler->handle (x, [this] (exceptional_executor x) {
 
     // Simply letting x go out of scope, to close down connection, and clean things up.
   });

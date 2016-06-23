@@ -57,25 +57,21 @@ void connection::handle()
   // Setting deadline timer to "keep-alive" value, to prevent a connection locking a thread on server.
   set_deadline_timer (_server->configuration().get<size_t> ("connection-keep-alive-timeout", 20));
 
-  // Creating a copy of this, to make sure it stays around until request is finished.
+  // Creating a new request and handling it, passing in shared_ptr to current connection.
+  _request = request::create (this);;
   auto self = shared_from_this ();
 
-  // Creating a new request and handling it, passing in shared_ptr to current connection.
-  auto request = request::create (self);
-
   // Handling request, making sure we attach an exceptional_executor object that cleans up for us, in case of some exceptional occurring.
-  // In addition, we hand in a copy of "self", and "request", to make sure they stay alive until request is finished.
-  request->handle (exceptional_executor ([this, self, request] () {
+  _request->handle (exceptional_executor ([this, self] () {
 
     // Closing connection.
-    close ();
+    ensure_close ();
   }));
 }
 
 
 void connection::set_deadline_timer (int seconds)
 {
-  return;
   if (seconds == -1) {
 
     // Canceling deadline timer, and returning immediately, without creating a new one.
@@ -84,19 +80,27 @@ void connection::set_deadline_timer (int seconds)
 
     // Updating the timer's expiration, which will implicitly invoke any existing handlers, with an "operation aborted" error code.
     _timer.expires_from_now (boost::posix_time::seconds (seconds));
-    _timer.async_wait ([this] (const error_code & error) {
+    auto self = shared_from_this ();
+    _timer.async_wait ([this, self] (const error_code & error) {
 
       // We don't close if the operation was aborted, since when timer is canceled, the handler will be invoked with
       // the "aborted" error_code, and every time we change the deadline timer, we implicitly cancel() any existing handlers.
       if (error != boost::asio::error::operation_aborted)
-        close ();
+        ensure_close ();
     });
   }
 }
 
 
-void connection::close()
+void connection::ensure_close()
 {
+  // Checking if connection is already on its way into the garbage.
+  if (_killed)
+    return;
+
+  // Signaling to future callers that this has already happened.
+  _killed = true;
+
   // Killing deadline timer.
   _timer.cancel ();
 
