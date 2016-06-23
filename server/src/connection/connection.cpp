@@ -41,15 +41,7 @@ connection::connection (class server * server, socket_ptr socket)
   : _server (server),
     _socket (socket),
     _timer (server->io_service())
-{
-  std::cout << "Connection created" << std::endl;
-}
-
-
-connection::~connection ()
-{
-  std::cout << "Connection destroyed" << std::endl;
-}
+{ }
 
 
 void connection::handle()
@@ -57,9 +49,12 @@ void connection::handle()
   // Setting deadline timer to "keep-alive" value, to prevent a connection locking a thread on server.
   set_deadline_timer (_server->configuration().get<size_t> ("connection-keep-alive-timeout", 20));
 
-  // Creating a new request and handling it, passing in shared_ptr to current connection.
-  _request = request::create (this);;
+  // Making sure we pass in a shared_ptr copy of this to function of exceptional_executor, to make sure connection is not destroyed
+  // before exceptional_executor for sure is released.
   auto self = shared_from_this ();
+
+  // Creating a new request and handling it.
+  _request = request::create (this);
 
   // Handling request, making sure we attach an exceptional_executor object that cleans up for us, in case of some exceptional occurring.
   _request->handle (exceptional_executor ([this, self] () {
@@ -78,9 +73,14 @@ void connection::set_deadline_timer (int seconds)
     _timer.cancel();
   } else {
 
+    // Making sure we pass in a shared_ptr copy of this to wait handler of deadline timer, to make sure connection is not
+    // destroyed before functions is destroyed.
+    auto self = shared_from_this ();
+
     // Updating the timer's expiration, which will implicitly invoke any existing handlers, with an "operation aborted" error code.
     _timer.expires_from_now (boost::posix_time::seconds (seconds));
-    auto self = shared_from_this ();
+
+    // Associating a handler with deadline timer, that ensures the closing of connection if it kicks in, unless operation was aborted.
     _timer.async_wait ([this, self] (const error_code & error) {
 
       // We don't close if the operation was aborted, since when timer is canceled, the handler will be invoked with

@@ -107,7 +107,7 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
 
     // Sanity check.
     if (error)
-      return; // Simply let x go out of scope should clean things up.
+      throw request_exception ("Socket error while writing HTTP status line.");
     else
       functor (x);
   });
@@ -121,7 +121,7 @@ void request_handler::write_header (const string & key, const string & value, ex
 
     // Sanity check.
     if (error)
-      return; // Simply letting x go out of scope, should clean things up.
+      throw request_exception ("Socket error while writing HTTP header.");
     else
       functor (x);
   });
@@ -182,7 +182,7 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
 
       // Sanity check.
       if (error)
-        return; // Simply let x go out of scope to clean things up.
+        throw request_exception ("Socket error before writing file.");
 
       // Reading file's content, and putting it into a vector.
       std::ifstream fs (filepath, std::ios_base::binary);
@@ -193,7 +193,7 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
 
         // Sanity check.
         if (error)
-          return; // Letting x go out of scope to clean things up.
+          throw request_exception ("Socket error while writing file.");
 
         // Finished serving static file, invoking callback supplied when invoking method.
         functor (x);

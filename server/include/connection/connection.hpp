@@ -44,11 +44,11 @@ public:
   /// Creates a new connection.
   static connection_ptr create (class server * server, socket_ptr socket);
 
-  /// Simply tracking deletion.
-  ~connection();
-
   /// Handles a connection to our server.
   void handle();
+
+  /// Close the connection.
+  void ensure_close();
 
   /// Sets the deadline timer for a specified amount of time, before connection is closed.
   void set_deadline_timer (int seconds = -1);
@@ -64,14 +64,8 @@ public:
 
 private:
 
-  /// Making server a friend class, such that it can close the connection.
-  friend class server;
-
   /// Creates a connection on the given socket, for the given server instance.
   explicit connection (class server * server, socket_ptr socket);
-
-  /// Close the connection.
-  void ensure_close();
 
   /// Server instance this connection belongs to.
   class server * _server;

@@ -39,7 +39,7 @@ public:
 
   /// Constructor taking a "max_length" number of bytes to read.
   explicit match_condition (size_t max_length)
-    : _error (std::make_shared <bool> ()),
+    : _error (std::make_shared <bool> (false)),
       _left (max_length)
   { }
 
@@ -60,7 +60,7 @@ public:
         return std::make_pair (idx, true);
 
       // Checking if length exceeds max length.
-      if (--_left <= 0) {
+      if (--_left == 0) {
 
         // End of "max characters to read", setting object into "error mode".
         *_error = true;

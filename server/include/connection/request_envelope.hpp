@@ -60,7 +60,7 @@ public:
 private:
 
   /// Parses the HTTP-Request line.
-  bool parse_request_line (const string & request_line);
+  void parse_request_line (const string & request_line);
 
   /// Reads the HTTP headers.
   void read_headers (exceptional_executor x, std::function<void (exceptional_executor x)> functor);

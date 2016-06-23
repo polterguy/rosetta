@@ -98,7 +98,12 @@ void static_file_handler::handle (exceptional_executor x, std::function<void (ex
     if (file_modify_date > if_modified_date) {
 
       // File has been tampered with since the "If-Modified-Since" HTTP header, returning file in response.
-      write_file (path, x, functor);
+      // First writing status 200.
+      write_status (200, x, [this, x, path, functor] (exceptional_executor x) {
+
+        // Then writing file.
+        write_file (path, x, functor);
+      });
     } else {
 
       // File has not been tampered with since the "If-Modified-Since" HTTP header, returning 304 response, without file content.
@@ -108,16 +113,26 @@ void static_file_handler::handle (exceptional_executor x, std::function<void (ex
         std::vector<std::tuple<string, string> > headers { {"Date", date::now ().to_string ()} };
 
         // Writing HTTP headers to connection.
-        write_headers (headers, x, functor);
+        write_headers (headers, x, [this, functor] (exceptional_executor x) {
+
+          // Writing additional CR/LF sequence, to signal to client that we're done sending headers.
+          async_write (_connection->socket(), boost::asio::buffer (string("\r\n")), [functor, x] (const error_code & error, size_t bytes_written) {
+            functor (x);
+          });
+        });
       });
     }
   } else {
 
-    // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
-    write_header ("Last-Modified", date::from_file_change (path).to_string (), x, [this, path, functor] (exceptional_executor x) {
+    // First writing status 200.
+    write_status (200, x, [this, x, path, functor] (exceptional_executor x) {
 
-      // Then writing actual file.
-      write_file (path, x, functor);
+      // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
+      write_header ("Last-Modified", date::from_file_change (path).to_string (), x, [this, path, functor] (exceptional_executor x) {
+
+        // Then writing actual file.
+        write_file (path, x, functor);
+      });
     });
   }
 }

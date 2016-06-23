@@ -54,8 +54,10 @@ void request_envelope::read (exceptional_executor x, std::function<void (excepti
   async_read_until (_connection->socket(), _connection->buffer(), match, [this, match, x, functor] (const error_code & error, size_t bytes_read) {
 
     // Checking if socket has an error, or HTTP-Request line was too long.
+    if (error == boost::asio::error::operation_aborted)
+      return;
     if (error)
-      return; // Simply letting x go out of scope, cleans things up for us.
+      throw request_exception ("Socket error while reading HTTP-Request line.");
 
     if (match.has_error()) {
 
@@ -65,9 +67,7 @@ void request_envelope::read (exceptional_executor x, std::function<void (excepti
     }
 
     // Parsing request line, and verifying it's OK.
-    if (!parse_request_line (get_line (_connection->buffer())))
-      return; // Simply letting x go out of scope, cleans things up for us.
-
+    parse_request_line (get_line (_connection->buffer()));
 
     // Reading headers.
     read_headers (x, functor);
@@ -84,9 +84,11 @@ void request_envelope::read_headers (exceptional_executor x, std::function<void 
   // Reading first header.
   async_read_until (_connection->socket(), _connection->buffer(), match, [this, x, match, functor] (const error_code & error, size_t bytes_read) {
 
-    // Making sure there was no errors while reading socket
-    if (error)
-      return; // Simply letting x go out of scope, cleans things up.
+    // Making sure there was no errors while reading socket.
+    if (error == boost::asio::error::operation_aborted)
+      return;
+    else if (error)
+      throw request_exception ("Socket error while reading HTTP headers.");
 
     if (match.has_error ()) {
 
@@ -97,8 +99,12 @@ void request_envelope::read_headers (exceptional_executor x, std::function<void 
 
     // Now we can start parsing HTTP headers.
     string line = get_line (_connection->buffer());
-    if (line.size () == 0)
-      functor (x); // No more headers.
+    if (line.size () == 0) {
+
+      // No more headers.
+      functor (x);
+      return;
+    }
 
     // There are possibly more HTTP headers, continue reading until we see an empty line.
     const auto equals_idx = line.find (':');
@@ -136,7 +142,7 @@ const string & request_envelope::get_header (const string & name) const
 }
 
 
-bool request_envelope::parse_request_line (const string & request_line)
+void request_envelope::parse_request_line (const string & request_line)
 {
   // Default document.
   const static string DEFAULT_DOCUMENT = _connection->server()->configuration().get<string> ("default-page", "/index.html");
@@ -153,7 +159,7 @@ bool request_envelope::parse_request_line (const string & request_line)
 
   // At least the method and the URI needs to be supplied. The version is defaulted to HTTP/1.1, so it is optional.
   if (parts.size() < 2)
-    return false; // Failure.
+    throw request_exception ("Malformed HTTP-Request line.");
 
   // To be more fault tolerant, according to the HTTP/1.1 standard, point 19.3, we make sure the method is in UPPERCASE.
   // We also default the version to HTTP/1.1, unless it is explicitly given, and if given, we make sure it is UPPERCASE.
@@ -199,7 +205,6 @@ bool request_envelope::parse_request_line (const string & request_line)
     // Decoding URI.
     _uri = decode_uri (_uri);
   }
-  return true; // Success
 }
 
 
@@ -239,6 +244,7 @@ string get_line (boost::asio::streambuf & buffer)
       throw request_exception ("Garbage data found in HTTP envelope, control character found in envelope.");
     vec.push_back (idx);
   }
+
   // Returning result to caller, by transforming vector to string, now without any CR or LF anywhere.
   return string (vec.begin (), vec.end ());
 }

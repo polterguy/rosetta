@@ -18,6 +18,7 @@
 #include <memory>
 #include <vector>
 #include <fstream>
+#include <iostream>
 #include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
@@ -105,7 +106,7 @@ void request::read_content (exceptional_executor x, std::function<void (exceptio
 
       // Checking for socket errors.
       if (error)
-        return; // Simply letting x go out of scope, cleans things up for us.
+        throw request_exception ("Socket error while reading request content.");
 
       // Invoking functor callback supplied by caller.
       functor (x);
