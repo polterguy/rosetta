@@ -49,27 +49,31 @@ public:
   static request_handler_ptr create (connection_ptr connection, request * request, int status_code = -1);
 
   /// Handles the given request.
-  virtual void handle (connection_ptr connection, exceptional_executor x, std::function<void (exceptional_executor x)> callback) = 0;
+  virtual void handle (exceptional_executor x, std::function<void (exceptional_executor x)> callback) = 0;
 
 protected:
 
   /// Protected constructor, to make sure only factory method can create instances.
-  request_handler (request * request);
+  request_handler (connection_ptr connection, request * request);
 
   /// Writing given HTTP headetr with given value back to client.
-  void write_status (connection_ptr connection, unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
+  void write_status (unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
 
   /// Writing given HTTP header with given value back to client.
-  void write_header (connection_ptr connection, const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
+  void write_header (const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
 
   /// Writing given HTTP headers with given value back to client.
-  void write_headers (connection_ptr connection, std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
+  void write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
 
   /// Writing the given file on socket back to client.
-  void write_file (connection_ptr connection, const string & file_path, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
+  void write_file (const string & file_path, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
 
   /// Returns the MIME type according to file extension.
-  string get_mime (connection_ptr connection, const string & filepath);
+  string get_mime (const string & filepath);
+
+
+  /// The connection this instance belongs to.
+  connection_ptr _connection;
 
   /// The request that owns this instance.
   request * _request;

@@ -41,7 +41,15 @@ connection::connection (class server * server, socket_ptr socket)
   : _server (server),
     _socket (socket),
     _timer (server->io_service())
-{ }
+{
+  std::cout << "Connection created" << std::endl;
+}
+
+
+connection::~connection ()
+{
+  std::cout << "Connection destroyed" << std::endl;
+}
 
 
 void connection::handle()
@@ -49,22 +57,18 @@ void connection::handle()
   // Setting deadline timer to "keep-alive" value, to prevent a connection locking a thread on server.
   set_deadline_timer (_server->configuration().get<size_t> ("connection-keep-alive-timeout", 20));
 
-  // Creating a new request and handling it.
-  auto request = std::make_shared<class request> ();
+  // Creating a copy of this, to make sure it stays around until request is finished.
+  auto self = shared_from_this ();
 
-  // Making sure connection is kept around until callback is invoked, or disposed somehow.
-  auto self = shared_from_this();
+  // Creating a new request and handling it, passing in shared_ptr to current connection.
+  auto request = request::create (self);
 
-  // Handling request, making sure we attach an exceptional_executor object that cleans up for us, in case of something exceptional occurring.
-  // In addition we hand in a copy of "self" and "request" to make sure they stay alive until function is invoked, or goes out of scope.
-  request->handle (self, exceptional_executor ([this, self, request] () {
+  // Handling request, making sure we attach an exceptional_executor object that cleans up for us, in case of some exceptional occurring.
+  // In addition, we hand in a copy of "self", and "request", to make sure they stay alive until request is finished.
+  request->handle (exceptional_executor ([this, self, request] () {
 
     // Closing connection.
     close ();
-  }, [this, self, request] () {
-
-    // Keeping connection alive.
-    handle ();
   }));
 }
 

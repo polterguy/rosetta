@@ -37,8 +37,11 @@ class request_envelope
 {
 public:
 
-  /// Reads the request envelope from the given connection, and invokes given callback afterwards, with a given status.
-  void read (connection_ptr connection, request * request, exceptional_executor x, std::function<void (exceptional_executor x)> functor);
+  /// Creates an instance of class.
+  request_envelope (connection_ptr connection, request * request);
+
+  /// Reads the request envelope from the connection, and invokes given callback afterwards.
+  void read (exceptional_executor x, std::function<void (exceptional_executor x)> functor);
 
   /// Returns the URI of the request.
   const string & get_uri() const { return _uri; }
@@ -52,19 +55,26 @@ public:
   /// Returns the HTTP version of the request.
   const string & get_version() const { return _version; }
 
-  /// Retrieves the value of the header with the specified name.
+  /// Retrieves the value of the header with the specified name, or empty string if no such header exists.
   const string & get_header (const string & name) const;
 
 private:
 
   /// Parses the HTTP-Request line.
-  bool parse_request_line (const string & request_line, const string & default_document);
+  bool parse_request_line (const string & request_line);
 
   /// Reads the HTTP headers.
-  void read_headers (connection_ptr connection, request * request, exceptional_executor x, std::function<void (exceptional_executor x)> functor);
+  void read_headers (exceptional_executor x, std::function<void (exceptional_executor x)> functor);
 
   /// Parses the HTTP GET parameters.
   void parse_parameters (const string & params);
+
+
+  /// Connection this instance belongs to.
+  connection_ptr _connection;
+
+  /// Request this instance belongs to.
+  request * _request;
 
   /// Type of request, GET/POST/DELETE/PUT etc.
   string _type;

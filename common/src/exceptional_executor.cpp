@@ -25,13 +25,9 @@ namespace common {
 using std::string;
 
 
-exceptional_executor::exceptional_executor (std::function<void ()> functor, std::function<void ()> release)
-  : _functor (functor),
-    _release (release)
-{
-  if (functor == nullptr)
-    throw rosetta_exception ("No functor object supplied to constructor of exception_executor.");
-}
+exceptional_executor::exceptional_executor (std::function<void ()> functor)
+  : _functor (functor)
+{ }
 
 
 exceptional_executor::~exceptional_executor ()
@@ -45,8 +41,6 @@ exceptional_executor::exceptional_executor (const exceptional_executor & rhs)
 {
   _functor = rhs._functor;
   rhs._functor = nullptr;
-  _release = rhs._release;
-  rhs._release = nullptr;
 }
 
 
@@ -54,16 +48,12 @@ exceptional_executor & exceptional_executor::operator = (const exceptional_execu
 {
   _functor = rhs._functor;
   rhs._functor = nullptr;
-  _release = rhs._release;
-  rhs._release = nullptr;
   return *this;
 }
 
 
 void exceptional_executor::release () const
 {
-  if (_release != nullptr)
-    _release ();
   _functor = nullptr;
 }
 

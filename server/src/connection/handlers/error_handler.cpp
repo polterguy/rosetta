@@ -35,20 +35,20 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-error_handler::error_handler (request * request, int status_code)
-  : request_handler (request),
+error_handler::error_handler (connection_ptr connection, request * request, int status_code)
+  : request_handler (connection, request),
     _status_code (status_code)
 { }
 
 
-void error_handler::handle (connection_ptr connection, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void error_handler::handle (exceptional_executor x, std::function<void (exceptional_executor x)> callback)
 {
   // Writing status code.
-  write_status (connection, _status_code, x, [this, connection, x, callback] (exceptional_executor x) {
+  write_status (_status_code, x, [this, x, callback] (exceptional_executor x) {
 
     // Figuring out which file to serve.
     string error_file = "error-pages/" + boost::lexical_cast<string> (_status_code) + ".html";
-    write_file (connection, error_file, x, callback);
+    write_file (error_file, x, callback);
   });
 }
 

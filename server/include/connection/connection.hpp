@@ -41,6 +41,9 @@ public:
   /// Creates a new connection.
   static connection_ptr create (class server * server, socket_ptr socket);
 
+  /// Simply tracking deletion.
+  ~connection();
+
   /// Handles a connection to our server.
   void handle();
 

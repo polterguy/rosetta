@@ -43,10 +43,10 @@ class error_handler final : public request_handler
 public:
 
   /// Creates a static file handler.
-  error_handler (request * request, int status_code);
+  error_handler (connection_ptr connection, request * request, int status_code);
 
   /// Handles the given request.
-  virtual void handle (connection_ptr connection, exceptional_executor x, std::function<void (exceptional_executor x)> callback) override;
+  virtual void handle (exceptional_executor x, std::function<void (exceptional_executor x)> callback) override;
 
 private:
 

@@ -40,7 +40,7 @@ request_handler_ptr request_handler::create (connection_ptr connection, request 
   if (status_code >= 400) {
 
     // Some sort of error.
-    return request_handler_ptr (new error_handler (request, status_code));
+    return request_handler_ptr (new error_handler (connection, request, status_code));
 
   } else {
 
@@ -52,19 +52,20 @@ request_handler_ptr request_handler::create (connection_ptr connection, request 
 
     // Returning the correct handler to caller.
     if (handler == "static-file-handler")
-      return request_handler_ptr (new static_file_handler (request, extension));
+      return request_handler_ptr (new static_file_handler (connection, request, extension));
     else
-      return request_handler_ptr (new error_handler (request, 404));
+      return request_handler_ptr (new error_handler (connection, request, 404));
   }
 }
 
 
-request_handler::request_handler (request * request)
-  : _request (request)
+request_handler::request_handler (connection_ptr connection, request * request)
+  : _connection (connection),
+    _request (request)
 { }
 
 
-void request_handler::write_status (connection_ptr connection, unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void request_handler::write_status (unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
 {
   // Creating status line, and serializing to socket.
   string status_line = "HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ";
@@ -102,7 +103,7 @@ void request_handler::write_status (connection_ptr connection, unsigned int stat
   status_line += "\r\n";
 
   // Writing status line to socket.
-  async_write (connection->socket(), boost::asio::buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (_connection->socket(), boost::asio::buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -113,10 +114,10 @@ void request_handler::write_status (connection_ptr connection, unsigned int stat
 }
 
 
-void request_handler::write_header (connection_ptr connection, const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void request_handler::write_header (const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
 {
   // Writing HTTP header on socket.
-  async_write (connection->socket(), boost::asio::buffer (key + ":" + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (_connection->socket(), boost::asio::buffer (key + ":" + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -127,7 +128,7 @@ void request_handler::write_header (connection_ptr connection, const string & ke
 }
 
 
-void request_handler::write_headers (connection_ptr connection, std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void request_handler::write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
 {
   if (headers.size() == 0) {
 
@@ -144,26 +145,26 @@ void request_handler::write_headers (connection_ptr connection, std::vector<std:
     headers.erase (headers.begin (), headers.begin () + 1);
 
     // Writing header.
-    write_header (connection, key, value, x, [this, connection, headers, callback] (exceptional_executor x) {
+    write_header (key, value, x, [this, headers, callback] (exceptional_executor x) {
 
       // Invoking self.
-      write_headers (connection, headers, x, callback);
+      write_headers (headers, x, callback);
     });
   }
 }
 
 
-void request_handler::write_file (connection_ptr connection, const string & filepath, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void request_handler::write_file (const string & filepath, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
 {
   // Figuring out size of file, and making sure it's not larger than what we are allowed to handle according to configuration of server.
   size_t size = boost::filesystem::file_size (filepath);
 
   // Retrieving MIME type, and verifying this is a type of file we actually serve.
-  string mime_type = get_mime (connection, filepath);
+  string mime_type = get_mime (filepath);
   if (mime_type == "") {
 
     // File type is not served according to configuration of server.
-    _request->write_error_response (connection, x, 403);
+    _request->write_error_response (x, 403);
     return;
   }
 
@@ -174,10 +175,10 @@ void request_handler::write_file (connection_ptr connection, const string & file
     {"Content-Length", boost::lexical_cast<string> (size)}};
 
   // Writing HTTP headers to connection.
-  write_headers (connection, headers, x, [this, connection, filepath, callback] (exceptional_executor x) {
+  write_headers (headers, x, [this, filepath, functor] (exceptional_executor x) {
 
     // Writing additional CR/LF sequence, to signal to client that we're beginning to send content.
-    async_write (connection->socket(), boost::asio::buffer (string("\r\n")), [this, connection, filepath, callback, x] (const error_code & error, size_t bytes_written) {
+    async_write (_connection->socket(), boost::asio::buffer (string("\r\n")), [this, filepath, functor, x] (const error_code & error, size_t bytes_written) {
 
       // Sanity check.
       if (error)
@@ -188,27 +189,27 @@ void request_handler::write_file (connection_ptr connection, const string & file
       std::vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
 
       // Writing content to connection's socket.
-      async_write (connection->socket(), boost::asio::buffer (file_content), [callback, x] (const error_code & error, size_t bytes_written) {
+      async_write (_connection->socket(), boost::asio::buffer (file_content), [functor, x] (const error_code & error, size_t bytes_written) {
 
         // Sanity check.
         if (error)
           return; // Letting x go out of scope to clean things up.
 
         // Finished serving static file, invoking callback supplied when invoking method.
-        callback (x);
+        functor (x);
       });
     });
   });
 }
 
 
-string request_handler::get_mime (connection_ptr connection, const string & filepath)
+string request_handler::get_mime (const string & filepath)
 {
   // Returning MIME type for file extension.
   string filename = filepath.substr (filepath.find_last_of ("/") + 1);
   size_t index_of_dot = filename.find_last_of (".");
   string extension = index_of_dot == string::npos ? "" : filename.substr (index_of_dot + 1);
-  string mime_type = connection->server()->configuration().get<string> ("mime-" + extension, "");
+  string mime_type = _connection->server()->configuration().get<string> ("mime-" + extension, "");
   return mime_type;
 }
 

@@ -38,17 +38,20 @@ string get_line (boost::asio::streambuf & buffer);
 string decode_uri (const string & uri);
 
 
-void request_envelope::read (connection_ptr connection, request * request, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+request_envelope::request_envelope (connection_ptr connection, request * request)
+  : _connection (connection),
+    _request (request)
+{ }
+
+
+void request_envelope::read (exceptional_executor x, std::function<void (exceptional_executor x)> functor)
 {
   // Figuring out max length of URI.
-  const static size_t MAX_URI_LENGTH = connection->server()->configuration().get<size_t> ("max-uri-length", 4096);
+  const static size_t MAX_URI_LENGTH = _connection->server()->configuration().get<size_t> ("max-uri-length", 4096);
   match_condition match (MAX_URI_LENGTH);
 
   // Reading until "max_length" or CR/LF has been found.
-  async_read_until (connection->socket(), connection->buffer(), match, [this, connection, request, match, x, functor] (const error_code & error, size_t bytes_read) {
-
-    // Default document.
-    const static string DEFAULT_DOCUMENT = connection->server()->configuration().get<string> ("default-page", "/index.html");
+  async_read_until (_connection->socket(), _connection->buffer(), match, [this, match, x, functor] (const error_code & error, size_t bytes_read) {
 
     // Checking if socket has an error, or HTTP-Request line was too long.
     if (error)
@@ -57,33 +60,29 @@ void request_envelope::read (connection_ptr connection, request * request, excep
     if (match.has_error()) {
 
       // Too long URI.
-      request->write_error_response (connection, x, 414);
+      _request->write_error_response (x, 414);
       return;
     }
 
     // Parsing request line, and verifying it's OK.
-    if (!parse_request_line (get_line (connection->buffer()), DEFAULT_DOCUMENT))
+    if (!parse_request_line (get_line (_connection->buffer())))
       return; // Simply letting x go out of scope, cleans things up for us.
 
 
     // Reading headers.
-    read_headers (connection, request, x, [functor] (exceptional_executor x) {
-
-      // Success so far.
-      functor (x);
-    });
+    read_headers (x, functor);
   });
 }
 
 
-void request_envelope::read_headers (connection_ptr connection, request * request, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void request_envelope::read_headers (exceptional_executor x, std::function<void (exceptional_executor x)> functor)
 {
   // Retrieving max header size.
-  const static size_t max_header_length = connection->server()->configuration().get<size_t> ("max-header-length", 8192);
+  const static size_t max_header_length = _connection->server()->configuration().get<size_t> ("max-header-length", 8192);
   match_condition match (max_header_length);
 
   // Reading first header.
-  async_read_until (connection->socket(), connection->buffer(), match, [this, connection, request, x, match, functor] (const error_code & error, size_t bytes_read) {
+  async_read_until (_connection->socket(), _connection->buffer(), match, [this, x, match, functor] (const error_code & error, size_t bytes_read) {
 
     // Making sure there was no errors while reading socket
     if (error)
@@ -92,14 +91,14 @@ void request_envelope::read_headers (connection_ptr connection, request * reques
     if (match.has_error ()) {
 
       // Returning 413 to client.
-      request->write_error_response (connection, x, 413);
+      _request->write_error_response (x, 413);
       return;
     }
 
     // Now we can start parsing HTTP headers.
-    string line = get_line (connection->buffer());
+    string line = get_line (_connection->buffer());
     if (line.size () == 0)
-      functor (x);
+      functor (x); // No more headers.
 
     // There are possibly more HTTP headers, continue reading until we see an empty line.
     const auto equals_idx = line.find (':');
@@ -116,7 +115,7 @@ void request_envelope::read_headers (connection_ptr connection, request * reques
     }
 
     // Reading next header from socket.
-    read_headers (connection, request, x, functor);
+    read_headers (x, functor);
   });
 }
 
@@ -137,8 +136,11 @@ const string & request_envelope::get_header (const string & name) const
 }
 
 
-bool request_envelope::parse_request_line (const string & request_line, const string & default_document)
+bool request_envelope::parse_request_line (const string & request_line)
 {
+  // Default document.
+  const static string DEFAULT_DOCUMENT = _connection->server()->configuration().get<string> ("default-page", "/index.html");
+
   // Splitting initial HTTP line into its three parts.
   std::vector<string> parts;
   boost::algorithm::split (parts, request_line, ::isspace);
@@ -163,7 +165,7 @@ bool request_envelope::parse_request_line (const string & request_line, const st
   if (_uri == "/") {
 
     // Serving default document.
-    _uri = default_document;
+    _uri = DEFAULT_DOCUMENT;
   } else if (_uri [0] != '/') {
 
     // To make sure we're more fault tolerant, we prepend the URI with "/" if it is not given.
@@ -184,7 +186,7 @@ bool request_envelope::parse_request_line (const string & request_line, const st
     parse_parameters (decode_uri (_uri.substr (1)));
 
     // Serving default document.
-    _uri = default_document;
+    _uri = DEFAULT_DOCUMENT;
   } else if (index_of_pars != string::npos) {
 
     // URI contains GET parameters.
@@ -225,35 +227,18 @@ string get_line (boost::asio::streambuf & buffer)
   std::istream stream (&buffer);
 
   // Iterating stream until CR/LF has been seen, and returning the line to caller.
-  bool seen_lf = false;
-  while (stream.good () && !seen_lf) {
+  while (stream.good ()) {
 
     // Get next character from stream, and checking which type of character it is.
     unsigned char idx = stream.get ();
-    switch (idx) {
-    case '\t':
-    case '\r':
-      break; // Good character.
-    case '\n':
-      seen_lf = true;
-      break; // Good character, reading stops here.
-    default:
-      if (idx < 32 || idx == 127) // Malicious/bad character.
-        throw rosetta_exception ("Garbage data found in HTTP envelope, control character found in envelope.");
-    }
-
-    // Appending character into vector.
+    if (idx == '\n')
+      break; // Ignoring, and breaking while
+    if (idx == '\r')
+      continue; // Ignoring
+    if (idx < 32 || idx == 127)
+      throw request_exception ("Garbage data found in HTTP envelope, control character found in envelope.");
     vec.push_back (idx);
   }
-
-  // Checking that the last character in vector is a LF sequence, before erasing it.
-  if (vec.size() < 1 || *(vec.end () - 1) != '\n')
-    throw rosetta_exception ("Garbage data found in HTTP envelope, no LF found before end of stream.");
-  vec.erase (--vec.end());
-
-  // Then erasing all CR characters, regardless of where they are in the string. Ref; 19.3 of the HTTP/1.1 standard.
-  vec.erase (std::remove (vec.begin (), vec.end (), '\r'), vec.end());
-
   // Returning result to caller, by transforming vector to string, now without any CR or LF anywhere.
   return string (vec.begin (), vec.end ());
 }

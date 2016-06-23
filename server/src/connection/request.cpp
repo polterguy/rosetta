@@ -38,26 +38,40 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-void request::handle (connection_ptr connection, exceptional_executor x)
+request_ptr request::create (connection_ptr connection)
+{
+  return std::shared_ptr<request> (new request (connection));
+}
+
+
+request::request (connection_ptr connection)
+  : _connection (connection),
+    _envelope (connection, this)
+{ }
+
+
+void request::handle (exceptional_executor x)
 {
   // Reading envelope.
-  _envelope.read (connection, this, x, [this, connection] (exceptional_executor x) {
+  _envelope.read (x, [this] (exceptional_executor x) {
 
     // Settings deadline timer.
-    const int CONTENT_READ_TIMEOUT = connection->server()->configuration().get<size_t> ("request-content-read-timeout", 300);
-    connection->set_deadline_timer (CONTENT_READ_TIMEOUT);
+    const int CONTENT_READ_TIMEOUT = _connection->server()->configuration().get<size_t> ("request-content-read-timeout", 300);
+    _connection->set_deadline_timer (CONTENT_READ_TIMEOUT);
 
     // Reading content.
-    read_content (connection, x, [this, connection] (exceptional_executor x) {
+    read_content (x, [this] (exceptional_executor x) {
 
       // Now reading is done, and we can let our request_handler take care of the rest.
-      auto handler = request_handler::create (connection, this);
-      handler->handle (connection, x, [this, connection, handler] (exceptional_executor x) {
+      _request_handler = request_handler::create (_connection, this);
+      _request_handler->handle (x, [this] (exceptional_executor x) {
 
         // Request is now finished handled, and we need to determine if we should keep connection alive or not.
         if (boost::algorithm::to_lower_copy (_envelope.get_header ("Connection")) != "close") {
 
-          // Connection should be kept alive, releasing exceptional_executor should do the trick.
+          // Connection should be kept alive, releasing exceptional_executor, and invoke handle() on connection, should do the trick.
+          // Notice; ORDER COUNTS!!
+          _connection->handle ();
           x.release ();
         } // else - x goes out of scope, and releases connection, and all resources associated with it ...
       });
@@ -67,10 +81,10 @@ void request::handle (connection_ptr connection, exceptional_executor x)
 
 
 
-void request::read_content (connection_ptr connection, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void request::read_content (exceptional_executor x, std::function<void (exceptional_executor x)> functor)
 {
   // Max allowed length of content.
-  const static size_t MAX_REQUEST_CONTENT_LENGTH = connection->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
+  const static size_t MAX_REQUEST_CONTENT_LENGTH = _connection->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
 
   // Checking if there is any content first.
   string content_length_str = _envelope.get_header ("Content-Length");
@@ -88,7 +102,7 @@ void request::read_content (connection_ptr connection, exceptional_executor x, s
       return; // Simply letting x go out of scope, cleans everything up.
 
     // Reading content into streambuf.
-    async_read (connection->socket(), connection->buffer(), transfer_exactly (content_length), [x, functor] (const error_code & error, size_t bytes_read) {
+    async_read (_connection->socket(), _connection->buffer(), transfer_exactly (content_length), [x, functor] (const error_code & error, size_t bytes_read) {
 
       // Checking for socket errors.
       if (error)
@@ -101,12 +115,12 @@ void request::read_content (connection_ptr connection, exceptional_executor x, s
 }
 
 
-void request::write_error_response (connection_ptr connection, exceptional_executor x, int status_code)
+void request::write_error_response (exceptional_executor x, int status_code)
 {
   // Creating an error handler, and putting it into the anonymous function as a shared pointer,
   // to let it live until handler is finished writing error back to client.
-  auto handler = request_handler::create (connection, this, status_code);
-  handler->handle (connection, x, [this, connection, handler] (exceptional_executor x) {
+  auto handler = request_handler::create (_connection, this, status_code);
+  handler->handle (x, [this, handler] (exceptional_executor x) {
 
     // Simply letting x go out of scope, to close down connection, and clean things up.
   });

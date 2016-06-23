@@ -36,25 +36,38 @@ typedef std::shared_ptr<request_handler> request_handler_ptr;
 class connection;
 typedef std::shared_ptr<connection> connection_ptr;
 
+class request;
+typedef std::shared_ptr<request> request_ptr;
+
 
 /// Wraps a single HTTP request.
 class request : boost::noncopyable
 {
 public:
 
+  /// Creates a new request, and returns as a shared_ptr.
+  static request_ptr create (connection_ptr connection);
+
   /// Handles a request, and invokes the given function when finished.
-  void handle (connection_ptr connection, exceptional_executor x);
+  void handle (exceptional_executor x);
 
   /// Returns the envelope of the request.
   const request_envelope & envelope() const { return _envelope; }
 
   /// Writes the given status code back to client.
-  void write_error_response (connection_ptr connection, exceptional_executor x, int status_code);
+  void write_error_response (exceptional_executor x, int status_code);
 
 private:
 
+  /// Creates an instance of this class on the given connection.
+  request (connection_ptr connection);
+
   /// Reading content of request.
-  void read_content (connection_ptr connection, exceptional_executor x, std::function<void (exceptional_executor x)> functor);
+  void read_content (exceptional_executor x, std::function<void (exceptional_executor x)> functor);
+
+
+  /// Connection this request belongs to.
+  connection_ptr _connection;
 
   /// Envelope for request, HTTP-Request line and headers.
   request_envelope _envelope;

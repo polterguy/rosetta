@@ -36,13 +36,13 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-static_file_handler::static_file_handler (request * request, const string & extension)
-  : request_handler (request),
+static_file_handler::static_file_handler (connection_ptr connection, request * request, const string & extension)
+  : request_handler (connection, request),
     _extension (extension)
 { }
 
 
-void static_file_handler::handle (connection_ptr connection, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void static_file_handler::handle (exceptional_executor x, std::function<void (exceptional_executor x)> functor)
 {
   // Retrieving URI from request, removing initial "/" from URI.
   string uri = _request->envelope().get_uri().substr (1);
@@ -68,12 +68,12 @@ void static_file_handler::handle (connection_ptr connection, exceptional_executo
 
   // Checking if we have an error, and if so, writing status error 500, and returning early.
   if (has_error) {
-    _request->write_error_response (connection, x, 404);
+    _request->write_error_response (x, 404);
     return;
   }
 
   // Retrieving root path.
-  const static string WWW_ROOT_PATH = connection->server()->configuration().get<string> ("www-root", "www-root/");
+  const static string WWW_ROOT_PATH = _connection->server()->configuration().get<string> ("www-root", "www-root/");
   
   // Figuring out entire physical path of file.
   string path = WWW_ROOT_PATH + uri;
@@ -82,7 +82,7 @@ void static_file_handler::handle (connection_ptr connection, exceptional_executo
   if (!boost::filesystem::exists (path)) {
 
       // Writing error status response, and returning early.
-      _request->write_error_response (connection, x, 404);
+      _request->write_error_response (x, 404);
       return;
   }
 
@@ -98,26 +98,26 @@ void static_file_handler::handle (connection_ptr connection, exceptional_executo
     if (file_modify_date > if_modified_date) {
 
       // File has been tampered with since the "If-Modified-Since" HTTP header, returning file in response.
-      write_file (connection, path, x, functor);
+      write_file (path, x, functor);
     } else {
 
       // File has not been tampered with since the "If-Modified-Since" HTTP header, returning 304 response, without file content.
-      write_status (connection, 304, x, [this, connection, functor] (exceptional_executor x) {
+      write_status (304, x, [this, functor] (exceptional_executor x) {
 
         // Building our request headers.
         std::vector<std::tuple<string, string> > headers { {"Date", date::now ().to_string ()} };
 
         // Writing HTTP headers to connection.
-        write_headers (connection, headers, x, nullptr);
+        write_headers (headers, x, functor);
       });
     }
   } else {
 
     // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
-    write_header (connection, "Last-Modified", date::from_file_change (path).to_string (), x, [this, connection, path, functor] (exceptional_executor x) {
+    write_header ("Last-Modified", date::from_file_change (path).to_string (), x, [this, path, functor] (exceptional_executor x) {
 
       // Then writing actual file.
-      write_file (connection, path, x, functor);
+      write_file (path, x, functor);
     });
   }
 }

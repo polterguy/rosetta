@@ -42,10 +42,10 @@ class static_file_handler final : public request_handler
 public:
 
   /// Creates a static file handler.
-  static_file_handler (request * request, const string & extension);
+  static_file_handler (connection_ptr connection, request * request, const string & extension);
 
   /// Handles the given request.
-  virtual void handle (connection_ptr connection, exceptional_executor x, std::function<void (exceptional_executor x)> functor) override;
+  virtual void handle (exceptional_executor x, std::function<void (exceptional_executor x)> functor) override;
 
 private:
 
