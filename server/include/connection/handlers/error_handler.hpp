@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROSETTA_SERVER_STATIC_FILE_HANDLER_HPP
-#define ROSETTA_SERVER_STATIC_FILE_HANDLER_HPP
+#ifndef ROSETTA_SERVER_ERROR_HANDLER_HPP
+#define ROSETTA_SERVER_ERROR_HANDLER_HPP
 
 #include <memory>
 #include <utility>
@@ -30,6 +30,7 @@ namespace server {
 using std::string;
 using namespace rosetta::common;
 
+class server;
 class request;
 class connection;
 
@@ -37,24 +38,24 @@ typedef std::shared_ptr<connection> connection_ptr;
 
 
 /// Handles an HTTP request.
-class static_file_handler final : public request_handler
+class error_handler final : public request_handler
 {
 public:
 
   /// Creates a static file handler.
-  static_file_handler (request * request, const string & extension);
+  error_handler (request * request, int status_code);
 
   /// Handles the given request.
-  virtual void handle (connection_ptr connection, exceptional_executor x, std::function<void (exceptional_executor x)> functor) override;
+  virtual void handle (connection_ptr connection, exceptional_executor x, std::function<void (exceptional_executor x)> callback) override;
 
 private:
 
-  /// The file extension of the current request.
-  const string _extension;
+  /// Status code for error.
+  int _status_code;
 };
 
 
 } // namespace server
 } // namespace rosetta
 
-#endif // ROSETTA_SERVER_STATIC_FILE_HANDLER_HPP
+#endif // ROSETTA_SERVER_ERROR_HANDLER_HPP

@@ -99,21 +99,25 @@ server::server (const class configuration & configuration)
 
 connection_ptr server::create_connection (socket_ptr socket)
 {
-  // Counting existing connections from client.
-  size_t no_connections_for_ip = 0;
+  // Figuring out IP address for current connection.
   boost::asio::ip::address client_address = socket->remote_endpoint().address();
+
+  // Counting existing connections from the same IP address.
+  size_t no_connections_for_ip = 0;
   for (auto & idx : _connections) {
-    if (idx->socket()->remote_endpoint().address() == client_address)
+    if (idx->socket().remote_endpoint().address() == client_address)
       ++no_connections_for_ip;
   }
 
-  // Checking if number of connections for client exceeds our max value, and if so, we refuse the connection.
+  // Checking if the number of connections for IP address exceeds our max value, and if so, we refuse the connection.
   size_t max_connections_per_client = configuration().get<size_t> ("max-connections-per-client", 8);
   if (no_connections_for_ip >= max_connections_per_client) {
 
     // We refuse this connection.
     error_code ignored_ec;
     socket->shutdown (boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+
+    // And return nullptr to caller.
     return nullptr;
   }
 
@@ -126,8 +130,7 @@ connection_ptr server::create_connection (socket_ptr socket)
 
 void server::remove_connection (connection_ptr connection)
 {
-  // Since our connection is a shared pointer, removing it from our list of connections,
-  // should destroy the last reference to it.
+  // Erasing connection from our list of connections.
   _connections.erase (connection);
 }
 

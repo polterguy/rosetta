@@ -156,18 +156,13 @@ void create_default_configuration_file()
   config.set ("default-page", "/index.html");
 
   // Request settings.
-  config.set ("max-uri-length", 4096);
+  config.set ("max-uri-length", 1024);
   config.set ("max-header-length", 8192);
   config.set ("max-request-content-length", 4194304); // 4 MB
-  config.set ("request-header-read-timeout", 10);
   config.set ("request-content-read-timeout", 300);
 
-  // Response settings.
-  config.set ("response-timeout", 300);
-  config.set ("max-response-content-length", 4194304); // 4 MB
-
   // Connection settings.
-  config.set ("connection-keep-alive-timeout", 5);
+  config.set ("connection-keep-alive-timeout", 20);
   config.set ("max-connections-per-client", 2);
 
   // Request Handlers, according to file extensions.

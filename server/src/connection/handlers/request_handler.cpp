@@ -16,11 +16,14 @@
  */
 
 #include <boost/asio.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
+#include "common/include/date.hpp"
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
 #include "server/include/exceptions/request_exception.hpp"
+#include "server/include/connection/handlers/error_handler.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
 #include "server/include/connection/handlers/static_file_handler.hpp"
 
@@ -29,41 +32,39 @@ namespace server {
 
 using std::string;
 using boost::system::error_code;
+using namespace rosetta::common;
 
 
-request_handler_ptr request_handler::create (server * server, socket_ptr socket, request * request)
+request_handler_ptr request_handler::create (connection_ptr connection, request * request, int status_code)
 {
-  // First we retrieve the request URI, and find the file name, without the folder.
-  const string & request_uri = request->uri ();
-  std::vector<string> uri_components;
-  boost::split (uri_components, request_uri, boost::is_any_of ("/"));
-  const string & request_filename = uri_components.back ();
+  if (status_code >= 400) {
 
-  // Then figuring out the extension of the file, if there is any.
-  size_t pos_of_dot = request_filename.find_last_of (".");
-  const string extension = pos_of_dot == string::npos ? "" : request_filename.substr (pos_of_dot + 1);
+    // Some sort of error.
+    return request_handler_ptr (new error_handler (request, status_code));
 
-  // We now have a file extension, or an empty string, and we can create our request_handler according to the extension.
-  string handler = extension.size () == 0 ?
-      server->configuration().get<string> ("default-handler", "error") :
-      server->configuration().get<string> (extension + "-handler", "error");
+  } else {
 
-  // Returning the correct handler to caller.
-  if (handler == "static-file-handler")
-    return request_handler_ptr (new static_file_handler (server, socket, request, extension));
+    // Figuring out handler to use according to request extension.
+    const string & extension = request->envelope().get_extension();
+    string handler = extension.size () == 0 ?
+        connection->server()->configuration().get<string> ("default-handler", "error") :
+        connection->server()->configuration().get<string> (extension + "-handler", "error");
 
-  return nullptr;
+    // Returning the correct handler to caller.
+    if (handler == "static-file-handler")
+      return request_handler_ptr (new static_file_handler (request, extension));
+    else
+      return request_handler_ptr (new error_handler (request, 404));
+  }
 }
 
 
-request_handler::request_handler (server * server, socket_ptr socket, request * request)
-  : _server (server),
-    _socket (socket),
-    _request (request)
+request_handler::request_handler (request * request)
+  : _request (request)
 { }
 
 
-void request_handler::write_status (unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void request_handler::write_status (connection_ptr connection, unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
 {
   // Creating status line, and serializing to socket.
   string status_line = "HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ";
@@ -101,32 +102,32 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
   status_line += "\r\n";
 
   // Writing status line to socket.
-  async_write (*_socket, boost::asio::buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (connection->socket(), boost::asio::buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
-      throw request_exception ("Socket error while returning HTTP status line back to client.");
+      return; // Simply let x go out of scope should clean things up.
     else
       callback (x);
   });
 }
 
 
-void request_handler::write_header (const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void request_handler::write_header (connection_ptr connection, const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
 {
   // Writing HTTP header on socket.
-  async_write (*_socket, boost::asio::buffer (key + ": " + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (connection->socket(), boost::asio::buffer (key + ":" + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
-      throw request_exception ("Socket error while returning HTTP header bacl to client.");
-    else if (callback != nullptr)
+      return; // Simply letting x go out of scope, should clean things up.
+    else
       callback (x);
   });
 }
 
 
-void request_handler::write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void request_handler::write_headers (connection_ptr connection, std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
 {
   if (headers.size() == 0) {
 
@@ -143,12 +144,72 @@ void request_handler::write_headers (std::vector<std::tuple<string, string> > he
     headers.erase (headers.begin (), headers.begin () + 1);
 
     // Writing header.
-    write_header (key, value, x, [this, headers, callback] (exceptional_executor x) {
+    write_header (connection, key, value, x, [this, connection, headers, callback] (exceptional_executor x) {
 
       // Invoking self.
-      write_headers (headers, x, callback);
+      write_headers (connection, headers, x, callback);
     });
   }
+}
+
+
+void request_handler::write_file (connection_ptr connection, const string & filepath, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+{
+  // Figuring out size of file, and making sure it's not larger than what we are allowed to handle according to configuration of server.
+  size_t size = boost::filesystem::file_size (filepath);
+
+  // Retrieving MIME type, and verifying this is a type of file we actually serve.
+  string mime_type = get_mime (connection, filepath);
+  if (mime_type == "") {
+
+    // File type is not served according to configuration of server.
+    _request->write_error_response (connection, x, 403);
+    return;
+  }
+
+  // Building our request headers.
+  std::vector<std::tuple<string, string> > headers {
+    {"Content-Type", mime_type },
+    {"Date", date::now ().to_string ()},
+    {"Content-Length", boost::lexical_cast<string> (size)}};
+
+  // Writing HTTP headers to connection.
+  write_headers (connection, headers, x, [this, connection, filepath, callback] (exceptional_executor x) {
+
+    // Writing additional CR/LF sequence, to signal to client that we're beginning to send content.
+    async_write (connection->socket(), boost::asio::buffer (string("\r\n")), [this, connection, filepath, callback, x] (const error_code & error, size_t bytes_written) {
+
+      // Sanity check.
+      if (error)
+        return; // Simply let x go out of scope to clean things up.
+
+      // Reading file's content, and putting it into a vector.
+      std::ifstream fs (filepath, std::ios_base::binary);
+      std::vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
+
+      // Writing content to connection's socket.
+      async_write (connection->socket(), boost::asio::buffer (file_content), [callback, x] (const error_code & error, size_t bytes_written) {
+
+        // Sanity check.
+        if (error)
+          return; // Letting x go out of scope to clean things up.
+
+        // Finished serving static file, invoking callback supplied when invoking method.
+        callback (x);
+      });
+    });
+  });
+}
+
+
+string request_handler::get_mime (connection_ptr connection, const string & filepath)
+{
+  // Returning MIME type for file extension.
+  string filename = filepath.substr (filepath.find_last_of ("/") + 1);
+  size_t index_of_dot = filename.find_last_of (".");
+  string extension = index_of_dot == string::npos ? "" : filename.substr (index_of_dot + 1);
+  string mime_type = connection->server()->configuration().get<string> ("mime-" + extension, "");
+  return mime_type;
 }
 
 

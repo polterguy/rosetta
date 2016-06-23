@@ -20,20 +20,17 @@
 
 #include <memory>
 #include <boost/asio.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include "common/include/exceptional_executor.hpp"
 #include "server/include/server.hpp"
 
 using std::string;
+using namespace boost::asio;
+using namespace rosetta::common;
 
 namespace rosetta {
 namespace server {
 
 class connection;
 typedef std::shared_ptr<connection> connection_ptr;
-
-class request;
-typedef std::shared_ptr<request> request_ptr;
 
 
 /// Wraps a single connection to our server, which might include multiple requests, and their associated response.
@@ -44,50 +41,43 @@ public:
   /// Creates a new connection.
   static connection_ptr create (class server * server, socket_ptr socket);
 
-  /// Destroys the connection.
-  ~connection ();
-
   /// Handles a connection to our server.
-  void handle ();
+  void handle();
 
-  /// Keeps a connection alive for consecutive requests, for a configured amount of time.
-  void keep_alive ();
+  /// Sets the deadline timer for a specified amount of time, before connection is closed.
+  void set_deadline_timer (int seconds = -1);
 
-  /// Close the connection.
-  void close ();
+  /// Returns the server for the current instance.
+  const server * server() const { return _server; }
 
-  /// Returns the socket for the current connection.
-  socket_ptr socket() { return _socket; }
+  /// Returns the socket for the current instance.
+  boost::asio::ip::tcp::socket & socket() { return *_socket; }
+
+  /// Returns the stream buffer for the current instance.
+  boost::asio::streambuf & buffer() { return _buffer; }
 
 private:
 
-  /// Making request a friend class, such that it can access the socket, server, stream buffer, and other private data members.
-  friend class request;
+  /// Making server a friend class, such that it can close the connection.
+  friend class server;
 
   /// Creates a connection on the given socket, for the given server instance.
   explicit connection (class server * server, socket_ptr socket);
 
-  /// Sets the deadline timer for a specified amount of time, before connection is closed.
-  void set_deadline_timer (size_t seconds);
-
-  /// Kills the deadline timer altogether.
-  void kill_deadline_timer ();
-
+  /// Close the connection.
+  void close();
 
   /// Server instance this connection belongs to.
-  server * _server;
+  class server * _server;
 
   /// Socket for connection.
   socket_ptr _socket;
 
-  /// The request, will be created, and handled, when handle() on the connection is invoked.
-  request_ptr _request;
-
   /// Deadline timer, used to close connection, if a timeout occurs.
-  boost::asio::deadline_timer _timer;
+  deadline_timer _timer;
 
-  /// ASIO stream buffer, kept by connection, to support HTTP pipelining, across multiple requests.
-  boost::asio::streambuf _request_buffer;
+  /// ASIO request stream buffer, kept by connection, to support HTTP pipelining, across multiple requests.
+  streambuf _buffer;
 };
 
 

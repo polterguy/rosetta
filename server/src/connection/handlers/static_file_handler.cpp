@@ -36,48 +36,58 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-static_file_handler::static_file_handler (server * server, socket_ptr socket, request * request, const string & extension)
-  : request_handler (server, socket, request),
+static_file_handler::static_file_handler (request * request, const string & extension)
+  : request_handler (request),
     _extension (extension)
 { }
 
 
-void static_file_handler::handle (exceptional_executor x, std::function<void (exceptional_executor x)> callback)
+void static_file_handler::handle (connection_ptr connection, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
 {
   // Retrieving URI from request, removing initial "/" from URI.
-  string uri = _request->uri ().substr (1);
+  string uri = _request->envelope().get_uri().substr (1);
 
   // Breaking up URI into components, and sanity checking each component, to verify client is not requesting an illegal URI.
   std::vector<string> entities;
   boost::split (entities, uri, boost::is_any_of ("/"));
+  bool has_error = false;
   for (string & idx : entities) {
 
     if (idx == "")
-      throw request_exception ("Illegal URI; '" + _request->uri () + "'."); // Two consecutive "/" after each other.
+      has_error = true;
 
     if (idx.find ("..") != string::npos) // Request is probably trying to access files outside of the main www-root folder.
-      throw request_exception ("Illegal URI; '" + _request->uri () + "'.");
+      has_error = true;
 
-    if (idx.find ("~") == 0) // Linux backup file.
-      throw request_exception ("Illegal URI; '" + _request->uri () + "'.");
+    if (idx.find ("~") == 0) // Linux backup file or folder.
+      has_error = true;
 
-    if (idx.find (".") == 0) // Linux hidden file, or a file without a name, and only extension.
-      throw request_exception ("Illegal URI; '" + _request->uri () + "'.");
+    if (idx.find (".") == 0) // Linux hidden file or folder, or a file without a name, and only extension.
+      has_error = true;
   }
 
-  // Figuring out which file was requested.
-  string path = _server->configuration().get<string> ("www-root", "www-root/") + uri;
+  // Checking if we have an error, and if so, writing status error 500, and returning early.
+  if (has_error) {
+    _request->write_error_response (connection, x, 404);
+    return;
+  }
+
+  // Retrieving root path.
+  const static string WWW_ROOT_PATH = connection->server()->configuration().get<string> ("www-root", "www-root/");
+  
+  // Figuring out entire physical path of file.
+  string path = WWW_ROOT_PATH + uri;
 
   // Making sure file exists.
   if (!boost::filesystem::exists (path)) {
 
       // Writing error status response, and returning early.
-      _request->write_error_response (404, x);
+      _request->write_error_response (connection, x, 404);
       return;
   }
 
   // Checking if client passed in an "If-Modified-Since" header, and if so, handle it accordingly.
-  string if_modified_since = (*_request)["if-modified-since"];
+  string if_modified_since = _request->envelope().get_header("If-Modified-Since");
   if (if_modified_since != "") {
 
     // We have an "If-Modified-Since" HTTP header, checking if file was tampered with since that date.
@@ -88,92 +98,28 @@ void static_file_handler::handle (exceptional_executor x, std::function<void (ex
     if (file_modify_date > if_modified_date) {
 
       // File has been tampered with since the "If-Modified-Since" HTTP header, returning file in response.
-      write_file (path, x, callback);
+      write_file (connection, path, x, functor);
     } else {
 
       // File has not been tampered with since the "If-Modified-Since" HTTP header, returning 304 response, without file content.
-      write_status (304, x, [this, callback] (exceptional_executor x) {
+      write_status (connection, 304, x, [this, connection, functor] (exceptional_executor x) {
 
         // Building our request headers.
         std::vector<std::tuple<string, string> > headers { {"Date", date::now ().to_string ()} };
 
         // Writing HTTP headers to connection.
-        write_headers (headers, x, nullptr);
+        write_headers (connection, headers, x, nullptr);
       });
     }
   } else {
 
-    // Writing file to client on socket.
-    write_file (path, x, callback);
-  }
-}
+    // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
+    write_header (connection, "Last-Modified", date::from_file_change (path).to_string (), x, [this, connection, path, functor] (exceptional_executor x) {
 
-
-// Returns the requested file back to client.
-void static_file_handler::write_file (const string & filepath, exceptional_executor x, std::function<void (exceptional_executor x)> callback)
-{
-  // Figuring out size of file, and making sure it's not larger than what we are allowed to handle according to configuration of server.
-  size_t size = boost::filesystem::file_size (filepath);
-  if (size > _server->configuration().get<size_t> ("max-response-content-length", 4194304)) {
-
-    // File was too long for server to serve according to configuration.
-    _request->write_error_response (500, x);
-    return;
-  }
-
-  // Retrieving MIME type, and verifying this is a type of file we actually serve.
-  string mime_type = get_mime ();
-  if (mime_type == "") {
-
-    // File type is not served according to configuration of server.
-    _request->write_error_response (403, x);
-    return;
-  }
-
-  // Writing out status line on socket.
-  write_status (200, x, [this, filepath, callback, size, mime_type] (exceptional_executor x) {
-
-    // Building our request headers.
-    std::vector<std::tuple<string, string> > headers {
-      {"Content-Type", mime_type },
-      {"Date", date::now ().to_string ()},
-      {"Last-Modified", date::from_file_change (filepath).to_string ()},
-      {"Content-Length", boost::lexical_cast<string> (size)}};
-
-    // Writing HTTP headers to connection.
-    write_headers (headers, x, [this, filepath, callback] (exceptional_executor x) {
-
-      // Writing additional CR/LF sequence, to signal to client that we're beginning to send content.
-      async_write (*_socket, boost::asio::buffer (string("\r\n")), [this, filepath, callback, x] (const error_code & error, size_t bytes_written) {
-
-        // Sanity check.
-        if (error)
-          throw request_exception ("Socket error while writing file; '" + filepath + "'.");
-
-        // Reading file's content, and putting it into a vector.
-        std::ifstream fs (filepath, std::ios_base::binary);
-        std::vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
-
-        // Writing content to connection's socket.
-        async_write (*_socket, boost::asio::buffer (file_content), [filepath, callback, x] (const error_code & error, size_t bytes_written) {
-
-          // Sanity check.
-          if (error)
-            throw request_exception ("Socket error while writing file; '" + filepath + "'.");
-
-          // Finished serving static file, invoking callback supplied when invoking method.
-          callback (x);
-        });
-      });
+      // Then writing actual file.
+      write_file (connection, path, x, functor);
     });
-  });
-}
-
-
-string static_file_handler::get_mime ()
-{
-  // Returning MIME type for file extension, defaulting to "application/octet-stream"
-  return _server->configuration().get<string> ("mime-" + _extension, "");
+  }
 }
 
 
