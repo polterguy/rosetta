@@ -18,7 +18,6 @@
 #ifndef ROSETTA_SERVER_THREAD_POOL_SERVER_HPP
 #define ROSETTA_SERVER_THREAD_POOL_SERVER_HPP
 
-#include <memory>
 #include <boost/asio.hpp>
 #include "server/include/server.hpp"
 
@@ -33,26 +32,23 @@ class thread_pool_server final : public server
 {
 public:
 
-  /// Private constructor, to allow for factory method to create correct type of server
+  /// Creates a thread-pool server instance.
   thread_pool_server (const class configuration & configuration);
 
-  /// Overriding the run() method for a single thread implementation
+  /// Overriding the run() method for a thread pool implementation.
   void run() override;
 
-  /// Creates a new connection on the given socket.
+  /// Creates a new connection on the given socket. Overridden to make sure we wrap creation inside of a strand.
   connection_ptr create_connection (socket_ptr socket) override;
 
-  /// Removes the specified connection from server.
+  /// Removes the specified connection from server. Overridden to make sure we wrap removal inside of a strand.
   void remove_connection (connection_ptr connection) override;
 
 private:
 
-  /// Starts a new thread by invoking run() on the io_service
-  void thread_run ();
 
-
-  /// Strand object, to synchronize access to resources that are common for multiple threads.
-  boost::asio::strand _strand;
+  /// Strand object, to synchronize access to resources that are shared between multiple threads.
+  strand _strand;
 };
 
 

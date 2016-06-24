@@ -61,17 +61,18 @@ development, but the bricks that should for the most parts already be in place,
 are mentioned below.
 
 * Keep-Alive connections.
-* Timeouts, both on request, and keep-alive connections.
+* Timeouts, both on request envelope, request content, and keep-alive connections.
 * Pipelining of requests.
+* If-Modified-Since. The server will return a 304 response to the client without
+  content, if a static file is requested, and it has not been modified since the
+  requested If-Modified-Since date.
 * Max connections. You can choose to refuse a connection from a client, if
   the client already has reached the *"max-connections-per-client"* limit, to
-  make sure a single erroneous client, does not exhaust your server.
-* If-Modified-Since, making it possible to return a 304 to client, if the file
-  has not been modified since the specified date.
+  make sure a single erroneous or malicious client, does not exhaust your server.
 * Intelligent 4xx and 5xx error responses.
+* Decide which content to serve, and how to serve it, through your configuration file.
 * Configurable. Rosetta will create its own default configuration file the first time
-  you run it, but this file can be modified by you on consecutive runs, to make sure
-  Rosetta behaves in accordance to your wishes.
+  you run it, but this file can be modified by you afterwards.
 
 ### No Logging
 

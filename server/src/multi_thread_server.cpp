@@ -17,7 +17,6 @@
 
 #include <vector>
 #include <utility>
-#include <iostream>
 #include <boost/bind.hpp>
 #include <boost/thread/thread.hpp>
 #include "common/include/rosetta_exception.hpp"
@@ -30,57 +29,39 @@
 namespace rosetta {
 namespace server {
 
+typedef std::shared_ptr<boost::thread> thread_ptr;
+typedef std::vector<thread_ptr> thread_pool;
+
 
 thread_pool_server::thread_pool_server (const class configuration & configuration)
   : server (configuration),
-    _strand (_service)
+    _strand (service ())
 { }
 
 
 void thread_pool_server::run ()
 {
-  typedef std::shared_ptr<boost::thread> thread_ptr;
-  
   // Creating thread pool according to size from configuration.
-  size_t thread_pool_size = configuration ().get ("threads", 128);
-  std::vector<thread_ptr> threads;
+  size_t thread_pool_size = configuration ().get<size_t> ("threads", 128);
+  thread_pool threads;
 
+  // Creating thread pool.
   for (size_t i = 0; i < thread_pool_size; ++i) {
-    
-    // Creating thread, and binding it to thread_pool_server::thread_run().
-    thread_ptr thread (std::make_shared<boost::thread> (boost::bind (&thread_pool_server::thread_run, this)));
+
+    // Creating thread, and binding it to server::run().
+    thread_ptr thread (std::make_shared<boost::thread> ([this] () {
+
+      // Invoking base class run() for every single thread in thread pool.
+      server::run ();
+    }));
+
+    // Storing thread in thread pool, such that we can join() all threads together later.
     threads.push_back (thread);
   }
 
   // Wait for all threads in the pool to finish.
   for (auto t: threads) {
     t->join();
-  }
-}
-
-
-void thread_pool_server::thread_run ()
-{
-  // To deal with exceptions, on a per thread basis, we need to deal with them out here, since io:service.run()
-  // is a blocking operation, and potential exceptions will be thrown from async handlers.
-  // This means our exceptions will propagate all the way out here.
-  // To deal with them, we implement logging here, catch everything, and simply restart our io_service.
-  while (true) {
-    
-    try {
-      
-      // This will block the current thread until all jobs are finished.
-      // Since there's always another job in our queue, it will never return in fact, until a stop signal is given,
-      // such as SIGINT or SIGTERM etc, or an exception occurs.
-      io_service ().run ();
-      
-      // This is an attempt to gracefully shutdown the server, simply break while loop
-      break;
-    } catch (const std::exception & error) {
-      
-      // Unhandled exception, logging to std error object, before restarting io_server object.
-      std::cerr << "Unhandled exception occurred, message was; '" << error.what() << "'" << std::endl;
-    }
   }
 }
 

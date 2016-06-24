@@ -23,6 +23,7 @@
 #include <boost/asio.hpp>
 #include "common/include/configuration.hpp"
 
+using namespace boost::asio;
 using namespace rosetta::common;
 
 namespace rosetta {
@@ -34,7 +35,7 @@ typedef std::shared_ptr<connection> connection_ptr;
 class server;
 typedef std::shared_ptr<server> server_ptr;
 
-typedef std::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
+typedef std::shared_ptr<ip::tcp::socket> socket_ptr;
 
 
 /// This is the main server object, and there will only be one server running in your application.
@@ -42,31 +43,28 @@ class server : public boost::noncopyable
 {
 public:
 
+  /// Creates a server instance.
+  server (const class configuration & configuration);
+
   /// Creates a server object of type according to settings.
   static server_ptr create (const configuration & configuration);
 
   /// Starts the server.
-  virtual void run () = 0;
+  virtual void run ();
 
   /// Returns the configuration for our server.
   const class configuration & configuration () const { return _configuration; };
 
   /// Returns the io_service belonging to this instance.
-  class boost::asio::io_service & io_service () { return _service; }
+  io_service & service () { return _service; }
 
   /// Removes the specified connection.
   virtual void remove_connection (connection_ptr connection);
 
 protected:
 
-  /// Protected constructor, to make sure only factory method can create instances of servers.
-  server (const class configuration & configuration);
-
   /// Starts a connection on the given socket.
   virtual connection_ptr create_connection (socket_ptr socket);
-
-  /// Only io service object in application.
-  boost::asio::io_service _service;
 
 private:
 
@@ -77,14 +75,17 @@ private:
   void on_accept();
 
 
+  /// Only io service object in application.
+  io_service _service;
+
   /// Configuration for server.
   const class configuration _configuration;
 
   /// The signal_set is used to register for process termination notifications.
-  boost::asio::signal_set _signals;
+  signal_set _signals;
 
   /// Acceptor which listens for incoming connections
-  boost::asio::ip::tcp::acceptor _acceptor;
+  ip::tcp::acceptor _acceptor;
 
   /// All live connections to our server.
   std::set<connection_ptr> _connections;

@@ -15,12 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <utility>
-#include "common/include/rosetta_exception.hpp"
-#include "common/include/configuration_exception.hpp"
 #include "server/include/server.hpp"
 #include "server/include/multi_thread_server.hpp"
-#include "server/include/single_thread_server.hpp"
 #include "server/include/connection/connection.hpp"
 
 using std::string;
@@ -42,7 +38,7 @@ server_ptr server::create (const class configuration & configuration)
   if (thread_model == "single-thread") {
 
     // Single threaded server.
-    return server_ptr (std::make_shared<single_thread_server> (configuration));
+    return server_ptr (std::make_shared<server> (configuration));
   } else if (thread_model == "thread-pool") {
 
     // Thread pool server.
@@ -79,14 +75,14 @@ server::server (const class configuration & configuration)
   string port    = _configuration.get<string> (PORT_CONFIG_KEY, "8080");
   
   // Resolving address and port, for then to open endpoint
-  boost::asio::ip::tcp::resolver resolver (_service);
-  boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve ({address, port});
+  ip::tcp::resolver resolver (_service);
+  ip::tcp::endpoint endpoint = *resolver.resolve ({address, port});
   
   // Letting endpoint decide whether or not we should use IP version 4 or 6
   _acceptor.open (endpoint.protocol());
   
   // Allowing the acceptor to reuse address, before binding to endpoint
-  _acceptor.set_option (boost::asio::ip::tcp::acceptor::reuse_address (true));
+  _acceptor.set_option (ip::tcp::acceptor::reuse_address (true));
   _acceptor.bind (endpoint);
   
   // Start listening on acceptor.
@@ -97,10 +93,36 @@ server::server (const class configuration & configuration)
 }
 
 
+void server::run ()
+{
+  // To deal with exceptions, on a per thread basis, we need to deal with them here, since io:service.run()
+  // is a blocking operation, and potential exceptions will be thrown from async handlers.
+  // This means our exceptions will propagate all the way out here.
+  // To deal with them, we catch everything here, and simply restart our io_service.
+  while (true) {
+    
+    try {
+      
+      // This will block the current thread until all jobs are finished.
+      // Since there's always another job in our queue, it will never return in fact, until a stop signal is given,
+      // such as SIGINT or SIGTERM etc, or an exception occurs.
+      _service.run ();
+      
+      // This is an attempt to gracefully shutdown the server, simply break while loop.
+      break;
+    } catch (const std::exception & error) {
+      
+      // An exception occurred, simply re-iterating while loop, to re-start io_service.
+      // We could do logging here, especially for debugging purposes.
+    }
+  }
+}
+
+
 connection_ptr server::create_connection (socket_ptr socket)
 {
   // Figuring out IP address for current connection.
-  boost::asio::ip::address client_address = socket->remote_endpoint().address();
+  ip::address client_address = socket->remote_endpoint().address();
 
   // Counting existing connections from the same IP address.
   size_t no_connections_for_ip = 0;
@@ -115,7 +137,7 @@ connection_ptr server::create_connection (socket_ptr socket)
 
     // We refuse this connection.
     error_code ignored_ec;
-    socket->shutdown (boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+    socket->shutdown (ip::tcp::socket::shutdown_both, ignored_ec);
 
     // And return nullptr to caller.
     return nullptr;
@@ -138,7 +160,7 @@ void server::remove_connection (connection_ptr connection)
 void server::on_accept ()
 {
   // Waiting for next request.
-  auto socket = std::make_shared<boost::asio::ip::tcp::socket> (io_service ());
+  auto socket = std::make_shared<ip::tcp::socket> (_service);
   _acceptor.async_accept(*socket, [this, socket] (const error_code & error) {
 
     // Checking that our acceptor is still open, and not killed

@@ -15,20 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <fstream>
-#include <boost/filesystem.hpp>
-#include <boost/algorithm/string.hpp>
-#include "common/include/date.hpp"
 #include "common/include/exceptional_executor.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
-#include "server/include/exceptions/request_exception.hpp"
+
+using boost::system::error_code;
 
 namespace rosetta {
 namespace server {
-
-using boost::system::error_code;
-using namespace rosetta::common;
 
 
 connection_ptr connection::create (class server * server, socket_ptr socket)
@@ -40,7 +34,7 @@ connection_ptr connection::create (class server * server, socket_ptr socket)
 connection::connection (class server * server, socket_ptr socket)
   : _server (server),
     _socket (socket),
-    _timer (server->io_service())
+    _timer (server->service())
 { }
 
 
@@ -85,7 +79,7 @@ void connection::set_deadline_timer (int seconds)
 
       // We don't close if the operation was aborted, since when timer is canceled, the handler will be invoked with
       // the "aborted" error_code, and every time we change the deadline timer, we implicitly cancel() any existing handlers.
-      if (error != boost::asio::error::operation_aborted)
+      if (error != error::operation_aborted)
         ensure_close ();
     });
   }
@@ -108,8 +102,8 @@ void connection::ensure_close()
   if (_socket->is_open ()) {
 
     // Socket still open, making sure we close it.
-    error_code ignored_ec;
-    _socket->shutdown (boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+    error_code ec;
+    _socket->shutdown (ip::tcp::socket::shutdown_both, ec);
     _socket->close();
   }
 

@@ -57,10 +57,10 @@ public:
   const server * server() const { return _server; }
 
   /// Returns the socket for the current instance.
-  boost::asio::ip::tcp::socket & socket() { return *_socket; }
+  ip::tcp::socket & socket() { return *_socket; }
 
   /// Returns the stream buffer for the current instance.
-  boost::asio::streambuf & buffer() { return _buffer; }
+  streambuf & buffer() { return _buffer; }
 
 private:
 
