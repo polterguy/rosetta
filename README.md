@@ -22,7 +22,7 @@ mountain hall web server installation"*. It is also created to be as easy to
 use as possible, and will among other things automatically create a default
 configuration file, the first time you use it.
 
-It has no dependencies when built, and should easily start simply by executing
+It has no dependencies when built, and should easily start, simply by executing
 the main process image, automatically creating its own configuration file.
 
 Rosetta is also highly *"forgiving"* in regards to the HTTP standard. This means
@@ -45,14 +45,11 @@ standard.
 Rosetta features two different thread models, *"single-thread"* and *"thread-pool"*.
 
 *"single-thread"* means it runs in a single thread, which might be useful for
-extremely small devices, with small amounts of traffic.
-
-*"thread-pool"* means it runs on a pool of threads, which you can configure
-yourself, and that every single connection to the server, runs in its own separate
-thread, taken from this thread pool.
-
-A third thread model is planned, which will create one thread, and one io_service,
-for each processor on your device.
+extremely small devices, with small amounts of traffic. *"thread-pool"* means
+it runs on a pool of threads, which you can configure yourself, and that every
+single connection to the server, runs in its own separate thread, taken from
+this thread pool. A third thread model is planned, which will create one thread,
+and one io_service, for each processor on your device.
 
 This allows you to experiment with whatever thread model gives you the best results,
 according to which device you run your web server on.
@@ -68,7 +65,7 @@ are mentioned below.
 * Pipelining of requests.
 * Max connections. You can choose to refuse a connection from a client, if
   the client already has reached the *"max-connections-per-client"* limit, to
-  make sure a single erroneous client does not exhaust your server.
+  make sure a single erroneous client, does not exhaust your server.
 * If-Modified-Since, making it possible to return a 304 to client, if the file
   has not been modified since the specified date.
 * Intelligent 4xx and 5xx error responses.

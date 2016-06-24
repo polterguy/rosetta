@@ -16,6 +16,7 @@
  */
 
 #include <vector>
+#include <cctype>
 #include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/algorithm/string.hpp>
@@ -36,6 +37,7 @@ using namespace rosetta::common;
 
 string get_line (boost::asio::streambuf & buffer);
 string decode_uri (const string & uri);
+string capitalize_header_name (const string & name);
 
 
 request_envelope::request_envelope (connection * connection, request * request)
@@ -84,36 +86,37 @@ void request_envelope::read_headers (exceptional_executor x, functor callback)
   // Reading first header.
   async_read_until (_connection->socket(), _connection->buffer(), match, [this, x, match, callback] (const error_code & error, size_t bytes_read) {
 
-    // Making sure there was no errors while reading socket.
+    // Making sure there were no errors while reading socket.
     if (error == boost::asio::error::operation_aborted)
-      return;
+      return; // Probably due to a timeout on connection.
     else if (error)
       throw request_exception ("Socket error while reading HTTP headers.");
+    else if (match.has_error ()) {
 
-    if (match.has_error ()) {
-
-      // Returning 413 to client.
+      // HTTP-Request line was too long. Returning 413 to client.
       _request->write_error_response (x, 413);
       return;
     }
 
     // Now we can start parsing HTTP headers.
     string line = get_line (_connection->buffer());
+
+    // Checking if there are any more headers being sent from client.
     if (line.size () == 0) {
 
-      // No more headers.
+      // No more headers, the previous header was the last.
       callback (x);
       return;
     }
 
-    // There are possibly more HTTP headers, continue reading until we see an empty line.
+    // Splitting header into name and value.
     const auto equals_idx = line.find (':');
 
-    // Retrieving header name, ignoring headers without value, simply ignoring headers without a value.
+    // Retrieving header name, simply ignoring headers without a value.
     if (equals_idx != string::npos) {
 
       // Retrieving actual header name and value.
-      string header_name = boost::algorithm::trim_copy (line.substr (0, equals_idx));
+      string header_name = capitalize_header_name (boost::algorithm::trim_copy (line.substr (0, equals_idx)));
       string header_value = boost::algorithm::trim_copy (line.substr (equals_idx + 1));
 
       // Now adding actual header into headers collection.
@@ -294,6 +297,22 @@ string decode_uri (const string & uri)
 
   // Returning decoded URI to caller.
   return string (return_value.begin (), return_value.end ());
+}
+
+
+string capitalize_header_name (const string & name)
+{
+  std::vector<char> return_value;
+  bool next_is_upper = true;
+  for (auto idx : name) {
+    if (next_is_upper) {
+      return_value.push_back (toupper (idx));
+    } else {
+      return_value.push_back (idx);
+    }
+    next_is_upper = idx == '-';
+  }
+  return string (return_value.begin(), return_value.end());
 }
 
 
