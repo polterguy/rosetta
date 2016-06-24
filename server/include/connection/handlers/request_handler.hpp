@@ -75,6 +75,9 @@ protected:
 
 private:
 
+  /// Buffer for sending content back to client in chunks.
+  std::array<char, 8192> _response_buffer;
+
   /// Implementation of actual file write operation.
   /// This allows us to serialize file back to client on socket, without having to read entire file into memory.
   void write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor callback);

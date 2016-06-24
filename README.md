@@ -73,6 +73,7 @@ are mentioned below.
 * Decide which content to serve, and how to serve it, through your configuration file.
 * Configurable. Rosetta will create its own default configuration file the first time
   you run it, but this file can be modified by you afterwards.
+* Transmits static files back to client without reading entire file into memory first.
 
 ### No Logging
 

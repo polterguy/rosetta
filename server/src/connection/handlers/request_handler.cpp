@@ -35,9 +35,6 @@ using boost::system::error_code;
 using namespace boost::asio;
 using namespace rosetta::common;
 
-/// Size of buffer to send back to client between each file read operation.
-const size_t FILE_CHUNK_SIZE = 8192;
-
 
 request_handler_ptr request_handler::create (class connection * connection, class request * request, int status_code)
 {
@@ -190,6 +187,11 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
     return;
   }
 
+  // Opening up file, as a shared_ptr, making sure it stays around until all bytes have been written, and invoking actual implementation of file writing.
+  std::shared_ptr<std::ifstream> fs_ptr = std::make_shared<std::ifstream> (filepath, std::ios::in | std::ios::binary);
+  if (!fs_ptr->good())
+    throw request_exception ("Couldn't open file; '" + filepath + "' for reading.");
+
   // Building our request headers.
   header_list headers {
     {"Content-Type", mime_type },
@@ -197,10 +199,9 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
     {"Content-Length", boost::lexical_cast<string> (size)}};
 
   // Writing HTTP headers to connection.
-  write_headers (headers, x, [this, filepath, callback] (exceptional_executor x) {
+  write_headers (headers, x, [this, fs_ptr, callback] (exceptional_executor x) {
 
-    // Opening up file, as a shared_ptr, making sure it stays around until all bytes have been written, and invoking actual implementation of file writing.
-    std::shared_ptr<std::ifstream> fs_ptr = std::make_shared<std::ifstream> (filepath, std::ios::in | std::ios::binary);
+    // Invoking implementation that actually writes file to socket.
     write_file (fs_ptr, x, callback);
   }, true);
 }
@@ -212,17 +213,15 @@ void request_handler::write_file (std::shared_ptr<std::ifstream> fs_ptr, excepti
   if (fs_ptr->eof()) {
 
     // Yup, we're done!
-    functor (x);
+    callback (x);
   } else {
 
-    // Creating a shared_ptr to a std::array, to make sure our object sticks around, until async_write is finished.
-    std::shared_ptr<std::array<char, FILE_CHUNK_SIZE> > arr_ptr = std::make_shared<std::array<char, FILE_CHUNK_SIZE> >();
+    // Reading from file into array.
+    fs_ptr->read (_response_buffer.data(), _response_buffer.size());
 
-    // Then reading from file into array.
-    fs_ptr->read (arr_ptr->data(), arr_ptr->size());
-
-    // Writing to socket, passing in both fs_ptr and arr_ptr, to make sure they stay around until operation is done.
-    async_write (_connection->socket(), buffer (arr_ptr->data(), fs_ptr->gcount()), [this, callback, x, arr_ptr, fs_ptr] (const error_code & error, size_t bytes_written) {
+    // Writing to socket, passing in fs_ptr, to make sure it stays around until operation is entirely done.
+    auto bf = buffer (_response_buffer.data(), fs_ptr->gcount());
+    async_write (_connection->socket(), bf, [this, callback, x, fs_ptr] (const error_code & error, size_t bytes_written) {
 
       // Sanity check.
       if (error)
