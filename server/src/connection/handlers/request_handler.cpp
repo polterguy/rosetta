@@ -35,6 +35,9 @@ using boost::system::error_code;
 using namespace boost::asio;
 using namespace rosetta::common;
 
+/// Size of buffer to send back to client between each file read operation.
+const size_t FILE_CHUNK_SIZE = 8192;
+
 
 request_handler_ptr request_handler::create (class connection * connection, class request * request, int status_code)
 {
@@ -73,49 +76,49 @@ request_handler::request_handler (class connection * connection, class request *
 
 void request_handler::write_status (unsigned int status_code, exceptional_executor x, functor callback)
 {
-  // Creating status line, and serializing to socket.
-  string status_line = "HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ";
+  // Creating status line, and serializing to socket, making sure status_line stays around until after write operation is finished.
+  std::shared_ptr<string> status_line = std::make_shared<string> ("HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ");
   switch (status_code) {
   case 200:
-    status_line += "OK";
+    *status_line += "OK";
     break;
   case 304:
-    status_line += "Not Modified";
+    *status_line += "Not Modified";
     break;
   case 403:
-    status_line += "Forbidden";
+    *status_line += "Forbidden";
     break;
   case 404:
-    status_line += "Not Found";
+    *status_line += "Not Found";
     break;
   case 405:
-    status_line += "Method Not Allowed";
+    *status_line += "Method Not Allowed";
     break;
   case 413:
-    status_line += "Request Header Too Long";
+    *status_line += "Request Header Too Long";
     break;
   case 414:
-    status_line += "Request-URI Too Long";
+    *status_line += "Request-URI Too Long";
     break;
   case 500:
-    status_line += "Internal Server Error";
+    *status_line += "Internal Server Error";
     break;
   case 501:
-    status_line += "Not Implemented";
+    *status_line += "Not Implemented";
     break;
   default:
     if (status_code > 200 && status_code < 300)
-      status_line += "Unknown Success Type";
+      *status_line += "Unknown Success Type";
     else if (status_code >= 300 && status_code < 400)
-      status_line += "Unknown Type";
+      *status_line += "Unknown Type";
     else
-      status_line += "Unknown Error Type";
+      *status_line += "Unknown Error Type";
     break;
   }
-  status_line += "\r\n";
+  *status_line += "\r\n";
 
   // Writing status line to socket.
-  async_write (_connection->socket(), buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (_connection->socket(), buffer (*status_line), [callback, x, status_line] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -128,15 +131,15 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
 
 void request_handler::write_header (const string & key, const string & value, exceptional_executor x, functor callback, bool is_last)
 {
-  // Creating header.
-  string header_content = key + ":" + value + "\r\n";
+  // Creating header, making sure the string stays around until after socket write operation is finished.
+  std::shared_ptr<string> header_content = std::make_shared<string> (key + ":" + value + "\r\n");
 
   // Checking if this was our last header, and if so, appending an additional CR/LF sequence.
   if (is_last)
-    header_content += "\r\n";
+    *header_content += "\r\n";
 
   // Writing header content to socket.
-  async_write (_connection->socket(), buffer (header_content), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (_connection->socket(), buffer (*header_content), [callback, x, header_content] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -196,21 +199,39 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
   // Writing HTTP headers to connection.
   write_headers (headers, x, [this, filepath, callback] (exceptional_executor x) {
 
-    // Reading file's content, and putting it into a vector.
-    std::ifstream fs (filepath, std::ios_base::binary);
-    std::vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
+    // Opening up file, as a shared_ptr, making sure it stays around until all bytes have been written, and invoking actual implementation of file writing.
+    std::shared_ptr<std::ifstream> fs_ptr = std::make_shared<std::ifstream> (filepath, std::ios::in | std::ios::binary);
+    write_file (fs_ptr, x, callback);
+  }, true);
+}
 
-    // Writing content to connection's socket.
-    async_write (_connection->socket(), buffer (file_content), [callback, x] (const error_code & error, size_t bytes_written) {
+
+void request_handler::write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor callback)
+{
+  // Checking if we're done.
+  if (fs_ptr->eof()) {
+
+    // Yup, we're done!
+    functor (x);
+  } else {
+
+    // Creating a shared_ptr to a std::array, to make sure our object sticks around, until async_write is finished.
+    std::shared_ptr<std::array<char, FILE_CHUNK_SIZE> > arr_ptr = std::make_shared<std::array<char, FILE_CHUNK_SIZE> >();
+
+    // Then reading from file into array.
+    fs_ptr->read (arr_ptr->data(), arr_ptr->size());
+
+    // Writing to socket, passing in both fs_ptr and arr_ptr, to make sure they stay around until operation is done.
+    async_write (_connection->socket(), buffer (arr_ptr->data(), fs_ptr->gcount()), [this, callback, x, arr_ptr, fs_ptr] (const error_code & error, size_t bytes_written) {
 
       // Sanity check.
       if (error)
         throw request_exception ("Socket error while writing file.");
 
-      // Finished serving static file, invoking callback supplied when invoking method.
-      callback (x);
+      // Invoking self.
+      write_file (fs_ptr, x, callback);
     });
-  }, true);
+  }
 }
 
 

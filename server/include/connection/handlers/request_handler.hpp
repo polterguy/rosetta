@@ -21,6 +21,7 @@
 #include <tuple>
 #include <memory>
 #include <vector>
+#include <fstream>
 #include <boost/asio.hpp>
 #include "common/include/exceptional_executor.hpp"
 
@@ -73,6 +74,10 @@ protected:
   request * request() { return _request; }
 
 private:
+
+  /// Implementation of actual file write operation.
+  /// This allows us to serialize file back to client on socket, without having to read entire file into memory.
+  void write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor callback);
 
   /// Returns the MIME type according to file extension.
   string get_mime (const string & filepath);
