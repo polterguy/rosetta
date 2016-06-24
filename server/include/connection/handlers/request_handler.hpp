@@ -32,11 +32,11 @@ using std::string;
 using namespace rosetta::common;
 
 class request;
-
 class connection;
-
 class request_handler;
 typedef std::shared_ptr<request_handler> request_handler_ptr;
+
+typedef std::vector<std::tuple<string, string> > header_list;
 
 
 /// Handles an HTTP request.
@@ -59,10 +59,10 @@ protected:
   void write_status (unsigned int status_code, exceptional_executor x, functor callback);
 
   /// Writing given HTTP header with given value back to client.
-  void write_header (const string & key, const string & value, exceptional_executor x, functor callback);
+  void write_header (const string & key, const string & value, exceptional_executor x, functor callback, bool is_last = false);
 
   /// Writing given HTTP headers with given value back to client.
-  void write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, functor callback);
+  void write_headers (header_list headers, exceptional_executor x, functor callback, bool is_last = false);
 
   /// Writing the given file on socket back to client.
   void write_file (const string & file_path, exceptional_executor x, functor callback);

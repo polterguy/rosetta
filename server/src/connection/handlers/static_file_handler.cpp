@@ -101,8 +101,12 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
       // First writing status 200.
       write_status (200, x, [this, x, path, callback] (exceptional_executor x) {
 
-        // Then writing file.
-        write_file (path, x, callback);
+        // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
+        write_header ("Last-Modified", date::from_file_change (path).to_string (), x, [this, path, callback] (exceptional_executor x) {
+
+          // Then writing actual file.
+          write_file (path, x, callback);
+        }, true);
       });
     } else {
 
@@ -115,11 +119,9 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
         // Writing HTTP headers to connection.
         write_headers (headers, x, [this, callback] (exceptional_executor x) {
 
-          // Writing additional CR/LF sequence, to signal to client that we're done sending headers.
-          async_write (connection()->socket(), boost::asio::buffer (string("\r\n")), [callback, x] (const error_code & error, size_t bytes_written) {
-            callback (x);
-          });
-        });
+          // invoking callback, since we're done writing the response.
+          callback (x);
+        }, true);
       });
     }
   } else {
@@ -132,7 +134,7 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
 
         // Then writing actual file.
         write_file (path, x, callback);
-      });
+      }, true);
     });
   }
 }

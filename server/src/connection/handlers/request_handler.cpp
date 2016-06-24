@@ -114,10 +114,17 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
 }
 
 
-void request_handler::write_header (const string & key, const string & value, exceptional_executor x, functor callback)
+void request_handler::write_header (const string & key, const string & value, exceptional_executor x, functor callback, bool is_last)
 {
-  // Writing HTTP header on socket.
-  async_write (_connection->socket(), boost::asio::buffer (key + ":" + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
+  // Creating header.
+  string header_content = key + ":" + value + "\r\n";
+
+  // Checking if this was our last header, and if so, appending an additional CR/LF sequence.
+  if (is_last)
+    header_content += "\r\n";
+
+  // Writing header content to socket.
+  async_write (_connection->socket(), boost::asio::buffer (header_content), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -128,7 +135,7 @@ void request_handler::write_header (const string & key, const string & value, ex
 }
 
 
-void request_handler::write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, functor callback)
+void request_handler::write_headers (header_list headers, exceptional_executor x, functor callback, bool is_last)
 {
   if (headers.size() == 0) {
 
@@ -145,11 +152,11 @@ void request_handler::write_headers (std::vector<std::tuple<string, string> > he
     headers.erase (headers.begin (), headers.begin () + 1);
 
     // Writing header.
-    write_header (key, value, x, [this, headers, callback] (exceptional_executor x) {
+    write_header (key, value, x, [this, headers, callback, is_last] (exceptional_executor x) {
 
       // Invoking self.
-      write_headers (headers, x, callback);
-    });
+      write_headers (headers, x, callback, is_last);
+    }, headers.size() == 0 ? is_last : false);
   }
 }
 
@@ -169,7 +176,7 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
   }
 
   // Building our request headers.
-  std::vector<std::tuple<string, string> > headers {
+  header_list headers {
     {"Content-Type", mime_type },
     {"Date", date::now ().to_string ()},
     {"Content-Length", boost::lexical_cast<string> (size)}};
@@ -177,29 +184,21 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
   // Writing HTTP headers to connection.
   write_headers (headers, x, [this, filepath, callback] (exceptional_executor x) {
 
-    // Writing additional CR/LF sequence, to signal to client that we're beginning to send content.
-    async_write (_connection->socket(), boost::asio::buffer (string("\r\n")), [this, filepath, callback, x] (const error_code & error, size_t bytes_written) {
+    // Reading file's content, and putting it into a vector.
+    std::ifstream fs (filepath, std::ios_base::binary);
+    std::vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
+
+    // Writing content to connection's socket.
+    async_write (_connection->socket(), boost::asio::buffer (file_content), [callback, x] (const error_code & error, size_t bytes_written) {
 
       // Sanity check.
       if (error)
-        throw request_exception ("Socket error before writing file.");
+        throw request_exception ("Socket error while writing file.");
 
-      // Reading file's content, and putting it into a vector.
-      std::ifstream fs (filepath, std::ios_base::binary);
-      std::vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
-
-      // Writing content to connection's socket.
-      async_write (_connection->socket(), boost::asio::buffer (file_content), [callback, x] (const error_code & error, size_t bytes_written) {
-
-        // Sanity check.
-        if (error)
-          throw request_exception ("Socket error while writing file.");
-
-        // Finished serving static file, invoking callback supplied when invoking method.
-        callback (x);
-      });
+      // Finished serving static file, invoking callback supplied when invoking method.
+      callback (x);
     });
-  });
+  }, true);
 }
 
 

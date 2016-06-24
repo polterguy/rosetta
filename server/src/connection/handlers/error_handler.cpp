@@ -48,6 +48,8 @@ void error_handler::handle (exceptional_executor x, functor callback)
 
     // Figuring out which file to serve.
     string error_file = "error-pages/" + boost::lexical_cast<string> (_status_code) + ".html";
+
+    // Using base class implementation for writing error file.
     write_file (error_file, x, [callback] (exceptional_executor x) {
       // Letting x go out of scope, without invoking functor, to close connection.
     });
