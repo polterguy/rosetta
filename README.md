@@ -23,10 +23,26 @@ use as possible, and will among other things automatically create a default
 configuration file, the first time you use it.
 
 It has no dependencies when built, and should easily start simply by executing
-the main process image, automatically creating and reading its own configuration
-file.
+the main process image, automatically creating its own configuration file.
 
-It features two different thread models, *"single-thread"* and *"thread-pool"*.
+Rosetta is also highly *"forgiving"* in regards to the HTTP standard. This means
+that whenever it can, it will try to interpret what the client is actually
+trying to communicate, even when the client is not able to do this, according
+to the strictness of the HTTP standard. For instance, it ignores CR when parsing
+an HTTP envelope, with the HTTP-Request line, and its headers. This means that
+sending a LF is enough to make Rosetta understand where the line breaks.
+Another example is that it will *"auto correct"* both the HTTP headers and
+the HTTP-Request line, capitalize the things that should be capitalized, and
+still understand things such as *"get"*, instead of *"GET"*, and *"connection"*,
+instead of *"Connection"*.
+
+This makes it a perfect *"first web server"*, since it allows you to more
+easily get started, without knowing all the intrinsic parts of the HTTP
+standard.
+
+### Thread models
+
+Rosetta features two different thread models, *"single-thread"* and *"thread-pool"*.
 
 *"single-thread"* means it runs in a single thread, which might be useful for
 extremely small devices, with small amounts of traffic.
@@ -35,6 +51,12 @@ extremely small devices, with small amounts of traffic.
 yourself, and that every single connection to the server, runs in its own separate
 thread, taken from this thread pool.
 
+A third thread model is planned, which will create one thread, and one io_service,
+for each processor on your device.
+
+This allows you to experiment with whatever thread model gives you the best results,
+according to which device you run your web server on.
+
 ### HTTP/1.1
 
 Rosetta aims at supporting the ghist of HTTP/1.1. Some parts are still under
@@ -42,9 +64,17 @@ development, but the bricks that should for the most parts already be in place,
 are mentioned below.
 
 * Keep-Alive connections.
+* Timeouts, both on request, and keep-alive connections.
 * Pipelining of requests.
+* Max connections. You can choose to refuse a connection from a client, if
+  the client already has reached the *"max-connections-per-client"* limit, to
+  make sure a single erroneous client does not exhaust your server.
 * If-Modified-Since, making it possible to return a 304 to client, if the file
   has not been modified since the specified date.
+* Intelligent 4xx and 5xx error responses.
+* Configurable. Rosetta will create its own default configuration file the first time
+  you run it, but this file can be modified by you on consecutive runs, to make sure
+  Rosetta behaves in accordance to your wishes.
 
 ### No Logging
 
