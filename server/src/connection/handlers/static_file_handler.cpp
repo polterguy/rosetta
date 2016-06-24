@@ -131,7 +131,7 @@ void static_file_handler::write_304_response (exceptional_executor x, functor ca
   write_status (304, x, [this, callback] (exceptional_executor x) {
 
     // Building our request headers.
-    std::vector<std::tuple<string, string> > headers { {"Date", date::now ().to_string ()} };
+    header_list headers { {"Date", date::now ().to_string ()} };
 
     // Writing HTTP headers to connection.
     write_headers (headers, x, [this, callback] (exceptional_executor x) {
