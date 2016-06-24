@@ -15,23 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <tuple>
-#include <vector>
-#include <fstream>
-#include <boost/asio.hpp>
-#include <boost/algorithm/string.hpp>
-#include "common/include/date.hpp"
-#include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
-#include "server/include/exceptions/request_exception.hpp"
 #include "server/include/connection/handlers/error_handler.hpp"
 
 namespace rosetta {
 namespace server {
 
 using std::string;
-using boost::system::error_code;
 using namespace rosetta::common;
 
 

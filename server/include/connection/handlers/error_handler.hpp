@@ -18,8 +18,6 @@
 #ifndef ROSETTA_SERVER_ERROR_HANDLER_HPP
 #define ROSETTA_SERVER_ERROR_HANDLER_HPP
 
-#include <memory>
-#include <utility>
 #include <boost/asio.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
@@ -27,12 +25,8 @@
 namespace rosetta {
 namespace server {
 
-using std::string;
-using namespace rosetta::common;
-
-class server;
-class request;
 class connection;
+class request;
 
 
 /// Handles an HTTP request.

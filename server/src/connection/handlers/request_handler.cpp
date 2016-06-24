@@ -32,6 +32,7 @@ namespace server {
 
 using std::string;
 using boost::system::error_code;
+using namespace boost::asio;
 using namespace rosetta::common;
 
 
@@ -45,16 +46,21 @@ request_handler_ptr request_handler::create (class connection * connection, clas
   } else {
 
     // Figuring out handler to use according to request extension.
-    const string & extension = request->envelope().get_extension();
+    const string & extension = request->envelope().extension();
     string handler = extension.size () == 0 ?
         connection->server()->configuration().get<string> ("default-handler", "error") :
         connection->server()->configuration().get<string> (extension + "-handler", "error");
 
     // Returning the correct handler to caller.
-    if (handler == "static-file-handler")
+    if (handler == "static-file-handler") {
+
+      // Static file handler.
       return request_handler_ptr (new static_file_handler (connection, request, extension));
-    else
+    } else {
+
+      // Oops, these types of files are not served.
       return request_handler_ptr (new error_handler (connection, request, 404));
+    }
   }
 }
 
@@ -76,6 +82,9 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
   case 304:
     status_line += "Not Modified";
     break;
+  case 403:
+    status_line += "Forbidden";
+    break;
   case 404:
     status_line += "Not Found";
     break;
@@ -87,6 +96,9 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
     break;
   case 414:
     status_line += "Request-URI Too Long";
+    break;
+  case 500:
+    status_line += "Internal Server Error";
     break;
   case 501:
     status_line += "Not Implemented";
@@ -103,7 +115,7 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
   status_line += "\r\n";
 
   // Writing status line to socket.
-  async_write (_connection->socket(), boost::asio::buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (_connection->socket(), buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -124,7 +136,7 @@ void request_handler::write_header (const string & key, const string & value, ex
     header_content += "\r\n";
 
   // Writing header content to socket.
-  async_write (_connection->socket(), boost::asio::buffer (header_content), [callback, x] (const error_code & error, size_t bytes_written) {
+  async_write (_connection->socket(), buffer (header_content), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -189,7 +201,7 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
     std::vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
 
     // Writing content to connection's socket.
-    async_write (_connection->socket(), boost::asio::buffer (file_content), [callback, x] (const error_code & error, size_t bytes_written) {
+    async_write (_connection->socket(), buffer (file_content), [callback, x] (const error_code & error, size_t bytes_written) {
 
       // Sanity check.
       if (error)

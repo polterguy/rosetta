@@ -20,7 +20,6 @@
 #include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/algorithm/string.hpp>
-#include "common/include/date.hpp"
 #include "common/include/match_condition.hpp"
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
@@ -33,9 +32,10 @@ namespace server {
 
 using std::string;
 using boost::system::error_code;
+using namespace boost::asio;
 using namespace rosetta::common;
 
-string get_line (boost::asio::streambuf & buffer);
+string get_line (streambuf & buffer);
 string decode_uri (const string & uri);
 string capitalize_header_name (const string & name);
 
@@ -56,7 +56,7 @@ void request_envelope::read (exceptional_executor x, functor callback)
   async_read_until (_connection->socket(), _connection->buffer(), match, [this, match, x, callback] (const error_code & error, size_t bytes_read) {
 
     // Checking if socket has an error, or HTTP-Request line was too long.
-    if (error == boost::asio::error::operation_aborted)
+    if (error == error::operation_aborted)
       return;
     if (error)
       throw request_exception ("Socket error while reading HTTP-Request line.");
@@ -87,7 +87,7 @@ void request_envelope::read_headers (exceptional_executor x, functor callback)
   async_read_until (_connection->socket(), _connection->buffer(), match, [this, x, match, callback] (const error_code & error, size_t bytes_read) {
 
     // Making sure there were no errors while reading socket.
-    if (error == boost::asio::error::operation_aborted)
+    if (error == error::operation_aborted)
       return; // Probably due to a timeout on connection.
     else if (error)
       throw request_exception ("Socket error while reading HTTP headers.");
@@ -129,7 +129,7 @@ void request_envelope::read_headers (exceptional_executor x, functor callback)
 }
 
 
-const string & request_envelope::get_header (const string & name) const
+const string & request_envelope::header (const string & name) const
 {
   // Empty return value, used when there are no such header.
   const static string EMPTY_HEADER_VALUE = "";
@@ -228,7 +228,7 @@ void request_envelope::parse_parameters (const string & params)
 
 
 /// Helper method for parsing an envelope line.
-string get_line (boost::asio::streambuf & buffer)
+string get_line (streambuf & buffer)
 {
   // Reading next line from stream, and putting into vector buffer, for efficiency.
   std::vector<unsigned char> vec;

@@ -18,7 +18,6 @@
 #ifndef ROSETTA_SERVER_THREAD_POOL_SERVER_HPP
 #define ROSETTA_SERVER_THREAD_POOL_SERVER_HPP
 
-#include <boost/asio.hpp>
 #include "server/include/server.hpp"
 
 using namespace rosetta::common;

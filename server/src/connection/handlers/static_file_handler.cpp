@@ -49,7 +49,7 @@ static_file_handler::static_file_handler (class connection * connection, class r
 void static_file_handler::handle (exceptional_executor x, functor callback)
 {
   // Retrieving URI from request, removing initial "/" from URI, before checking sanity of URI.
-  string uri = request()->envelope().get_uri().substr (1);
+  string uri = request()->envelope().uri().substr (1);
   if (!sanity_check_uri (uri)) {
 
     // URI is not "sane".
@@ -85,7 +85,7 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
 bool static_file_handler::should_write_file (const string & full_path)
 {
   // Checking if client passed in an "If-Modified-Since" header.
-  string if_modified_since = request()->envelope().get_header("If-Modified-Since");
+  string if_modified_since = request()->envelope().header ("If-Modified-Since");
   if (if_modified_since != "") {
 
     // We have an "If-Modified-Since" HTTP header, checking if file was tampered with since that date.

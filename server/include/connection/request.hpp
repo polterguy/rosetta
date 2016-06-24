@@ -18,12 +18,10 @@
 #ifndef ROSETTA_SERVER_REQUEST_HPP
 #define ROSETTA_SERVER_REQUEST_HPP
 
-#include <map>
 #include <memory>
-#include <functional>
-#include <boost/asio.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "server/include/connection/request_envelope.hpp"
+#include "server/include/connection/handlers/request_handler.hpp"
 
 namespace rosetta {
 namespace server {
@@ -31,9 +29,6 @@ namespace server {
 using std::string;
 
 class connection;
-
-class request_handler;
-typedef std::shared_ptr<request_handler> request_handler_ptr;
 
 class request;
 typedef std::shared_ptr<request> request_ptr;

@@ -15,15 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <memory>
-#include <vector>
-#include <fstream>
-#include <iostream>
-#include <algorithm>
 #include <boost/asio.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
-#include "common/include/date.hpp"
 #include "common/include/match_condition.hpp"
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
@@ -68,7 +61,7 @@ void request::handle (exceptional_executor x)
       _request_handler->handle (x, [this] (exceptional_executor x) {
 
         // Request is now finished handled, and we need to determine if we should keep connection alive or not.
-        if (boost::algorithm::to_lower_copy (_envelope.get_header ("Connection")) != "close") {
+        if (boost::algorithm::to_lower_copy (_envelope.header ("Connection")) != "close") {
 
           // Connection should be kept alive, releasing exceptional_executor, and invoke handle() on connection, should do the trick.
           x.release ();
@@ -87,7 +80,7 @@ void request::read_content (exceptional_executor x, functor callback)
   const static size_t MAX_REQUEST_CONTENT_LENGTH = _connection->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
 
   // Checking if there is any content first.
-  string content_length_str = _envelope.get_header ("Content-Length");
+  string content_length_str = _envelope.header ("Content-Length");
 
   // Checking if there is any Content-Length
   if (content_length_str == "") {

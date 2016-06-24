@@ -19,7 +19,7 @@
 #define ROSETTA_SERVER_REQUEST_ENVELOPE_HPP
 
 #include <map>
-#include <boost/asio.hpp>
+#include <string>
 #include "common/include/exceptional_executor.hpp"
 
 namespace rosetta {
@@ -43,19 +43,19 @@ public:
   void read (exceptional_executor x, functor callback);
 
   /// Returns the URI of the request.
-  const string & get_uri() const { return _uri; }
+  const inline string & uri() const { return _uri; }
 
   /// Returns the extension of the request.
-  const string & get_extension() const { return _extension; }
+  const inline string & extension() const { return _extension; }
 
   /// Returns the type of the request.
-  const string & get_type() const { return _type; }
+  const inline string & type() const { return _type; }
 
   /// Returns the HTTP version of the request.
-  const string & get_version() const { return _version; }
+  const inline string & version() const { return _version; }
 
   /// Retrieves the value of the header with the specified name, or empty string if no such header exists.
-  const string & get_header (const string & name) const;
+  const string & header (const string & name) const;
 
 private:
 

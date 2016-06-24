@@ -16,14 +16,10 @@
  */
 
 #include <vector>
-#include <utility>
-#include <boost/bind.hpp>
+#include <memory>
 #include <boost/thread/thread.hpp>
-#include "common/include/rosetta_exception.hpp"
-#include "common/include/configuration_exception.hpp"
 #include "server/include/multi_thread_server.hpp"
 #include "server/include/connection/connection.hpp"
-#include "server/include/exceptions/program_exception.hpp"
 
 
 namespace rosetta {

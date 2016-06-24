@@ -27,9 +27,8 @@ the main process image, automatically creating its own configuration file.
 
 Rosetta is also highly *"forgiving"* in regards to the HTTP standard. This means
 that whenever it can, it will try to interpret what the client is actually
-trying to communicate, even when the client is not able to do this, according
-to the strictness of the HTTP standard. For instance, it ignores CR when parsing
-an HTTP envelope, with the HTTP-Request line, and its headers. This means that
+trying to communicate, even when the client is not 100% conforming to the HTTP
+standard. For instance, it ignores CR when parsing an HTTP envelope. This means that
 sending a LF is enough to make Rosetta understand where the line breaks.
 Another example is that it will *"auto correct"* both the HTTP headers and
 the HTTP-Request line, capitalize the things that should be capitalized, and
@@ -38,7 +37,8 @@ instead of *"Connection"*.
 
 This makes it a perfect *"first web server"*, since it allows you to more
 easily get started, without knowing all the intrinsic parts of the HTTP
-standard.
+standard. This is encouraged by the HTTP/1.1 standard point 19.3, but implemented
+to the max in Rosetta.
 
 ### Thread models
 

@@ -21,7 +21,6 @@
 #include <tuple>
 #include <memory>
 #include <vector>
-#include <utility>
 #include <boost/asio.hpp>
 #include "common/include/exceptional_executor.hpp"
 
@@ -35,7 +34,6 @@ class request;
 class connection;
 class request_handler;
 typedef std::shared_ptr<request_handler> request_handler_ptr;
-
 typedef std::vector<std::tuple<string, string> > header_list;
 
 
@@ -65,6 +63,7 @@ protected:
   void write_headers (header_list headers, exceptional_executor x, functor callback, bool is_last = false);
 
   /// Writing the given file on socket back to client.
+  // Notice, the file we serve, is not necessarily the file requested. Hence, we cannot use request_envelope::extension() here.
   void write_file (const string & file_path, exceptional_executor x, functor callback);
 
   /// Returns connection for this instance.
