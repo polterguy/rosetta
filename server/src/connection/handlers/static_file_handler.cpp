@@ -36,6 +36,10 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
+/// Verifies URI is sane, and not malformed, attempting to retrieve document outside of main folder, hidden files, etc.
+bool sanity_check_uri (const string & uri);
+
+
 static_file_handler::static_file_handler (class connection * connection, class request * request, const string & extension)
   : request_handler (connection, request),
     _extension (extension)
@@ -44,30 +48,11 @@ static_file_handler::static_file_handler (class connection * connection, class r
 
 void static_file_handler::handle (exceptional_executor x, functor callback)
 {
-  // Retrieving URI from request, removing initial "/" from URI.
+  // Retrieving URI from request, removing initial "/" from URI, before checking sanity of URI.
   string uri = request()->envelope().get_uri().substr (1);
+  if (!sanity_check_uri (uri)) {
 
-  // Breaking up URI into components, and sanity checking each component, to verify client is not requesting an illegal URI.
-  std::vector<string> entities;
-  boost::split (entities, uri, boost::is_any_of ("/"));
-  bool has_error = false;
-  for (string & idx : entities) {
-
-    if (idx == "")
-      has_error = true;
-
-    if (idx.find ("..") != string::npos) // Request is probably trying to access files outside of the main www-root folder.
-      has_error = true;
-
-    if (idx.find ("~") == 0) // Linux backup file or folder.
-      has_error = true;
-
-    if (idx.find (".") == 0) // Linux hidden file or folder, or a file without a name, and only extension.
-      has_error = true;
-  }
-
-  // Checking if we have an error, and if so, writing status error 404, and returning early.
-  if (has_error) {
+    // URI is not "sane".
     request()->write_error_response (x, 404);
     return;
   }
@@ -76,10 +61,10 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
   const static string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
   
   // Figuring out entire physical path of file.
-  string path = WWW_ROOT_PATH + uri;
+  string full_path = WWW_ROOT_PATH + uri;
 
   // Making sure file exists.
-  if (!boost::filesystem::exists (path)) {
+  if (!boost::filesystem::exists (full_path)) {
 
       // Writing error status response, and returning early.
       request()->write_error_response (x, 404);
@@ -92,21 +77,21 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
 
     // We have an "If-Modified-Since" HTTP header, checking if file was tampered with since that date.
     date if_modified_date = date::parse (if_modified_since);
-    date file_modify_date = date::from_file_change (path);
+    date file_modify_date = date::from_file_change (full_path);
 
     // Comparing dates.
     if (file_modify_date > if_modified_date) {
 
       // File has been tampered with since the "If-Modified-Since" HTTP header, returning file in response.
       // First writing status 200.
-      write_status (200, x, [this, x, path, callback] (exceptional_executor x) {
+      write_status (200, x, [this, x, full_path, callback] (exceptional_executor x) {
 
         // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
-        write_header ("Last-Modified", date::from_file_change (path).to_string (), x, [this, path, callback] (exceptional_executor x) {
+        write_header ("Last-Modified", date::from_file_change (full_path).to_string (), x, [this, full_path, callback] (exceptional_executor x) {
 
           // Then writing actual file.
-          write_file (path, x, callback);
-        }, true);
+          write_file (full_path, x, callback);
+        });
       });
     } else {
 
@@ -127,16 +112,39 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
   } else {
 
     // First writing status 200.
-    write_status (200, x, [this, x, path, callback] (exceptional_executor x) {
+    write_status (200, x, [this, x, full_path, callback] (exceptional_executor x) {
 
       // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
-      write_header ("Last-Modified", date::from_file_change (path).to_string (), x, [this, path, callback] (exceptional_executor x) {
+      write_header ("Last-Modified", date::from_file_change (full_path).to_string (), x, [this, full_path, callback] (exceptional_executor x) {
 
         // Then writing actual file.
-        write_file (path, x, callback);
-      }, true);
+        write_file (full_path, x, callback);
+      });
     });
   }
+}
+
+
+bool sanity_check_uri (const string & uri)
+{
+  // Breaking up URI into components, and sanity checking each component, to verify client is not requesting an illegal URI.
+  std::vector<string> entities;
+  boost::split (entities, uri, boost::is_any_of ("/"));
+  for (string & idx : entities) {
+
+    if (idx == "")
+      return false; // Two consecutive "/" after each other.
+
+    if (idx.find ("..") != string::npos) // Request is probably trying to access files outside of the main www-root folder.
+      return false;
+
+    if (idx.find ("~") == 0) // Linux backup file or folder.
+      return false;
+
+    if (idx.find (".") == 0) // Linux hidden file or folder, or a file without a name, and only extension.
+      return false;
+  }
+  return true; // URI is sane.
 }
 
 
