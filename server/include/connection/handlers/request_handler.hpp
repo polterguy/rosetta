@@ -48,7 +48,7 @@ public:
   static request_handler_ptr create (connection * connection, request * request, int status_code = -1);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, std::function<void (exceptional_executor x)> callback) = 0;
+  virtual void handle (exceptional_executor x, functor callback) = 0;
 
 protected:
 
@@ -56,26 +56,34 @@ protected:
   request_handler (connection * connection, request * request);
 
   /// Writing given HTTP headetr with given value back to client.
-  void write_status (unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
+  void write_status (unsigned int status_code, exceptional_executor x, functor callback);
 
   /// Writing given HTTP header with given value back to client.
-  void write_header (const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
+  void write_header (const string & key, const string & value, exceptional_executor x, functor callback);
 
   /// Writing given HTTP headers with given value back to client.
-  void write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
+  void write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, functor callback);
 
   /// Writing the given file on socket back to client.
-  void write_file (const string & file_path, exceptional_executor x, std::function<void (exceptional_executor x)> callback);
+  void write_file (const string & file_path, exceptional_executor x, functor callback);
+
+  /// Returns connection for this instance.
+  connection * connection() { return _connection; }
+
+  /// Returns request for this instance.
+  request * request() { return _request; }
+
+private:
 
   /// Returns the MIME type according to file extension.
   string get_mime (const string & filepath);
 
 
   /// The connection this instance belongs to.
-  connection * _connection;
+  class connection * _connection;
 
   /// The request that owns this instance.
-  request * _request;
+  class request * _request;
 };
 
 

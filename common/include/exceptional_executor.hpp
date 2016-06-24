@@ -58,6 +58,9 @@ private:
 };
 
 
+typedef std::function<void (exceptional_executor x)> functor;
+
+
 } // namespace common
 } // namespace rosetta
 

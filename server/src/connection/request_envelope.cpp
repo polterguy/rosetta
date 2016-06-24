@@ -44,14 +44,14 @@ request_envelope::request_envelope (connection * connection, request * request)
 { }
 
 
-void request_envelope::read (exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void request_envelope::read (exceptional_executor x, functor callback)
 {
   // Figuring out max length of URI.
   const static size_t MAX_URI_LENGTH = _connection->server()->configuration().get<size_t> ("max-uri-length", 4096);
   match_condition match (MAX_URI_LENGTH);
 
   // Reading until "max_length" or CR/LF has been found.
-  async_read_until (_connection->socket(), _connection->buffer(), match, [this, match, x, functor] (const error_code & error, size_t bytes_read) {
+  async_read_until (_connection->socket(), _connection->buffer(), match, [this, match, x, callback] (const error_code & error, size_t bytes_read) {
 
     // Checking if socket has an error, or HTTP-Request line was too long.
     if (error == boost::asio::error::operation_aborted)
@@ -70,19 +70,19 @@ void request_envelope::read (exceptional_executor x, std::function<void (excepti
     parse_request_line (get_line (_connection->buffer()));
 
     // Reading headers.
-    read_headers (x, functor);
+    read_headers (x, callback);
   });
 }
 
 
-void request_envelope::read_headers (exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void request_envelope::read_headers (exceptional_executor x, functor callback)
 {
   // Retrieving max header size.
   const static size_t max_header_length = _connection->server()->configuration().get<size_t> ("max-header-length", 8192);
   match_condition match (max_header_length);
 
   // Reading first header.
-  async_read_until (_connection->socket(), _connection->buffer(), match, [this, x, match, functor] (const error_code & error, size_t bytes_read) {
+  async_read_until (_connection->socket(), _connection->buffer(), match, [this, x, match, callback] (const error_code & error, size_t bytes_read) {
 
     // Making sure there was no errors while reading socket.
     if (error == boost::asio::error::operation_aborted)
@@ -102,7 +102,7 @@ void request_envelope::read_headers (exceptional_executor x, std::function<void 
     if (line.size () == 0) {
 
       // No more headers.
-      functor (x);
+      callback (x);
       return;
     }
 
@@ -121,7 +121,7 @@ void request_envelope::read_headers (exceptional_executor x, std::function<void 
     }
 
     // Reading next header from socket.
-    read_headers (x, functor);
+    read_headers (x, callback);
   });
 }
 

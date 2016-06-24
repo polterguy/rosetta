@@ -81,7 +81,7 @@ void request::handle (exceptional_executor x)
 
 
 
-void request::read_content (exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void request::read_content (exceptional_executor x, functor callback)
 {
   // Max allowed length of content.
   const static size_t MAX_REQUEST_CONTENT_LENGTH = _connection->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
@@ -93,7 +93,7 @@ void request::read_content (exceptional_executor x, std::function<void (exceptio
   if (content_length_str == "") {
 
     // No content.
-    functor (x);
+    callback (x);
   } else {
 
     // Checking that content does not exceed max request content length.
@@ -102,14 +102,14 @@ void request::read_content (exceptional_executor x, std::function<void (exceptio
       return; // Simply letting x go out of scope, cleans everything up.
 
     // Reading content into streambuf.
-    async_read (_connection->socket(), _connection->buffer(), transfer_exactly (content_length), [x, functor] (const error_code & error, size_t bytes_read) {
+    async_read (_connection->socket(), _connection->buffer(), transfer_exactly (content_length), [x, callback] (const error_code & error, size_t bytes_read) {
 
       // Checking for socket errors.
       if (error)
         throw request_exception ("Socket error while reading request content.");
 
       // Invoking functor callback supplied by caller.
-      functor (x);
+      callback (x);
     });
   }
 }

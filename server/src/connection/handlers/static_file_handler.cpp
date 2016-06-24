@@ -36,16 +36,16 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-static_file_handler::static_file_handler (connection * connection, request * request, const string & extension)
+static_file_handler::static_file_handler (class connection * connection, class request * request, const string & extension)
   : request_handler (connection, request),
     _extension (extension)
 { }
 
 
-void static_file_handler::handle (exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void static_file_handler::handle (exceptional_executor x, functor callback)
 {
   // Retrieving URI from request, removing initial "/" from URI.
-  string uri = _request->envelope().get_uri().substr (1);
+  string uri = request()->envelope().get_uri().substr (1);
 
   // Breaking up URI into components, and sanity checking each component, to verify client is not requesting an illegal URI.
   std::vector<string> entities;
@@ -68,12 +68,12 @@ void static_file_handler::handle (exceptional_executor x, std::function<void (ex
 
   // Checking if we have an error, and if so, writing status error 404, and returning early.
   if (has_error) {
-    _request->write_error_response (x, 404);
+    request()->write_error_response (x, 404);
     return;
   }
 
   // Retrieving root path.
-  const static string WWW_ROOT_PATH = _connection->server()->configuration().get<string> ("www-root", "www-root/");
+  const static string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
   
   // Figuring out entire physical path of file.
   string path = WWW_ROOT_PATH + uri;
@@ -82,12 +82,12 @@ void static_file_handler::handle (exceptional_executor x, std::function<void (ex
   if (!boost::filesystem::exists (path)) {
 
       // Writing error status response, and returning early.
-      _request->write_error_response (x, 404);
+      request()->write_error_response (x, 404);
       return;
   }
 
   // Checking if client passed in an "If-Modified-Since" header, and if so, handle it accordingly.
-  string if_modified_since = _request->envelope().get_header("If-Modified-Since");
+  string if_modified_since = request()->envelope().get_header("If-Modified-Since");
   if (if_modified_since != "") {
 
     // We have an "If-Modified-Since" HTTP header, checking if file was tampered with since that date.
@@ -99,25 +99,25 @@ void static_file_handler::handle (exceptional_executor x, std::function<void (ex
 
       // File has been tampered with since the "If-Modified-Since" HTTP header, returning file in response.
       // First writing status 200.
-      write_status (200, x, [this, x, path, functor] (exceptional_executor x) {
+      write_status (200, x, [this, x, path, callback] (exceptional_executor x) {
 
         // Then writing file.
-        write_file (path, x, functor);
+        write_file (path, x, callback);
       });
     } else {
 
       // File has not been tampered with since the "If-Modified-Since" HTTP header, returning 304 response, without file content.
-      write_status (304, x, [this, functor] (exceptional_executor x) {
+      write_status (304, x, [this, callback] (exceptional_executor x) {
 
         // Building our request headers.
         std::vector<std::tuple<string, string> > headers { {"Date", date::now ().to_string ()} };
 
         // Writing HTTP headers to connection.
-        write_headers (headers, x, [this, functor] (exceptional_executor x) {
+        write_headers (headers, x, [this, callback] (exceptional_executor x) {
 
           // Writing additional CR/LF sequence, to signal to client that we're done sending headers.
-          async_write (_connection->socket(), boost::asio::buffer (string("\r\n")), [functor, x] (const error_code & error, size_t bytes_written) {
-            functor (x);
+          async_write (connection()->socket(), boost::asio::buffer (string("\r\n")), [callback, x] (const error_code & error, size_t bytes_written) {
+            callback (x);
           });
         });
       });
@@ -125,13 +125,13 @@ void static_file_handler::handle (exceptional_executor x, std::function<void (ex
   } else {
 
     // First writing status 200.
-    write_status (200, x, [this, x, path, functor] (exceptional_executor x) {
+    write_status (200, x, [this, x, path, callback] (exceptional_executor x) {
 
       // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
-      write_header ("Last-Modified", date::from_file_change (path).to_string (), x, [this, path, functor] (exceptional_executor x) {
+      write_header ("Last-Modified", date::from_file_change (path).to_string (), x, [this, path, callback] (exceptional_executor x) {
 
         // Then writing actual file.
-        write_file (path, x, functor);
+        write_file (path, x, callback);
       });
     });
   }

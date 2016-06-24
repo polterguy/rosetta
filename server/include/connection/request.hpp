@@ -62,7 +62,7 @@ private:
   request (connection * connection);
 
   /// Reading content of request.
-  void read_content (exceptional_executor x, std::function<void (exceptional_executor x)> functor);
+  void read_content (exceptional_executor x, functor callback);
 
 
   /// Connection this request belongs to.

@@ -35,7 +35,7 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-request_handler_ptr request_handler::create (connection * connection, request * request, int status_code)
+request_handler_ptr request_handler::create (class connection * connection, class request * request, int status_code)
 {
   if (status_code >= 400) {
 
@@ -59,13 +59,13 @@ request_handler_ptr request_handler::create (connection * connection, request * 
 }
 
 
-request_handler::request_handler (connection * connection, request * request)
+request_handler::request_handler (class connection * connection, class request * request)
   : _connection (connection),
     _request (request)
 { }
 
 
-void request_handler::write_status (unsigned int status_code, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void request_handler::write_status (unsigned int status_code, exceptional_executor x, functor callback)
 {
   // Creating status line, and serializing to socket.
   string status_line = "HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ";
@@ -103,38 +103,38 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
   status_line += "\r\n";
 
   // Writing status line to socket.
-  async_write (_connection->socket(), boost::asio::buffer (status_line), [functor, x] (const error_code & error, size_t bytes_written) {
+  async_write (_connection->socket(), boost::asio::buffer (status_line), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
       throw request_exception ("Socket error while writing HTTP status line.");
     else
-      functor (x);
+      callback (x);
   });
 }
 
 
-void request_handler::write_header (const string & key, const string & value, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void request_handler::write_header (const string & key, const string & value, exceptional_executor x, functor callback)
 {
   // Writing HTTP header on socket.
-  async_write (_connection->socket(), boost::asio::buffer (key + ":" + value + "\r\n"), [functor, x] (const error_code & error, size_t bytes_written) {
+  async_write (_connection->socket(), boost::asio::buffer (key + ":" + value + "\r\n"), [callback, x] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
       throw request_exception ("Socket error while writing HTTP header.");
     else
-      functor (x);
+      callback (x);
   });
 }
 
 
-void request_handler::write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void request_handler::write_headers (std::vector<std::tuple<string, string> > headers, exceptional_executor x, functor callback)
 {
   if (headers.size() == 0) {
 
     // No more headers.
-    if (functor != nullptr)
-      functor (x);
+    if (callback != nullptr)
+      callback (x);
   } else {
 
     // Retrieving next key/value pair.
@@ -145,16 +145,16 @@ void request_handler::write_headers (std::vector<std::tuple<string, string> > he
     headers.erase (headers.begin (), headers.begin () + 1);
 
     // Writing header.
-    write_header (key, value, x, [this, headers, functor] (exceptional_executor x) {
+    write_header (key, value, x, [this, headers, callback] (exceptional_executor x) {
 
       // Invoking self.
-      write_headers (headers, x, functor);
+      write_headers (headers, x, callback);
     });
   }
 }
 
 
-void request_handler::write_file (const string & filepath, exceptional_executor x, std::function<void (exceptional_executor x)> functor)
+void request_handler::write_file (const string & filepath, exceptional_executor x, functor callback)
 {
   // Figuring out size of file, and making sure it's not larger than what we are allowed to handle according to configuration of server.
   size_t size = boost::filesystem::file_size (filepath);
@@ -175,10 +175,10 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
     {"Content-Length", boost::lexical_cast<string> (size)}};
 
   // Writing HTTP headers to connection.
-  write_headers (headers, x, [this, filepath, functor] (exceptional_executor x) {
+  write_headers (headers, x, [this, filepath, callback] (exceptional_executor x) {
 
     // Writing additional CR/LF sequence, to signal to client that we're beginning to send content.
-    async_write (_connection->socket(), boost::asio::buffer (string("\r\n")), [this, filepath, functor, x] (const error_code & error, size_t bytes_written) {
+    async_write (_connection->socket(), boost::asio::buffer (string("\r\n")), [this, filepath, callback, x] (const error_code & error, size_t bytes_written) {
 
       // Sanity check.
       if (error)
@@ -189,14 +189,14 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
       std::vector<char> file_content ((std::istreambuf_iterator<char> (fs)), std::istreambuf_iterator<char>());
 
       // Writing content to connection's socket.
-      async_write (_connection->socket(), boost::asio::buffer (file_content), [functor, x] (const error_code & error, size_t bytes_written) {
+      async_write (_connection->socket(), boost::asio::buffer (file_content), [callback, x] (const error_code & error, size_t bytes_written) {
 
         // Sanity check.
         if (error)
           throw request_exception ("Socket error while writing file.");
 
         // Finished serving static file, invoking callback supplied when invoking method.
-        functor (x);
+        callback (x);
       });
     });
   });

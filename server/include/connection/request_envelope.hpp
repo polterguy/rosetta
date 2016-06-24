@@ -40,7 +40,7 @@ public:
   request_envelope (connection * connection, request * request);
 
   /// Reads the request envelope from the connection, and invokes given callback afterwards.
-  void read (exceptional_executor x, std::function<void (exceptional_executor x)> functor);
+  void read (exceptional_executor x, functor callback);
 
   /// Returns the URI of the request.
   const string & get_uri() const { return _uri; }
@@ -63,7 +63,7 @@ private:
   void parse_request_line (const string & request_line);
 
   /// Reads the HTTP headers.
-  void read_headers (exceptional_executor x, std::function<void (exceptional_executor x)> functor);
+  void read_headers (exceptional_executor x, functor callback);
 
   /// Parses the HTTP GET parameters.
   void parse_parameters (const string & params);
