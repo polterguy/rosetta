@@ -47,6 +47,16 @@ public:
 
 private:
 
+  /// Checks if file should be rendered back to client, or if we should return a 304.
+  bool should_write_file (const string & full_path);
+
+  /// Writes file back to client.
+  void write_full_file (const string & full_path, exceptional_executor x, functor callback);
+
+  /// Writes 304 response back to client.
+  void write_304_response (exceptional_executor x, functor callback);
+
+
   /// The file extension of the current request.
   const string _extension;
 };

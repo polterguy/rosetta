@@ -57,10 +57,8 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
     return;
   }
 
-  // Retrieving root path.
+  // Retrieving root path, and building full path for document.
   const static string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
-  
-  // Figuring out entire physical path of file.
   string full_path = WWW_ROOT_PATH + uri;
 
   // Making sure file exists.
@@ -71,7 +69,22 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
       return;
   }
 
-  // Checking if client passed in an "If-Modified-Since" header, and if so, handle it accordingly.
+  // Checking if we should render file, or a 304 (Not-Modified) response.
+  if (should_write_file (full_path)) {
+
+    // Returning file to client.
+    write_full_file (full_path, x, callback);
+  } else {
+
+    // File has not been tampered with since the "If-Modified-Since" HTTP header, returning 304 response, without file content.
+    write_304_response (x, callback);
+  }
+}
+
+
+bool static_file_handler::should_write_file (const string & full_path)
+{
+  // Checking if client passed in an "If-Modified-Since" header.
   string if_modified_since = request()->envelope().get_header("If-Modified-Since");
   if (if_modified_since != "") {
 
@@ -82,46 +95,51 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
     // Comparing dates.
     if (file_modify_date > if_modified_date) {
 
-      // File has been tampered with since the "If-Modified-Since" HTTP header, returning file in response.
-      // First writing status 200.
-      write_status (200, x, [this, x, full_path, callback] (exceptional_executor x) {
-
-        // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
-        write_header ("Last-Modified", date::from_file_change (full_path).to_string (), x, [this, full_path, callback] (exceptional_executor x) {
-
-          // Then writing actual file.
-          write_file (full_path, x, callback);
-        });
-      });
+      // File was modified after "If-Modified-Since" header, hence we should write file to client.
+      return true;
     } else {
 
-      // File has not been tampered with since the "If-Modified-Since" HTTP header, returning 304 response, without file content.
-      write_status (304, x, [this, callback] (exceptional_executor x) {
-
-        // Building our request headers.
-        std::vector<std::tuple<string, string> > headers { {"Date", date::now ().to_string ()} };
-
-        // Writing HTTP headers to connection.
-        write_headers (headers, x, [this, callback] (exceptional_executor x) {
-
-          // invoking callback, since we're done writing the response.
-          callback (x);
-        }, true);
-      });
+      // File has not been tampered with since the "If-Modified-Since" HTTP header, hence we should not write file back to client.
+      return false;
     }
   } else {
 
-    // First writing status 200.
-    write_status (200, x, [this, x, full_path, callback] (exceptional_executor x) {
-
-      // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
-      write_header ("Last-Modified", date::from_file_change (full_path).to_string (), x, [this, full_path, callback] (exceptional_executor x) {
-
-        // Then writing actual file.
-        write_file (full_path, x, callback);
-      });
-    });
+    // Client sent no "If-Modified-Since" header, hence we should write file back to client.
+    return true;
   }
+}
+
+
+void static_file_handler::write_full_file (const string & full_path, exceptional_executor x, functor callback)
+{
+  // First writing status 200.
+  write_status (200, x, [this, x, full_path, callback] (exceptional_executor x) {
+
+    // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
+    write_header ("Last-Modified", date::from_file_change (full_path).to_string (), x, [this, full_path, callback] (exceptional_executor x) {
+
+      // Then writing actual file.
+      write_file (full_path, x, callback);
+    });
+  });
+}
+
+
+void static_file_handler::write_304_response (exceptional_executor x, functor callback)
+{
+  // Writing status code 304 (Not-Modified) back to client.
+  write_status (304, x, [this, callback] (exceptional_executor x) {
+
+    // Building our request headers.
+    std::vector<std::tuple<string, string> > headers { {"Date", date::now ().to_string ()} };
+
+    // Writing HTTP headers to connection.
+    write_headers (headers, x, [this, callback] (exceptional_executor x) {
+
+      // invoking callback, since we're done writing the response.
+      callback (x);
+    }, true);
+  });
 }
 
 
