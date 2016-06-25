@@ -43,51 +43,7 @@ void trace_handler::handle (exceptional_executor x, functor callback)
   write_status (200, x, [this, x, callback] (exceptional_executor x) {
 
     // Figuring out what we're sending, before we send the headers, to see the size of our request.
-    std::shared_ptr<std::vector<char> > buffer_ptr =  std::make_shared<std::vector<char> >();
-
-    // Return the HTTP-Request line.
-    buffer_ptr->insert (buffer_ptr->end(), request()->envelope().type ().begin(), request()->envelope().type().end());
-    buffer_ptr->push_back (' ');
-    buffer_ptr->insert (buffer_ptr->end(), request()->envelope().uri ().begin(), request()->envelope().uri().end());
-
-    // Pushing back arguments.
-    bool first = true;
-    for (auto idx : request()->envelope().parameters()) {
-      if (first) {
-        first = false;
-        buffer_ptr->push_back ('?');
-      } else {
-        buffer_ptr->push_back ('&');
-      }
-
-      // Making sure we URI encode parameter name and value.
-      auto name = uri_encode (std::get<0> (idx));
-      buffer_ptr->insert (buffer_ptr->end(), name.begin(), name.end());
-      auto value = uri_encode (std::get<1> (idx));
-      if (value.size() > 0) {
-        buffer_ptr->push_back ('=');
-        buffer_ptr->insert (buffer_ptr->end(), value.begin(), value.end());
-      }
-    }
-
-    buffer_ptr->push_back (' ');
-    buffer_ptr->insert (buffer_ptr->end(), request()->envelope().version().begin(), request()->envelope().version().end());
-    buffer_ptr->push_back ('\r');
-    buffer_ptr->push_back ('\n');
-
-    // Returning all HTTP headers.
-    for (auto idx : request()->envelope().headers ()) {
-      buffer_ptr->insert (buffer_ptr->end(), std::get<0> (idx).begin(), std::get<0> (idx).end());
-      buffer_ptr->push_back (':');
-      buffer_ptr->push_back (' ');
-      buffer_ptr->insert (buffer_ptr->end(), std::get<1> (idx).begin(), std::get<1> (idx).end());
-      buffer_ptr->push_back ('\r');
-      buffer_ptr->push_back ('\n');
-    }
-
-    // Appending the last CR/LF sequence.
-    buffer_ptr->push_back ('\r');
-    buffer_ptr->push_back ('\n');
+    auto buffer_ptr = build_content ();
 
     // Building our request headers.
     header_list headers {
@@ -106,6 +62,57 @@ void trace_handler::handle (exceptional_executor x, functor callback)
       });
     }, true);
   });
+}
+
+
+std::shared_ptr<std::vector<unsigned char> > trace_handler::build_content ()
+{
+  std::shared_ptr<std::vector<unsigned char> > buffer_ptr =  std::make_shared<std::vector<unsigned char> >();
+
+  // Return the HTTP-Request line.
+  buffer_ptr->insert (buffer_ptr->end(), request()->envelope().type ().begin(), request()->envelope().type().end());
+  buffer_ptr->push_back (' ');
+  buffer_ptr->insert (buffer_ptr->end(), request()->envelope().uri ().begin(), request()->envelope().uri().end());
+
+  // Pushing back arguments.
+  bool first = true;
+  for (auto idx : request()->envelope().parameters()) {
+    if (first) {
+      first = false;
+      buffer_ptr->push_back ('?');
+    } else {
+      buffer_ptr->push_back ('&');
+    }
+
+    // Making sure we URI encode parameter name and value.
+    auto name = uri_encode (std::get<0> (idx));
+    buffer_ptr->insert (buffer_ptr->end(), name.begin(), name.end());
+    auto value = uri_encode (std::get<1> (idx));
+    if (value.size() > 0) {
+      buffer_ptr->push_back ('=');
+      buffer_ptr->insert (buffer_ptr->end(), value.begin(), value.end());
+    }
+  }
+
+  buffer_ptr->push_back (' ');
+  buffer_ptr->insert (buffer_ptr->end(), request()->envelope().version().begin(), request()->envelope().version().end());
+  buffer_ptr->push_back ('\r');
+  buffer_ptr->push_back ('\n');
+
+  // Returning all HTTP headers.
+  for (auto idx : request()->envelope().headers ()) {
+    buffer_ptr->insert (buffer_ptr->end(), std::get<0> (idx).begin(), std::get<0> (idx).end());
+    buffer_ptr->push_back (':');
+    buffer_ptr->push_back (' ');
+    buffer_ptr->insert (buffer_ptr->end(), std::get<1> (idx).begin(), std::get<1> (idx).end());
+    buffer_ptr->push_back ('\r');
+    buffer_ptr->push_back ('\n');
+  }
+
+  // Appending the last CR/LF sequence.
+  buffer_ptr->push_back ('\r');
+  buffer_ptr->push_back ('\n');
+  return buffer_ptr;
 }
 
 

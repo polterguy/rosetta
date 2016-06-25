@@ -18,6 +18,8 @@
 #ifndef ROSETTA_SERVER_TRACE_HANDLER_HPP
 #define ROSETTA_SERVER_TRACE_HANDLER_HPP
 
+#include <vector>
+#include <memory>
 #include <boost/asio.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
@@ -41,6 +43,11 @@ public:
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, functor callback) override;
+
+private:
+
+  /// Builds up the buffer for what to return as content to client.
+  std::shared_ptr<std::vector<unsigned char> > build_content ();
 };
 
 
