@@ -35,6 +35,15 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/bin)
 # Including boost libraries
 find_package (Boost COMPONENTS filesystem thread REQUIRED)
 
+# Making sure we include OpenSSL libraries.
+if(APPLE)
+    set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl")
+endif()
+find_package(OpenSSL REQUIRED)
+if (OPENSSL_FOUND)
+    include_directories(${OPENSSL_INCLUDE_DIR})
+endif()
+
 # Adding source files to compilation of main Rosetta project.
 file (GLOB MAIN "server/main.cpp")
 file (GLOB SERVER "server/src/*.cpp")
@@ -50,7 +59,7 @@ add_library (rosetta_common STATIC ${COMMON})
 
 # Making sure we link to boost during linking process, in addition to all additionally built libraries,
 # such as "configuration" library
-target_link_libraries (rosetta ${Boost_LIBRARIES} rosetta_common)
+target_link_libraries (rosetta ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} rosetta_common)
 
 
 

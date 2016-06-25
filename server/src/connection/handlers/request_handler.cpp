@@ -111,6 +111,9 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
   case 304:
     *status_line += "Not Modified";
     break;
+  case 401:
+    *status_line += "Unauthorized";
+    break;
   case 403:
     *status_line += "Forbidden";
     break;
@@ -158,11 +161,15 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
 void request_handler::write_header (const string & key, const string & value, exceptional_executor x, functor callback, bool is_last)
 {
   // Creating header, making sure the string stays around until after socket write operation is finished.
-  std::shared_ptr<string> header_content = std::make_shared<string> (key + ":" + value + "\r\n");
+  std::shared_ptr<string> header_content = std::make_shared<string> (key + ": " + value + "\r\n");
 
   // Checking if this was our last header, and if so, appending an additional CR/LF sequence.
-  if (is_last)
+  if (is_last) {
+
+    // Making sure we submit the server name back to client.
+    *header_content += "Server: Rosetta\r\n"; // Notice, we do not supply a version number to make it more difficult for malware to exploit server!
     *header_content += "\r\n";
+  }
 
   // Writing header content to socket.
   async_write (_connection->socket(), buffer (*header_content), [callback, x, header_content] (const error_code & error, size_t bytes_written) {
