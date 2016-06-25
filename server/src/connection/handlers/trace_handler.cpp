@@ -70,13 +70,18 @@ std::shared_ptr<std::vector<unsigned char> > trace_handler::build_content ()
   std::shared_ptr<std::vector<unsigned char> > buffer_ptr =  std::make_shared<std::vector<unsigned char> >();
 
   // Return the HTTP-Request line.
+  // Starting with HTTP method.
   buffer_ptr->insert (buffer_ptr->end(), request()->envelope().type ().begin(), request()->envelope().type().end());
   buffer_ptr->push_back (' ');
+
+  // Then the URI, without the parameters.
   buffer_ptr->insert (buffer_ptr->end(), request()->envelope().uri ().begin(), request()->envelope().uri().end());
 
-  // Pushing back arguments.
+  // Pushing parameters into the HTTP-Request line URI.
   bool first = true;
   for (auto idx : request()->envelope().parameters()) {
+
+    // Checking if this is the first parameter, or consecutive ones, to append either '?' or '&' accordingly.
     if (first) {
       first = false;
       buffer_ptr->push_back ('?');
@@ -84,34 +89,43 @@ std::shared_ptr<std::vector<unsigned char> > trace_handler::build_content ()
       buffer_ptr->push_back ('&');
     }
 
-    // Making sure we URI encode parameter name and value.
-    auto name = uri_encode (std::get<0> (idx));
+    // Adding name of parameter, making sure we URI encode it.
+    const auto name = uri_encode (std::get<0> (idx));
     buffer_ptr->insert (buffer_ptr->end(), name.begin(), name.end());
-    auto value = uri_encode (std::get<1> (idx));
+
+    // Adding value of parameter, making sure we URI encode it.
+    const auto value = uri_encode (std::get<1> (idx));
     if (value.size() > 0) {
+
+      // We only add '=' and value, if there actually is any value.
       buffer_ptr->push_back ('=');
       buffer_ptr->insert (buffer_ptr->end(), value.begin(), value.end());
     }
   }
 
+  // Adding HTTP version into content buffer.
   buffer_ptr->push_back (' ');
   buffer_ptr->insert (buffer_ptr->end(), request()->envelope().version().begin(), request()->envelope().version().end());
+
+  // CR/LF sequence, to prepare for HTTP headers.
   buffer_ptr->push_back ('\r');
   buffer_ptr->push_back ('\n');
 
   // Returning all HTTP headers.
   for (auto idx : request()->envelope().headers ()) {
+
+    // Header name and colon.
     buffer_ptr->insert (buffer_ptr->end(), std::get<0> (idx).begin(), std::get<0> (idx).end());
     buffer_ptr->push_back (':');
+
+    // Header value, prepended by a SP, for then to finish header with CR/LF sequence.
     buffer_ptr->push_back (' ');
     buffer_ptr->insert (buffer_ptr->end(), std::get<1> (idx).begin(), std::get<1> (idx).end());
     buffer_ptr->push_back ('\r');
     buffer_ptr->push_back ('\n');
   }
 
-  // Appending the last CR/LF sequence.
-  buffer_ptr->push_back ('\r');
-  buffer_ptr->push_back ('\n');
+  // Returning result to caller.
   return buffer_ptr;
 }
 
