@@ -146,11 +146,15 @@ string uri_encode (const string & entity)
   std::vector<unsigned char> return_value;
   for (unsigned char idx : entity) {
     if (idx == ' ') {
+
+      // Encoding as '+'.
       return_value.push_back ('+');
     } else if ((idx >= 'a' && idx <= 'z') ||
                (idx >= 'A' && idx <= 'Z') ||
                (idx >= '0' && idx <= '9') ||
                idx == '-' || idx == '_' || idx == '.' || idx == '~') {
+
+      // No need to encode.
       return_value.push_back (idx);
     } else {
 

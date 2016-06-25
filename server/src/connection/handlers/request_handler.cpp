@@ -45,8 +45,17 @@ request_handler_ptr request_handler::create (class connection * connection, clas
 
   } else if (request->envelope().type() == "TRACE") {
 
-    // Creating a TRACE response handler.
-    return request_handler_ptr (new trace_handler (connection, request));
+    // Checking if TRACE method is allowed according to configuration.
+    if (!connection->server()->configuration().get<bool> ("trace-allowed")) {
+
+      // Method not allowed.
+      return request_handler_ptr (new error_handler (connection, request, 405));
+
+    } else {
+
+      // Creating a TRACE response handler.
+      return request_handler_ptr (new trace_handler (connection, request));
+    }
   } else {
 
     // Figuring out handler to use according to request extension.

@@ -31,9 +31,10 @@ class connection;
 class request;
 
 
-/// Echoes the HTTP-Request line and the request headers from the request back to the client as text/plain.
+/// Echoes the HTTP-Request line and the request headers from the request back to the client as text/plain content.
 /// Notice, this will return the envelope of the request as Rosetta sees it, after having intelligently parsed it,
-/// and not necessarily exactly as the client sent the request.
+/// and not necessarily exactly as the client sent the request. Except for the URI of the HTTP-Request line, that
+/// will be URI encoded.
 class trace_handler final : public request_handler
 {
 public:
