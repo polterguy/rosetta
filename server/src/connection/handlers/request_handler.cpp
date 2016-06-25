@@ -25,8 +25,8 @@
 #include "server/include/exceptions/request_exception.hpp"
 #include "server/include/connection/handlers/error_handler.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
+#include "server/include/connection/handlers/trace_handler.hpp"
 #include "server/include/connection/handlers/static_file_handler.hpp"
-
 namespace rosetta {
 namespace server {
 
@@ -43,6 +43,10 @@ request_handler_ptr request_handler::create (class connection * connection, clas
     // Some sort of error.
     return request_handler_ptr (new error_handler (connection, request, status_code));
 
+  } else if (request->envelope().type() == "TRACE") {
+
+    // Creating a TRACE response handler.
+    return request_handler_ptr (new trace_handler (connection, request));
   } else {
 
     // Figuring out handler to use according to request extension.

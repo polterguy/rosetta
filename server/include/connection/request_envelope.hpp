@@ -19,7 +19,9 @@
 #define ROSETTA_SERVER_REQUEST_ENVELOPE_HPP
 
 #include <map>
+#include <tuple>
 #include <string>
+#include <vector>
 #include "common/include/exceptional_executor.hpp"
 
 namespace rosetta {
@@ -30,6 +32,12 @@ using namespace rosetta::common;
 
 class request;
 class connection;
+
+// How our headers and arguments are stored within class.
+typedef std::tuple<string, string> collection_type;
+typedef std::vector<collection_type> collection;
+typedef const std::vector<collection_type> const_collection;
+
 
 /// Helper for reading the request envelope, HTTP-Request line and headers.
 class request_envelope
@@ -56,6 +64,12 @@ public:
 
   /// Retrieves the value of the header with the specified name, or empty string if no such header exists.
   const string & header (const string & name) const;
+
+  /// Returns the headers collection for the current request.
+  const const_collection & headers () const { return _headers; }
+
+  /// Returns the parameters collection for the current request.
+  const const_collection & parameters () const { return _parameters; }
 
 private:
 
@@ -88,10 +102,10 @@ private:
   string _version;
 
   /// Headers.
-  std::map<string, string> _headers;
+  collection _headers;
 
   /// HTTP parameters.
-  std::map<string, string> _parameters;
+  collection _parameters;
 };
 
 

@@ -109,18 +109,27 @@ void request_envelope::read_headers (exceptional_executor x, functor callback)
       return;
     }
 
-    // Splitting header into name and value.
-    const auto equals_idx = line.find (':');
+    // Checking if this is continuation header value of the previous line read from socket.
+    if (line [0] == ' ' || line [0] == '\t') {
 
-    // Retrieving header name, simply ignoring headers without a value.
-    if (equals_idx != string::npos) {
+      // This is a continuation of the header value that was read in the previous line from client.
+      string next_line = boost::algorithm::trim_left_copy_if (line, boost::is_any_of (" \t"));
+      _headers [_headers.size() - 1] = std::tuple<string, string> (std::get<0> (_headers.back()), std::get<1> (_headers.back()) + " " + next_line);
+    } else {
 
-      // Retrieving actual header name and value.
-      string header_name = capitalize_header_name (boost::algorithm::trim_copy (line.substr (0, equals_idx)));
-      string header_value = boost::algorithm::trim_copy (line.substr (equals_idx + 1));
+      // Splitting header into name and value.
+      const auto equals_idx = line.find (':');
 
-      // Now adding actual header into headers collection.
-      _headers [header_name] = header_value;
+      // Retrieving header name, simply ignoring headers without a value.
+      if (equals_idx != string::npos) {
+
+        // Retrieving actual header name and value.
+        string header_name = capitalize_header_name (boost::algorithm::trim_copy (line.substr (0, equals_idx)));
+        string header_value = boost::algorithm::trim_copy (line.substr (equals_idx + 1));
+
+        // Now adding actual header into headers collection.
+        _headers.push_back (collection_type (header_name, header_value));
+      }
     }
 
     // Reading next header from socket.
@@ -136,8 +145,8 @@ const string & request_envelope::header (const string & name) const
 
   // Looking for a header with the specified name.
   for (auto & idx : _headers) {
-    if (idx.first == name)
-      return idx.second; // Found it!
+    if (std::get<0> (idx) == name)
+      return std::get<1> (idx); // Found it!
   }
 
   // No such header.
@@ -192,7 +201,7 @@ void request_envelope::parse_request_line (const string & request_line)
   if (index_of_pars == 1) {
 
     // Default page was requested, with HTTP GET parameters.
-    parse_parameters (decode_uri (_uri.substr (1)));
+    parse_parameters (decode_uri (_uri.substr (2)));
 
     // Serving default document.
     _uri = DEFAULT_DOCUMENT;
@@ -222,7 +231,7 @@ void request_envelope::parse_parameters (const string & params)
     size_t index_of_equal = idx.find ("=");
     string name = index_of_equal == string::npos ? idx : idx.substr (0, index_of_equal);
     string value = index_of_equal == string::npos ? "" : idx.substr (index_of_equal + 1);
-    _parameters [name] = value;
+    _parameters.push_back (collection_type (name, value));
   }
 }
 
