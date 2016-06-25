@@ -157,8 +157,8 @@ void create_default_configuration_file()
   config.set ("default-page", "/index.html");
   config.set ("trace-allowed", false);
   config.set ("head-allowed", false);
-  config.set ("ssl-certificate", "server.crt");
-  config.set ("ssl-private-key", "server.key");
+  config.set ("ssl-certificate", "rosetta.crt");
+  config.set ("ssl-private-key", "rosetta.key");
 
   // Request settings.
   config.set ("max-uri-length", 1024);

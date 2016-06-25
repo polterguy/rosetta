@@ -129,6 +129,7 @@ connection_ptr server::create_connection (socket_ptr socket)
     // We refuse this connection.
     error_code ignored_ec;
     socket->shutdown (ip::tcp::socket::shutdown_both, ignored_ec);
+    socket->close ();
 
     // And return nullptr to caller.
     return nullptr;
@@ -138,6 +139,13 @@ connection_ptr server::create_connection (socket_ptr socket)
   connection_ptr connection = connection::create (this, socket);
   _connections.insert (connection);
   return connection;
+}
+
+
+void server::remove_connection (connection_ptr connection)
+{
+  // Erasing connection from our list of connections.
+  _connections.erase (connection);
 }
 
 
@@ -205,18 +213,11 @@ void server::setup_https_server ()
 }
 
 
-void server::remove_connection (connection_ptr connection)
-{
-  // Erasing connection from our list of connections.
-  _connections.erase (connection);
-}
-
-
 void server::on_accept ()
 {
   // Waiting for next request.
-  auto socket = std::make_shared<ip::tcp::socket> (_service);
-  _acceptor.async_accept (*socket, [this, socket] (const error_code & error) {
+  auto socket = std::make_shared<rosetta_socket_plain> (_service);
+  _acceptor.async_accept (socket->socket(), [this, socket] (const error_code & error) {
 
     // Invoking "self" again to accept next request.
     on_accept();
@@ -241,8 +242,8 @@ void server::on_accept ()
 void server::on_accept_ssl ()
 {
   // Waiting for next request.
-  auto socket = std::make_shared<ssl::stream<ip::tcp::socket> > (_service, _context);
-  _acceptor_ssl.async_accept (socket->lowest_layer (), [this, socket] (const error_code & error) {
+  auto socket = std::make_shared<rosetta_socket_ssl> (_service, _context);
+  _acceptor_ssl.async_accept (socket->socket().lowest_layer (), [this, socket] (const error_code & error) {
 
     // Invoking "self" again to accept next request.
     on_accept_ssl ();
@@ -255,7 +256,7 @@ void server::on_accept_ssl ()
 
       // Settings options for SSL socket.
       ip::tcp::no_delay opt (true);
-      socket->lowest_layer().set_option (opt);
+      socket->socket().lowest_layer().set_option (opt);
 
       // Making sure we timeout handshake, to not lock up resources, with a handshake that never comes.
       int seconds = _configuration.get<int> (SSL_HANDSHAKE_TIMEOUT, 5);
@@ -268,13 +269,13 @@ void server::on_accept_ssl ()
 
           // Closing socket and cleaning up. Client spent too much time on handshake!
           error_code ec;
-          socket->lowest_layer().shutdown (ip::tcp::socket::shutdown_both, ec);
-          socket->lowest_layer().close();
+          socket->shutdown (ip::tcp::socket::shutdown_both, ec);
+          socket->close();
         }
       });
 
       // Doing SSL handshake.
-      socket->async_handshake (ssl::stream_base::server, [this, socket, handshake_timer] (const error_code & error) {
+      socket->socket().async_handshake (ssl::stream_base::server, [this, socket, handshake_timer] (const error_code & error) {
 
         // Verifying nothing went sour.
         if (error != error::operation_aborted) {
@@ -283,11 +284,11 @@ void server::on_accept_ssl ()
           handshake_timer->cancel ();
 
           // Creating connection.
-          auto connection = create_connection (socket->lowest_layer ());
+          auto connection = create_connection (socket);
 
           // Handling connection, but only if it was accepted.
-          //if (connection != nullptr)
-          //  connection->handle ();
+          if (connection != nullptr)
+            connection->handle ();
         }
       });
     }

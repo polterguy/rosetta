@@ -53,7 +53,7 @@ void request_envelope::read (exceptional_executor x, functor callback)
   match_condition match (MAX_URI_LENGTH);
 
   // Reading until "max_length" or CR/LF has been found.
-  async_read_until (_connection->socket(), _connection->buffer(), match, [this, match, x, callback] (const error_code & error, size_t bytes_read) {
+  _connection->socket().async_read_until (_connection->buffer(), match, [this, match, x, callback] (const error_code & error, size_t bytes_read) {
 
     // Checking if socket has an error, or HTTP-Request line was too long.
     if (error == error::operation_aborted)
@@ -84,7 +84,7 @@ void request_envelope::read_headers (exceptional_executor x, functor callback)
   match_condition match (max_header_length);
 
   // Reading first header.
-  async_read_until (_connection->socket(), _connection->buffer(), match, [this, x, match, callback] (const error_code & error, size_t bytes_read) {
+  _connection->socket().async_read_until (_connection->buffer(), match, [this, x, match, callback] (const error_code & error, size_t bytes_read) {
 
     // Making sure there were no errors while reading socket.
     if (error == error::operation_aborted)

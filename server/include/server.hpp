@@ -23,6 +23,7 @@
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include "common/include/configuration.hpp"
+#include "server/include/connection/rosetta_socket.hpp"
 
 using namespace boost::asio;
 using namespace rosetta::common;
@@ -36,7 +37,7 @@ typedef std::shared_ptr<connection> connection_ptr;
 class server;
 typedef std::shared_ptr<server> server_ptr;
 
-typedef std::shared_ptr<ip::tcp::socket> socket_ptr;
+typedef std::shared_ptr<rosetta_socket> socket_ptr;
 
 
 /// This is the main server object, and there will only be one server running in your application.

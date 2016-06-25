@@ -28,6 +28,7 @@
 #include "server/include/connection/handlers/trace_handler.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
 #include "server/include/connection/handlers/static_file_handler.hpp"
+
 namespace rosetta {
 namespace server {
 
@@ -147,7 +148,7 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
   *status_line += "\r\n";
 
   // Writing status line to socket.
-  async_write (_connection->socket(), buffer (*status_line), [callback, x, status_line] (const error_code & error, size_t bytes_written) {
+  _connection->socket().async_write (buffer (*status_line), [callback, x, status_line] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -172,7 +173,7 @@ void request_handler::write_header (const string & key, const string & value, ex
   }
 
   // Writing header content to socket.
-  async_write (_connection->socket(), buffer (*header_content), [callback, x, header_content] (const error_code & error, size_t bytes_written) {
+  _connection->socket().async_write (buffer (*header_content), [callback, x, header_content] (const error_code & error, size_t bytes_written) {
 
     // Sanity check.
     if (error)
@@ -260,7 +261,7 @@ void request_handler::write_file (std::shared_ptr<std::ifstream> fs_ptr, excepti
 
     // Writing to socket, passing in fs_ptr, to make sure it stays around until operation is entirely done.
     auto bf = buffer (_response_buffer.data(), fs_ptr->gcount());
-    async_write (_connection->socket(), bf, [this, callback, x, fs_ptr] (const error_code & error, size_t bytes_written) {
+    _connection->socket().async_write (bf, [this, callback, x, fs_ptr] (const error_code & error, size_t bytes_written) {
 
       // Sanity check.
       if (error)

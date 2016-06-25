@@ -55,7 +55,7 @@ void trace_handler::handle (exceptional_executor x, functor callback)
     write_headers (headers, x, [this, callback, buffer_ptr] (exceptional_executor x) {
 
       // Writing entire request, HTTP-Request line, and HTTP headers, back to client, as content.
-      async_write (connection()->socket(), buffer (*buffer_ptr), [buffer_ptr, callback, x] (const error_code & error, size_t bytes_written) {
+      connection()->socket().async_write (buffer (*buffer_ptr), [buffer_ptr, callback, x] (const error_code & error, size_t bytes_written) {
 
         // Invoking callback, signaling we're done.
         callback (x);

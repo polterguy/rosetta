@@ -95,7 +95,7 @@ void request::read_content (exceptional_executor x, functor callback)
       return; // Simply letting x go out of scope, cleans everything up.
 
     // Reading content into streambuf.
-    async_read (_connection->socket(), _connection->buffer(), transfer_exactly (content_length), [x, callback] (const error_code & error, size_t bytes_read) {
+    _connection->socket().async_read (_connection->buffer(), transfer_exactly (content_length), [x, callback] (const error_code & error, size_t bytes_read) {
 
       // Checking for socket errors.
       if (error)

@@ -57,7 +57,7 @@ public:
   const server * server() const { return _server; }
 
   /// Returns the socket for the current instance.
-  ip::tcp::socket & socket() { return *_socket; }
+  rosetta_socket & socket() { return *_socket; }
 
   /// Returns the stream buffer for the current instance.
   streambuf & buffer() { return _buffer; }
