@@ -69,11 +69,20 @@ protected:
 
 private:
 
+  /// Sets up HTTP (non-SSL) server, to start accepting normal HTTP requests.
+  void setup_http_server ();
+
+  /// Sets up HTTPS (SSL) server, to start accepting Secure HTTPS requests.
+  void setup_https_server ();
+
   /// Callback invoked when SIGINT/SIGTERM etc is signaled.
   void on_stop (int signal_number);
 
-  /// Callback for accepting new connections
+  /// Callback for accepting new HTTP connections.
   void on_accept();
+
+  /// Callback for accepting new HTTPS connections.
+  void on_accept_ssl();
 
 
   /// Only io service object in application.
@@ -85,8 +94,14 @@ private:
   /// The signal_set is used to register for process termination notifications.
   signal_set _signals;
 
-  /// Acceptor which listens for incoming connections
+  /// Acceptor which listens for incoming HTTP connections. (non-SSL requests)
   ip::tcp::acceptor _acceptor;
+
+  /// Acceptor which listens for incoming HTTPS connections.
+  ip::tcp::acceptor _acceptor_ssl;
+
+  /// SSL context for SSL connections.
+  ssl::context _context;
 
   /// All live connections to our server.
   std::set<connection_ptr> _connections;

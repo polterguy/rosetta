@@ -150,12 +150,15 @@ void create_default_configuration_file()
   // Main server settings.
   config.set ("address", "localhost");
   config.set ("port", 8080);
+  config.set ("ssl-port", 8081);
   config.set ("thread-model", "thread-pool");
   config.set ("threads", 128);
   config.set ("www-root", "www-root/");
   config.set ("default-page", "/index.html");
   config.set ("trace-allowed", false);
   config.set ("head-allowed", false);
+  config.set ("ssl-certificate", "server.crt");
+  config.set ("ssl-private-key", "server.key");
 
   // Request settings.
   config.set ("max-uri-length", 1024);
@@ -164,6 +167,7 @@ void create_default_configuration_file()
   config.set ("request-content-read-timeout", 300);
 
   // Connection settings.
+  config.set ("connection-ssl-handshake-timeout", 20);
   config.set ("connection-keep-alive-timeout", 20);
   config.set ("max-connections-per-client", 2);
 

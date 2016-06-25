@@ -28,7 +28,11 @@ namespace server {
 // Configuration keys used to retrieve configuration options for our server object
 static char const * const ADDRESS_CONFIG_KEY = "address";
 static char const * const PORT_CONFIG_KEY = "port";
+static char const * const SSL_PORT_CONFIG_KEY = "ssl-port";
 static char const * const THREAD_MODEL_CONFIG_KEY = "thread-model";
+static char const * const CERT_FILE = "ssl-certificate";
+static char const * const PRIVATE_KEY_FILE = "ssl-private-key";
+static char const * const SSL_HANDSHAKE_TIMEOUT = "connection-ssl-handshake-timeout";
 
 
 server_ptr server::create (const class configuration & configuration)
@@ -54,7 +58,9 @@ server_ptr server::create (const class configuration & configuration)
 server::server (const class configuration & configuration)
   : _configuration (configuration),
     _signals (_service),
-    _acceptor (_service)
+    _acceptor (_service),
+    _acceptor_ssl (_service),
+    _context (ssl::context::sslv23)
 {
   // Register quit signals.
   _signals.add (SIGINT);
@@ -69,27 +75,12 @@ server::server (const class configuration & configuration)
     // Stopping server.
     on_stop (signal_number);
   });
-  
-  // Figuring out address and port to start endpoint for
-  string address = _configuration.get<string> (ADDRESS_CONFIG_KEY, "localhost");
-  string port    = _configuration.get<string> (PORT_CONFIG_KEY, "8080");
-  
-  // Resolving address and port, for then to open endpoint
-  ip::tcp::resolver resolver (_service);
-  ip::tcp::endpoint endpoint = *resolver.resolve ({address, port});
-  
-  // Letting endpoint decide whether or not we should use IP version 4 or 6
-  _acceptor.open (endpoint.protocol());
-  
-  // Allowing the acceptor to reuse address, before binding to endpoint
-  _acceptor.set_option (ip::tcp::acceptor::reuse_address (true));
-  _acceptor.bind (endpoint);
-  
-  // Start listening on acceptor.
-  _acceptor.listen();
 
-  // Start accepting connections.
-  on_accept();
+  // Try to setup server to accept non-SSL, normal HTTP requests.
+  setup_http_server ();
+
+  // Try to setup server to accept SSL, HTTPS requests.
+  setup_https_server ();
 }
 
 
@@ -150,6 +141,70 @@ connection_ptr server::create_connection (socket_ptr socket)
 }
 
 
+void server::setup_http_server ()
+{
+  // Figuring out port to use for normal HTTP requests, if any.
+  string port = _configuration.get<string> (PORT_CONFIG_KEY, "-1");
+  if (port == "-1")
+    return; // No HTTP traffic is accepted!
+
+  // Figuring out address and port to start endpoint for
+  string address = _configuration.get<string> (ADDRESS_CONFIG_KEY, "localhost");
+
+  // Resolving address and port, for then to open endpoint
+  ip::tcp::resolver resolver (_service);
+  ip::tcp::endpoint endpoint = *resolver.resolve ({address, port});
+
+  // Letting endpoint decide whether or not we should use IP version 4 or 6
+  _acceptor.open (endpoint.protocol());
+
+  // Allowing the acceptor to reuse address, before binding to endpoint
+  _acceptor.set_option (ip::tcp::acceptor::reuse_address (true));
+  _acceptor.bind (endpoint);
+
+  // Start listening on acceptor.
+  _acceptor.listen();
+
+  // Start accepting connections.
+  on_accept();
+}
+
+
+void server::setup_https_server ()
+{
+  // Figuring out port to use for normal HTTP requests, if any.
+  string port = _configuration.get<string> (SSL_PORT_CONFIG_KEY, "-1");
+  if (port == "-1")
+    return; // No HTTPS traffic is accepted!
+
+  // Associating certificate and private key with SSL context.
+  const string certificate = _configuration.get<string> (CERT_FILE, "server.crt");
+  const string private_key = _configuration.get<string> (PRIVATE_KEY_FILE, "server.key");
+  _context.use_certificate_chain_file (certificate);
+  _context.use_private_key_file (private_key, ssl::context::pem);
+
+  // Figuring out address and port to start endpoint for
+  string address = _configuration.get<string> (ADDRESS_CONFIG_KEY, "localhost");
+
+  // Resolving address and port, for then to open endpoint
+  ip::tcp::resolver resolver (_service);
+  ip::tcp::endpoint endpoint = *resolver.resolve ({address, port});
+
+  // Letting endpoint decide whether or not we should use IP version 4 or 6
+  _acceptor_ssl.open (endpoint.protocol());
+
+  // Allowing the acceptor to reuse address, before binding to endpoint
+  _acceptor_ssl.set_option (ip::tcp::acceptor::reuse_address (true));
+  _acceptor_ssl.bind (endpoint);
+
+  // Start listening on acceptor.
+  _acceptor_ssl.listen();
+
+  // Start accepting connections.
+  on_accept_ssl();
+}
+
+
 void server::remove_connection (connection_ptr connection)
 {
   // Erasing connection from our list of connections.
@@ -161,7 +216,10 @@ void server::on_accept ()
 {
   // Waiting for next request.
   auto socket = std::make_shared<ip::tcp::socket> (_service);
-  _acceptor.async_accept(*socket, [this, socket] (const error_code & error) {
+  _acceptor.async_accept (*socket, [this, socket] (const error_code & error) {
+
+    // Invoking "self" again to accept next request.
+    on_accept();
 
     // Checking that our acceptor is still open, and not killed
     if (!_acceptor.is_open ())
@@ -176,9 +234,63 @@ void server::on_accept ()
       if (connection != nullptr)
         connection->handle ();
     }
+  });
+}
+
+
+void server::on_accept_ssl ()
+{
+  // Waiting for next request.
+  auto socket = std::make_shared<ssl::stream<ip::tcp::socket> > (_service, _context);
+  _acceptor_ssl.async_accept (socket->lowest_layer (), [this, socket] (const error_code & error) {
 
     // Invoking "self" again to accept next request.
-    on_accept();
+    on_accept_ssl ();
+
+    // Checking that our acceptor is still open, and not killed
+    if (!_acceptor_ssl.is_open ())
+      return;
+
+    if (!error) {
+
+      // Settings options for SSL socket.
+      ip::tcp::no_delay opt (true);
+      socket->lowest_layer().set_option (opt);
+
+      // Making sure we timeout handshake, to not lock up resources, with a handshake that never comes.
+      int seconds = _configuration.get<int> (SSL_HANDSHAKE_TIMEOUT, 5);
+      std::shared_ptr<deadline_timer> handshake_timer = std::make_shared<deadline_timer> (_service);
+      handshake_timer->expires_from_now (boost::posix_time::seconds (seconds));
+      handshake_timer->async_wait ([handshake_timer, socket] (const error_code & error) {
+
+        // Checking that operation was not aborted.
+        if (error != error::operation_aborted) {
+
+          // Closing socket and cleaning up. Client spent too much time on handshake!
+          error_code ec;
+          socket->lowest_layer().shutdown (ip::tcp::socket::shutdown_both, ec);
+          socket->lowest_layer().close();
+        }
+      });
+
+      // Doing SSL handshake.
+      socket->async_handshake (ssl::stream_base::server, [this, socket, handshake_timer] (const error_code & error) {
+
+        // Verifying nothing went sour.
+        if (error != error::operation_aborted) {
+
+          // Canceling handshake timeout.
+          handshake_timer->cancel ();
+
+          // Creating connection.
+          auto connection = create_connection (socket->lowest_layer ());
+
+          // Handling connection, but only if it was accepted.
+          //if (connection != nullptr)
+          //  connection->handle ();
+        }
+      });
+    }
   });
 }
 
