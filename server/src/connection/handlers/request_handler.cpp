@@ -23,9 +23,10 @@
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
 #include "server/include/exceptions/request_exception.hpp"
+#include "server/include/connection/handlers/head_handler.hpp"
 #include "server/include/connection/handlers/error_handler.hpp"
-#include "server/include/connection/handlers/request_handler.hpp"
 #include "server/include/connection/handlers/trace_handler.hpp"
+#include "server/include/connection/handlers/request_handler.hpp"
 #include "server/include/connection/handlers/static_file_handler.hpp"
 namespace rosetta {
 namespace server {
@@ -46,19 +47,30 @@ request_handler_ptr request_handler::create (class connection * connection, clas
   } else if (request->envelope().type() == "TRACE") {
 
     // Checking if TRACE method is allowed according to configuration.
-    if (!connection->server()->configuration().get<bool> ("trace-allowed")) {
+    if (!connection->server()->configuration().get<bool> ("trace-allowed", false)) {
 
       // Method not allowed.
       return request_handler_ptr (new error_handler (connection, request, 405));
-
     } else {
 
       // Creating a TRACE response handler.
       return request_handler_ptr (new trace_handler (connection, request));
     }
-  } else {
+  } else if (request->envelope().type() == "HEAD") {
 
-    // Figuring out handler to use according to request extension.
+    // Checking if HEAD method is allowed according to configuration.
+    if (!connection->server()->configuration().get<bool> ("head-allowed", false)) {
+
+      // Method not allowed.
+      return request_handler_ptr (new error_handler (connection, request, 405));
+    } else {
+
+      // Creating a HEAD response handler.
+      return request_handler_ptr (new head_handler (connection, request, request->envelope().extension()));
+    }
+  } else if (request->envelope().type() == "GET") {
+
+    // Figuring out handler to use according to request extension, and if document type even is served/handled.
     const string & extension = request->envelope().extension();
     string handler = extension.size () == 0 ?
         connection->server()->configuration().get<string> ("default-handler", "error") :
@@ -71,9 +83,13 @@ request_handler_ptr request_handler::create (class connection * connection, clas
       return request_handler_ptr (new static_file_handler (connection, request, extension));
     } else {
 
-      // Oops, these types of files are not served.
+      // Oops, these types of files are not served or handled.
       return request_handler_ptr (new error_handler (connection, request, 404));
     }
+  } else {
+
+    // Unsupported method.
+    return request_handler_ptr (new error_handler (connection, request, 405));
   }
 }
 
@@ -186,7 +202,7 @@ void request_handler::write_headers (header_list headers, exceptional_executor x
 }
 
 
-void request_handler::write_file (const string & filepath, exceptional_executor x, functor callback)
+void request_handler::write_file (const string & filepath, exceptional_executor x, functor callback, bool write_content)
 {
   // Figuring out size of file, and making sure it's not larger than what we are allowed to handle according to configuration of server.
   size_t size = boost::filesystem::file_size (filepath);
@@ -212,10 +228,13 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
     {"Content-Length", boost::lexical_cast<string> (size)}};
 
   // Writing HTTP headers to connection.
-  write_headers (headers, x, [this, fs_ptr, callback] (exceptional_executor x) {
+  write_headers (headers, x, [this, fs_ptr, callback, write_content] (exceptional_executor x) {
 
     // Invoking implementation that actually writes file to socket.
-    write_file (fs_ptr, x, callback);
+    if (write_content)
+      write_file (fs_ptr, x, callback);
+    else
+      callback (x); // Not writing content of file.
   }, true);
 }
 

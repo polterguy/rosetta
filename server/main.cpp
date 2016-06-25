@@ -155,6 +155,7 @@ void create_default_configuration_file()
   config.set ("www-root", "www-root/");
   config.set ("default-page", "/index.html");
   config.set ("trace-allowed", false);
+  config.set ("head-allowed", false);
 
   // Request settings.
   config.set ("max-uri-length", 1024);

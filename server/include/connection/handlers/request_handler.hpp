@@ -65,7 +65,7 @@ protected:
 
   /// Writing the given file on socket back to client.
   // Notice, the file we serve, is not necessarily the file requested. Hence, we cannot use request_envelope::extension() here.
-  void write_file (const string & file_path, exceptional_executor x, functor callback);
+  void write_file (const string & file_path, exceptional_executor x, functor callback, bool write_content = true);
 
   /// Returns connection for this instance.
   connection * connection() { return _connection; }
