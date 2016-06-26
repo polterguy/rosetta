@@ -56,6 +56,9 @@ public:
   /// Returns the extension of the request.
   const inline string & extension() const { return _extension; }
 
+  /// Returns the file name, without path, of the request.
+  const inline string & filename() const { return _filename; }
+
   /// Returns the type of the request.
   const inline string & type() const { return _type; }
 
@@ -75,6 +78,9 @@ private:
 
   /// Parses the HTTP-Request line.
   void parse_request_line (const string & request_line);
+
+  /// Parses and verifies correctness of the URI from the HTTP-Request line.
+  void parse_uri (string & uri);
 
   /// Reads the next HTTP headers from socket.
   void read_headers (exceptional_executor x, functor on_success);
@@ -97,6 +103,9 @@ private:
 
   /// Path to resource requested.
   string _uri;
+
+  /// File name, without path, that was requested.
+  string _filename;
 
   /// File extension of request.
   string _extension;

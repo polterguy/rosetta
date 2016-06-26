@@ -31,8 +31,13 @@ using std::string;
 using namespace boost::asio;
 using namespace rosetta::common;
 
+/// Returns the next line from the given stream buffer.
 string get_line (streambuf & buffer);
+
+/// Decodes a URI, turning '+' into ' ' and %xx notation into actual characters.
 string decode_uri (const string & uri);
+
+/// Auto-Capitalize HTTP header names.
 string capitalize_header_name (const string & name);
 
 
@@ -180,13 +185,13 @@ void request_envelope::parse_request_line (const string & request_line)
   vector<string> parts;
   split (parts, request_line, ::isspace);
 
-  // Removing all empty parts of URI, meaning consecutive spaces.
+  // Removing all empty parts, which translates into consecutive spaces, to make logic more fault tolerant. Ref; HTTP/1.1 - 19.3.
   parts.erase (remove (parts.begin(), parts.end(), ""), parts.end ());
 
   // Now we can start deducting which type of request, and path, etc, this is.
   size_t no_parts = parts.size ();
 
-  // At least the method and the URI needs to be supplied. The version is defaulted to HTTP/1.1, so it is optional.
+  // At least the method and the URI needs to be supplied. The version is defaulted to HTTP/1.1, so it is actually optional.
   // This is in accordance to the HTTP/1.1 standard; 19.3.
   if (parts.size() < 2 || parts.size() > 3)
     throw request_exception ("Malformed HTTP-Request line.");
@@ -194,58 +199,71 @@ void request_envelope::parse_request_line (const string & request_line)
   // To be more fault tolerant, according to the HTTP/1.1 standard, point 19.3, we make sure the method is in UPPERCASE.
   // We also default the version to HTTP/1.1, unless it is explicitly given, and if given, we make sure it is UPPERCASE.
   _type           = to_upper_copy (parts [0]);
-  _uri            = parts [1];
   _version        = no_parts > 2 ? to_upper_copy (parts [2]) : "HTTP/1.1";
 
+  // Then, at last, we parse the URI.
+  parse_uri (parts [1]);
+}
+
+
+void request_envelope::parse_uri (string & uri)
+{
   // Checking if path is a request for the default document.
-  if (_uri == "/") {
+  if (uri == "/") {
 
     // Serving default document.
-    _uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
-  } else if (_uri [0] != '/') {
+    uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
+  } else if (uri [0] != '/') {
 
-    // To make sure we're more fault tolerant, we prepend the URI with "/", if it is not given.
-    _uri = "/" + _uri;
+    // To make sure we're more fault tolerant, we prepend the URI with "/", if it is not given. Ref; 19.3.
+    uri = "/" + uri;
   }
 
-  // Retrieving extension of request URI.
-  string file_name = _uri.substr (_uri.find_last_of ("/") + 1);
-  size_t pos_of_dot = file_name.find_last_of (".");
-  _extension = pos_of_dot == string::npos ? "" : file_name.substr (pos_of_dot + 1);
+  // Retrieving file name and extension of request URI.
+  _filename = uri.substr (uri.find_last_of ('/') + 1);
+  size_t pos_of_dot = _filename.find_last_of ('.');
+  if (pos_of_dot != string::npos)
+    _extension = _filename.substr (pos_of_dot + 1);
 
   // Checking if URI contains HTTP GET parameters.
-  auto index_of_pars = _uri.find ("?");
+  auto index_of_pars = uri.find ("?");
   if (index_of_pars == 1) {
 
     // Default page was requested, as "/", with HTTP GET parameters.
-    parse_parameters (decode_uri (_uri.substr (2)));
+    parse_parameters (decode_uri (uri.substr (2)));
 
     // Serving default document.
-    _uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
+    uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
   } else if (index_of_pars != string::npos) {
 
     // URI contains GET parameters.
-    parse_parameters (decode_uri (_uri.substr (index_of_pars + 1)));
+    parse_parameters (decode_uri (uri.substr (index_of_pars + 1)));
 
     // Decoding URI.
-    _uri = decode_uri (_uri.substr (0, index_of_pars));
+    uri = decode_uri (uri.substr (0, index_of_pars));
   } else {
 
     // No parameters, decoding URI.
-    _uri = decode_uri (_uri);
+    uri = decode_uri (_uri);
   }
+
+  // Then, finally, we can set the URI.
+  _uri = uri;
 }
 
 
 void request_envelope::parse_parameters (const string & params)
 {
-  // Splitting up into separate parameters, and looping through each parameter, removing empty parameters (two consecutive "&" immediately following each other).
+  // Splitting up into separate parameters, and looping through each parameter,
+  // removing empty parameters (two consecutive "&" immediately following each other).
   std::vector<string> pars;
   split (pars, params, boost::is_any_of ("&"));
   pars.erase (std::remove (pars.begin(), pars.end(), ""), pars.end ());
+
+  // Looping through each parameter.
   for (string & idx : pars) {
     
-    // Splitting up name/value of parameter, allowing for parameters without value.
+    // Splitting up name/value of parameter, making sure we allow for parameters without value.
     size_t index_of_equal = idx.find ("=");
     string name  = index_of_equal == string::npos ? idx : idx.substr (0, index_of_equal);
     string value = index_of_equal == string::npos ? "" : idx.substr (index_of_equal + 1);
@@ -257,9 +275,12 @@ void request_envelope::parse_parameters (const string & params)
 /// Helper method for parsing an envelope line.
 string get_line (streambuf & buffer)
 {
+  // Making things more tidy in here.
+  using namespace std;
+
   // Reading next line from stream, and putting into vector buffer, for efficiency.
-  std::vector<unsigned char> vec;
-  std::istream stream (&buffer);
+  vector<unsigned char> vec;
+  istream stream (&buffer);
 
   // Iterating stream until CR/LF has been seen, and returning the line to caller.
   while (stream.good ()) {
@@ -282,21 +303,20 @@ string get_line (streambuf & buffer)
 
 unsigned char from_hex (unsigned char ch) 
 {
-  if (ch <= '9' && ch >= '0')
-    ch -= '0';
-  else if (ch <= 'f' && ch >= 'a')
-    ch -= 'a' - 10;
-  else if (ch <= 'F' && ch >= 'A')
-    ch -= 'A' - 10;
+  if (ch >= '0' && ch <= '9')
+    return ch - '0';
+  else if (ch >= 'a' && ch <= 'f')
+    return ch - 'a' + 10;
+  else if (ch >= 'A' && ch <= 'F')
+    return ch - 'A' + 10;
   else 
-    ch = 0;
-  return ch;
+    throw request_exception ("Unknown escape % HEX HEX character sequence value found in encoded URI.");
 }
 
 
 string decode_uri (const string & uri)
 {
-  // Will hold the decoded return URI value.
+  // Will hold the decoded return URI value temporarily.
   std::vector<unsigned char> return_value;
   
   // Iterating through entire string, looking for either '+' or '%', which is specially handled.
@@ -307,14 +327,16 @@ string decode_uri (const string & uri)
 
       // '+' equals space " ".
       return_value.push_back (' ');
+    } else if (uri [idx] == '%') {
 
-    } else if (uri [idx] == '%' && uri.size() > idx + 2) {
+      // '%' notation of character, followed by two characters. Sanity checking input first.
+      if (idx + 2 >= uri.size ())
+        throw request_exception ("Syntax error in URI encoded string, no values after '%' notation.");
 
-      // '%' notation of character, followed by two characters.
       // The first character is bit shifted 4 places, and OR'ed with the value of the second character.
+      // Then we make sure we skip the next 2 characters, since they're already handled.
       return_value.push_back ((from_hex (uri [idx + 1]) << 4) | from_hex (uri [idx + 2]));
       idx += 2;
-
     } else {
 
       // Normal plain character.
@@ -322,23 +344,39 @@ string decode_uri (const string & uri)
     }
   }
 
-  // Returning decoded URI to caller.
+  // Returning decoded URI to caller as string.
   return string (return_value.begin (), return_value.end ());
 }
 
 
 string capitalize_header_name (const string & name)
 {
+  // Will hold the return value temporarily.
   std::vector<char> return_value;
+
+  // State machine value, used to determine if next character should be capitalized or not.
+  // Starts out with being true, since the first character of an HTTP header always should be capitalized.
   bool next_is_upper = true;
+
+  // Iterating through all characters in string.
   for (auto idx : name) {
+
+    // Checking if we should make currently character UPPERCASE or not.
     if (next_is_upper) {
+
+      // Making sure the currently character is UPPERCASE.
       return_value.push_back (toupper (idx));
     } else {
-      return_value.push_back (idx);
+
+      // Making sure the currently iterated character is lowercase.
+      return_value.push_back (tolower (idx));
     }
+
+    // After every "-" character in an HTTP header, the next character should be UPPERCASE.
     next_is_upper = idx == '-';
   }
+
+  // Returning to caller as string.
   return string (return_value.begin(), return_value.end());
 }
 
