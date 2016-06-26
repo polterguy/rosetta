@@ -49,7 +49,7 @@ request_envelope::request_envelope (connection * connection, request * request)
 void request_envelope::read (exceptional_executor x, functor callback)
 {
   // Figuring out max length of URI.
-  const static size_t MAX_URI_LENGTH = _connection->server()->configuration().get<size_t> ("max-uri-length", 4096);
+  const size_t MAX_URI_LENGTH = _connection->server()->configuration().get<size_t> ("max-uri-length", 4096);
   match_condition match (MAX_URI_LENGTH);
 
   // Reading until "max_length" or CR/LF has been found.
@@ -120,16 +120,16 @@ void request_envelope::read_headers (exceptional_executor x, functor callback)
       // Splitting header into name and value.
       const auto equals_idx = line.find (':');
 
-      // Retrieving header name, simply ignoring headers without a value.
+      // Retrieving header name, simply ignoring headers without a value, if forgiveness mode says so.
       if (equals_idx != string::npos) {
 
-        // Retrieving actual header name and value.
+        // Retrieving actual header name and value, according to "forgiveness mode" of server.
         string header_name = capitalize_header_name (boost::algorithm::trim_copy (line.substr (0, equals_idx)));
         string header_value = boost::algorithm::trim_copy (line.substr (equals_idx + 1));
 
         // Now adding actual header into headers collection.
         _headers.push_back (collection_type (header_name, header_value));
-      }
+      } // else; Ignore header completely.
     }
 
     // Reading next header from socket.
@@ -143,10 +143,10 @@ const string & request_envelope::header (const string & name) const
   // Empty return value, used when there are no such header.
   const static string EMPTY_HEADER_VALUE = "";
 
-  // Looking for a header with the specified name.
+  // Looking for the header with the specified name.
   for (auto & idx : _headers) {
     if (std::get<0> (idx) == name)
-      return std::get<1> (idx); // Found it!
+      return std::get<1> (idx); // Match!
   }
 
   // No such header.
@@ -169,12 +169,14 @@ void request_envelope::parse_request_line (const string & request_line)
   // Now we can start deducting which type of request, and path, etc, this is.
   size_t no_parts = parts.size ();
 
-  // At least the method and the URI needs to be supplied. The version is defaulted to HTTP/1.1, so it is optional.
+  // At least the method and the URI needs to be supplied. The version is defaulted to HTTP/1.1, so it is optional, but
+  // only if forgiveness mode is equal to, or higher than 5.
   if (parts.size() < 2)
     throw request_exception ("Malformed HTTP-Request line.");
 
   // To be more fault tolerant, according to the HTTP/1.1 standard, point 19.3, we make sure the method is in UPPERCASE.
   // We also default the version to HTTP/1.1, unless it is explicitly given, and if given, we make sure it is UPPERCASE.
+  // But only if server forgiveness mode is equal to, or higher than 5.
   _type           = boost::algorithm::to_upper_copy (parts [0]);
   _uri            = parts [1];
   _version        = no_parts > 2 ? boost::algorithm::to_upper_copy (parts [2]) : "HTTP/1.1";
@@ -186,7 +188,7 @@ void request_envelope::parse_request_line (const string & request_line)
     _uri = DEFAULT_DOCUMENT;
   } else if (_uri [0] != '/') {
 
-    // To make sure we're more fault tolerant, we prepend the URI with "/" if it is not given.
+    // To make sure we're more fault tolerant, we prepend the URI with "/", if it is not given.
     _uri = "/" + _uri;
   }
 
@@ -195,12 +197,11 @@ void request_envelope::parse_request_line (const string & request_line)
   size_t pos_of_dot = file_name.find_last_of (".");
   _extension = pos_of_dot == string::npos ? "" : file_name.substr (pos_of_dot + 1);
 
-  // Checking if URI contains HTTP GET parameters, allowing for multiple different GET parameter delimiters, to support
-  // maximum amount of HTTP cloaking.
+  // Checking if URI contains HTTP GET parameters.
   auto index_of_pars = _uri.find ("?");
   if (index_of_pars == 1) {
 
-    // Default page was requested, with HTTP GET parameters.
+    // Default page was requested, as "/", with HTTP GET parameters.
     parse_parameters (decode_uri (_uri.substr (2)));
 
     // Serving default document.
@@ -214,7 +215,7 @@ void request_envelope::parse_request_line (const string & request_line)
     _uri = decode_uri (_uri.substr (0, index_of_pars));
   } else {
 
-    // Decoding URI.
+    // No parameters, decoding URI.
     _uri = decode_uri (_uri);
   }
 }
@@ -222,14 +223,15 @@ void request_envelope::parse_request_line (const string & request_line)
 
 void request_envelope::parse_parameters (const string & params)
 {
-  // Splitting up into separate parameters, and looping through each parameter.
+  // Splitting up into separate parameters, and looping through each parameter, removing empty parameters (two consecutive "&" immediately following each other).
   std::vector<string> pars;
   split (pars, params, boost::is_any_of ("&"));
+  pars.erase (std::remove (pars.begin(), pars.end(), ""), pars.end ());
   for (string & idx : pars) {
     
     // Splitting up name/value of parameter, allowing for parameters without value.
     size_t index_of_equal = idx.find ("=");
-    string name = index_of_equal == string::npos ? idx : idx.substr (0, index_of_equal);
+    string name  = index_of_equal == string::npos ? idx : idx.substr (0, index_of_equal);
     string value = index_of_equal == string::npos ? "" : idx.substr (index_of_equal + 1);
     _parameters.push_back (collection_type (name, value));
   }

@@ -90,6 +90,53 @@ then Rosetta will still not provide any version information back to the client.
 This makes Rosetta harder to hack, since it provides less information back to a malicious
 hacker, about which type of server he or she is encountering.
 
+### Configurable HTTP forgiveness mode
+
+Rosetta is highly forgiving in regards to the HTTP standard by default. Among other
+things, it will accept a missing HTTP-Request version information, by default. In
+addition, it will Auto-Capitalize HTTP headers, if they are submitted in lowercase
+letters. In such a regard, Rosetta is a perfect noob web server, since it will try
+to interpret an HTTP request, even when the client is not able to create it 100%
+accurately according to the strictness of the HTTP standard.
+
+If we stopped there though, then a malicious hacker could easily do a *"feature detection"*
+on the server, to identify which type of server he was encountering. You can therefor
+configure Rosetta, in 5 different modes, which defines how forgiving it will be, in
+regards to the HTTP standard. The modes are created such that a 3 value, forgives
+everything a 2 and a 1 value forgives. 5 forgives everything 4 and 3 forgives, and so
+on. So it is incremental in its amount of forgiveness. The different modes, and their
+features are the following;
+
+1. Forgive nothing!
+   * Choke on missing CR in CR/LF sequence.
+   * Choke on additional CR inside of HTTP envelope lines.
+   * Choke on missing "/" in front of URL.
+   * Choke on missing HTTP-Version information.
+   * Choke if version is neither HTTP/1.1 nor HTTP/2
+2. Forgive a missing "/" in front of the URL, and forgive a missing CR in envelope lines.
+   * In addition, ignore all additional CR characters in all HTTP headers.
+3. Automatically Capitalize HTTP Header-Names, if they are submitted WRONG or wRonG.
+   * Trim header names before storing them internally.
+   * Right trim values of HTTP headers, in addition to left trimming the value.
+4. Forgive, and ignore, an HTTP header, with no value (missing ":")
+   * Also, ignore additional SP " " in HTTP-Request line.
+5. Forgive a missing HTTP-Version part in HTTP-Request line, and default it to "HTTP/1.1".
+   * Accept "foo-bar" as HTTP version information if given, without choking.
+
+If you set Rosetta into an *"http-forgiveness-mode"* of 5, it will basically try to
+interpret anything, and understand almost whatever you throw at it of "bugs". If you
+set the value to "1", it will be extremely strict in regards to its interpretation
+of the HTTP standard. This allows you to make the web server behave in different ways,
+according to your configuration, making it more difficult to run a *"feature detection"*
+attack on your server, to identify it, as a part of a malicious hacking attempt.
+
+For the paranoid among us, the best value for *"http-forgiveness-mode"* is probably 1,
+since it gives away no details about the server. For the naive among us, trying to
+learn the HTTP standard, setting up their first web server, a value of 5 is probably
+easiest to start with.
+
+The default value is 5.
+
 ## Future plans
 
 Implement support for all HTTP verbs, PUT, DELETE, POST and OPTIONS, in addition to Basic

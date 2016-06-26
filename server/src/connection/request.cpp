@@ -53,29 +53,37 @@ void request::handle (exceptional_executor x)
     const int CONTENT_READ_TIMEOUT = _connection->server()->configuration().get<size_t> ("request-content-read-timeout", 300);
     _connection->set_deadline_timer (CONTENT_READ_TIMEOUT);
 
-    // Reading content.
-    read_content (x, [this] (exceptional_executor x) {
+    // Now reading is done, and we can let our request_handler take care of the rest.
+    _request_handler = request_handler::create (_connection, this);
+    _request_handler->handle (x, [this] (exceptional_executor x) {
 
-      // Now reading is done, and we can let our request_handler take care of the rest.
-      _request_handler = request_handler::create (_connection, this);
-      _request_handler->handle (x, [this] (exceptional_executor x) {
+      // Request is now finished handled, and we need to determine if we should keep connection alive or not.
+      if (_envelope.header ("Connection") != "close") {
 
-        // Request is now finished handled, and we need to determine if we should keep connection alive or not.
-        if (boost::algorithm::to_lower_copy (_envelope.header ("Connection")) != "close") {
+        // Connection should be kept alive, releasing exceptional_executor, and invoking handle() on connection, should do the trick.
+        // But first we must do a "force read" of content, unless it has already been read, since otherwise the next request will be malformed,
+        // due to content being "in the way".
+        ensure_read_content (x, [this] (exceptional_executor x) {
 
-          // Connection should be kept alive, releasing exceptional_executor, and invoke handle() on connection, should do the trick.
+          // Releasing exceptional_executor, to avoid having connection closed, before invoking handle(), to wait for next request.
           x.release ();
           _connection->handle ();
-        } // else - x goes out of scope, and releases connection, and all resources associated with it ...
-      });
+        });
+      } // else - x goes out of scope, and releases connection, and all resources associated with it ...
     });
   });
 }
 
 
-
-void request::read_content (exceptional_executor x, functor callback)
+void request::ensure_read_content (exceptional_executor x, functor callback)
 {
+  // Checking if we have already read content.
+  if (_content_has_been_read)
+    return;
+
+  // Making sure we signal to any future invocations that content is already read.
+  _content_has_been_read = true;
+
   // Max allowed length of content.
   const static size_t MAX_REQUEST_CONTENT_LENGTH = _connection->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
 

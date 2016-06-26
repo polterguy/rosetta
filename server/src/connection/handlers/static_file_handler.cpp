@@ -130,11 +130,8 @@ void static_file_handler::write_304_response (exceptional_executor x, functor ca
   // Writing status code 304 (Not-Modified) back to client.
   write_status (304, x, [this, callback] (exceptional_executor x) {
 
-    // Building our request headers.
-    header_list headers { {"Date", date::now ().to_string ()} };
-
-    // Writing HTTP headers to connection.
-    write_headers (headers, x, [this, callback] (exceptional_executor x) {
+    // Writing standard HTTP headers to connection.
+    write_standard_headers (x, [this, callback] (exceptional_executor x) {
 
       // invoking callback, since we're done writing the response.
       callback (x);

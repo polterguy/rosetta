@@ -41,12 +41,13 @@ using namespace rosetta::common;
 
 request_handler_ptr request_handler::create (class connection * connection, class request * request, int status_code)
 {
-  // Checking if we can accept request according to user-agent whitelist definition
+  // Checking if we can accept request according to user-agent whitelist and blacklist definitions.
   if (!can_accept (connection, request)) {
 
     // User-Agent not accepted!
     return request_handler_ptr (new error_handler (connection, request, 403));
   }
+
   // Retrieving whether or not we should upgrade insecure requests automatically.
   const bool upgrade_insecure_requests = connection->server()->configuration().get <bool> ("upgrade-insecure-requests", false);
   const string ssl_port = connection->server()->configuration().get <string> ("ssl-port", "443");
@@ -58,14 +59,16 @@ request_handler_ptr request_handler::create (class connection * connection, clas
     // Some sort of error.
     return request_handler_ptr (new error_handler (connection, request, status_code));
 
-  } else if (upgrade_insecure_requests && !connection->is_secure() && request->envelope().header ("Upgrade-Insecure-Requests") == "1") {
+  } else if (upgrade_insecure_requests && !connection->is_secure() && request->envelope().header ("Upgrade-Insecure-Requests") == "1" && ssl_port != "-1") {
 
     // Both configuration, and client, prefers secure requests, and current connection is not secure.
-    // Redirecting client to SSL version of same resource.
+    // Redirecting client to SSL version of same resource, making sure we don't append "default document" to the Location URI.
     string request_uri = request->envelope().uri();
     if (request_uri == connection->server()->configuration().get <string> ("default-page", "/index.html"))
       request_uri = "/";
     string uri = "https://" + server_address + (ssl_port == "443" ? "" : ":" + ssl_port) + request_uri;
+
+    // Returning "Removed Temporarily" redirection, with a "no-store" value for the "Cache-Control" header.
     return request_handler_ptr (new redirect_handler (connection, request, 307, uri, true));
 
   } else if (request->envelope().type() == "TRACE") {
@@ -185,37 +188,11 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
 }
 
 
-void request_handler::write_header (const string & key, const string & value, exceptional_executor x, functor callback, bool is_last)
-{
-  // Creating header, making sure the string stays around until after socket write operation is finished.
-  std::shared_ptr<string> header_content = std::make_shared<string> (key + ": " + value + "\r\n");
-
-  // Checking if this was our last header, and if so, appending an additional CR/LF sequence.
-  if (is_last) {
-
-    // Making sure we submit the server name back to client, but only if configuration says so.
-    if (_connection->server()->configuration().get<bool> ("provide-server-info", false))
-      *header_content += "Server: Rosetta\r\n"; // Notice, we do not supply a version number to make it more difficult for malware to exploit server!
-    *header_content += "\r\n";
-  }
-
-  // Writing header content to socket.
-  _connection->socket().async_write (buffer (*header_content), [callback, x, header_content] (const error_code & error, size_t bytes_written) {
-
-    // Sanity check.
-    if (error)
-      throw request_exception ("Socket error while writing HTTP header.");
-    else
-      callback (x);
-  });
-}
-
-
 void request_handler::write_headers (header_list headers, exceptional_executor x, functor callback, bool is_last)
 {
   if (headers.size() == 0) {
 
-    // No more headers.
+    // No more headers, checking if callback is not null, before we invoke it.
     if (callback != nullptr)
       callback (x);
   } else {
@@ -234,6 +211,76 @@ void request_handler::write_headers (header_list headers, exceptional_executor x
       write_headers (headers, x, callback, is_last);
     }, headers.size() == 0 ? is_last : false);
   }
+}
+
+
+void request_handler::write_header (const string & key, const string & value, exceptional_executor x, functor callback, bool is_last)
+{
+  // Creating header, making sure the string stays around until after socket write operation is finished.
+  std::shared_ptr<string> header_content = std::make_shared<string> (key + ": " + value + "\r\n");
+
+  // Writing header content to socket.
+  _connection->socket().async_write (buffer (*header_content), [this, callback, x, header_content, is_last] (const error_code & error, size_t bytes_written) {
+
+    // Sanity check.
+    if (error) {
+
+      // Oops, something went wrong!
+      throw request_exception ("Socket error while writing HTTP header.");
+    } else {
+
+      // Checking if this was our last header, and if so, we make sure we render the default headers for response.
+      if (is_last) {
+
+        // Caller says this is our last header.
+        write_standard_headers (x, callback, true);
+      } else {
+
+        // Caller says this is not our last header.
+        callback (x);
+      }
+    }
+  });
+}
+
+
+void request_handler::write_standard_headers (exceptional_executor x, functor callback, bool is_last)
+{
+  // Creating header, making sure the string stays around until after socket write operation is finished.
+  std::shared_ptr<string> header_content = std::make_shared<string> ("Date: " + date::now ().to_string () + "\r\n");
+
+  // Making sure we submit the server name back to client, but only if configuration says so.
+  if (_connection->server()->configuration().get<bool> ("provide-server-info", false))
+    *header_content += "Server: Rosetta\r\n"; // Notice, we do not supply a version number to make it more difficult for malware to exploit server!
+
+  // Checking if server is configured to render "static headers".
+  const string static_headers = _connection->server()->configuration().get <string> ("static-response-headers", "");
+  if (static_headers.size() > 0) {
+
+    // Server is configured to render "static headers".
+    std::vector<string> headers;
+    boost::algorithm::split (headers, static_headers, boost::is_any_of ("|"));
+    for (auto & idx : headers) {
+      *header_content += idx + "\r\n";
+    }
+  }
+
+  // Checking if this was our last header, and if so, appending an additional CR/LF sequence.
+  if (is_last) {
+
+    // Adding the last CR/LF sequence, to signal we're done rendering headers.
+    *header_content += "\r\n";
+  }
+
+  // Writing header content to socket.
+  _connection->socket().async_write (buffer (*header_content), [callback, x, header_content] (const error_code & error, size_t bytes_written) {
+
+    // Sanity check.
+    if (error)
+      throw request_exception ("Socket error while writing HTTP header.");
+    else
+      callback (x);
+  });
 }
 
 
@@ -256,10 +303,9 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
   if (!fs_ptr->good())
     throw request_exception ("Couldn't open file; '" + filepath + "' for reading.");
 
-  // Building our request headers.
+  // Building our standard response headers for a file transfer.
   header_list headers {
-    {"Content-Type", mime_type },
-    {"Date", date::now ().to_string ()},
+    {"Content-Type", mime_type},
     {"Content-Length", boost::lexical_cast<string> (size)}};
 
   // Writing HTTP headers to connection.

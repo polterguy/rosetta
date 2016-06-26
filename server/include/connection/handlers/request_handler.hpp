@@ -57,11 +57,14 @@ protected:
   /// Writing given HTTP headetr with given value back to client.
   void write_status (unsigned int status_code, exceptional_executor x, functor callback);
 
+  /// Writing given HTTP headers with given value back to client.
+  void write_headers (header_list headers, exceptional_executor x, functor callback, bool is_last = false);
+
   /// Writing given HTTP header with given value back to client.
   void write_header (const string & key, const string & value, exceptional_executor x, functor callback, bool is_last = false);
 
-  /// Writing given HTTP headers with given value back to client.
-  void write_headers (header_list headers, exceptional_executor x, functor callback, bool is_last = false);
+  /// Writing standard HTTP headers back to client.
+  void write_standard_headers (exceptional_executor x, functor callback, bool is_last = false);
 
   /// Writing the given file on socket back to client.
   // Notice, the file we serve, is not necessarily the file requested. Hence, we cannot use request_envelope::extension() here.

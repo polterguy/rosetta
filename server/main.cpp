@@ -161,12 +161,13 @@ void create_default_configuration_file()
   config.set ("ssl-private-key", "rosetta.key");
   config.set ("user-agents-whitelist", "*");
   config.set ("provide-server-info", false);
+  config.set ("static-response-headers", "");
 
   // Request settings.
-  config.set ("max-uri-length", 1024);
+  config.set ("max-uri-length", 2048);
   config.set ("max-header-length", 8192);
   config.set ("max-request-content-length", 4194304); // 4 MB
-  config.set ("request-content-read-timeout", 300);
+  config.set ("request-content-read-timeout", 300); // 5 minutes
   config.set ("upgrade-insecure-requests", false);
 
   // Connection settings.
@@ -176,7 +177,17 @@ void create_default_configuration_file()
 
   // Request Handlers, according to file extensions.
   config.set ("html-handler", "static-file-handler");
-  config.set ("default-handler", "static-file-handler");
+  config.set ("js-handler", "static-file-handler");
+  config.set ("css-handler", "static-file-handler");
+  config.set ("png-handler", "static-file-handler");
+  config.set ("gif-handler", "static-file-handler");
+  config.set ("jpeg-handler", "static-file-handler");
+  config.set ("jpg-handler", "static-file-handler");
+  config.set ("ico-handler", "static-file-handler");
+  config.set ("xml-handler", "static-file-handler");
+  config.set ("zip-handler", "static-file-handler");
+  config.set ("json-handler", "static-file-handler");
+  config.set ("default-handler", "append-html-static-file-handler");
 
   // Common MIME types.
   config.set ("mime-html", "text/html; charset=utf-8");

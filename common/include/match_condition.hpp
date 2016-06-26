@@ -31,7 +31,7 @@ namespace common {
 using std::string;
 
 /// Match condition plugs into boost asio's "async_read_until" method, and will read from socket, until either
-/// "max_length" number of characters have been read, or a CRLF sequence has been encountered.
+/// "max_length" number of characters have been read, or an LF character have been encountered.
 /// If it stops due to "max_length" characters have been read, it will return true for has_error().
 class match_condition final
 {
@@ -43,7 +43,7 @@ public:
       _left (max_length)
   { }
 
-  /// Returns true if there was an error due to too many characters before delimiter was seen.
+  /// Returns true if there was an error, due to too many bytes, before delimiter was seen.
   bool has_error () const { return *_error; };
 
   /// Match method for using async_read_until from boost asio, for reading a line of data in an HTTP envelope.
@@ -55,9 +55,12 @@ public:
     iterator idx = begin;
     for (; idx != end; ++idx) {
 
-      // Checking the type of character.
-      if (*idx == '\n')
+      // Checking the type of character, according to "forgiveness mode".
+      if (*idx == '\n') {
+
+        // Match!
         return std::make_pair (idx, true);
+      }
 
       // Checking if length exceeds max length.
       if (--_left == 0) {

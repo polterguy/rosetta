@@ -79,11 +79,8 @@ void configuration::load (const string & file_path)
     if (entities[0].length () == 0)
       throw configuration_exception ("Key was empty close to; '" + line + "'");
 
-    if (entities[1].length () == 0)
-      throw configuration_exception ("Value was empty close to; '" + line + "'");
-
     // Stuffing into settings map
-    _settings [entities[0]] = entities[1];
+    _settings [entities[0]] = entities.size() == 1 ? "" : entities[1];
   }
 }
 

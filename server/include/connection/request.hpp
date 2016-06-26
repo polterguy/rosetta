@@ -57,7 +57,7 @@ private:
   request (connection * connection);
 
   /// Reading content of request.
-  void read_content (exceptional_executor x, functor callback);
+  void ensure_read_content (exceptional_executor x, functor callback);
 
 
   /// Connection this request belongs to.
@@ -68,6 +68,9 @@ private:
 
   /// Request handler, class responsible for taking correct action depending upon type/URI of request.
   request_handler_ptr _request_handler;
+
+  /// True if content has already been read, otherwise false.
+  bool _content_has_been_read = false;
 };
 
 
