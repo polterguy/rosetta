@@ -42,8 +42,22 @@ become your nemesis and Judas.
 
 Rosetta can be configured to only accept requests from a specific range of user agents.
 This allows you to for instance only accept requests from visitors using the Tor browser,
-which prevents others from visiting your website, unless they're within the safety of
+which prevents users from visiting your website, unless they're within the safety of
 the Onion protocol.
+
+This feature can be configured through the *"user-agents-whitelist"* configuration
+property. It works by creating a list of pipe separated (|) strings, which of the
+visiting user agent, must match at least one of, before the request is accepted.
+If it can not find a match, then the request is refused with a *"403 Forbidden"*
+response.
+
+Visiting user-agents must not obey by the user agent rules, which means that this
+is only for preventing users, accidentally visiting your website, with a user agent
+that is not trusted.
+
+This is turned off by default, but can be turned on by changing the *"user-agents-whitelist"*
+property in your configuration file, to for instance *"Chrome|FireFox"* to only accept
+requests from Google Chrome or FireFox.
 
 ### Upgrade-Insecure-Requests
 
@@ -52,6 +66,9 @@ insecure requests, for user agents that supports this feature. This means, that 
 accidentally visits your website, without prepending the request with *"https"*, the
 request will be redirected to a secure connection automatically, and no data will be
 served over a non-secure channel.
+
+This feature is on by default, but can be modified through the configuration property
+called *"upgrade-insecure-requests"*. 0 means "off", 1 means "on".
 
 ## Future plans
 
