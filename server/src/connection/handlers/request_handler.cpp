@@ -41,10 +41,16 @@ using namespace rosetta::common;
 
 request_handler_ptr request_handler::create (class connection * connection, class request * request, int status_code)
 {
+  // Checking if we can accept request according to user-agent whitelist definition
+  if (!can_accept (connection, request)) {
+
+    // User-Agent not accepted!
+    return request_handler_ptr (new error_handler (connection, request, 403));
+  }
   // Retrieving whether or not we should upgrade insecure requests automatically.
-  const static bool upgrade_insecure_requests = connection->server()->configuration().get <bool> ("upgrade-insecure-requests", false);
-  const static string ssl_port = connection->server()->configuration().get <string> ("ssl-port", "443");
-  const static string server_address = connection->server()->configuration().get <string> ("address", "localhost");
+  const bool upgrade_insecure_requests = connection->server()->configuration().get <bool> ("upgrade-insecure-requests", false);
+  const string ssl_port = connection->server()->configuration().get <string> ("ssl-port", "443");
+  const string server_address = connection->server()->configuration().get <string> ("address", "localhost");
 
   // Checking request type, and other parameters, deciding which type of request handler we should create.
   if (status_code >= 400) {
@@ -267,6 +273,46 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
 }
 
 
+string request_handler::get_mime (const string & filepath)
+{
+  // Returning MIME type for file extension.
+  string filename = filepath.substr (filepath.find_last_of ("/") + 1);
+  size_t index_of_dot = filename.find_last_of (".");
+  string extension = index_of_dot == string::npos ? "" : filename.substr (index_of_dot + 1);
+  string mime_type = _connection->server()->configuration().get<string> ("mime-" + extension, "");
+  return mime_type;
+}
+
+
+bool request_handler::can_accept (const class connection * connection, const class request * request)
+{
+  // Retrieve the USer-Agent whitelist, and see if it has something besides "*" as value
+  const string user_agent_whitelist = connection->server()->configuration().get <string> ("user-agents-whitelist", "*");
+  if (user_agent_whitelist != "*") {
+
+    // Retrieving User-Agent header from request envelope.
+    const string user_agent = request->envelope().header ("User-Agent");
+    if (user_agent.size() == 0)
+      return false; // No user-agent string, and whitelist was defined. Refusing request.
+
+    // Whitelist defined, checking if User-Agent string from request contains at least one of its entries.
+    std::vector<string> whitelist_entities;
+    boost::algorithm::split (whitelist_entities, user_agent_whitelist, boost::is_any_of ("|"));
+    for (const auto & idx : whitelist_entities) {
+      if (user_agent.find (idx) != string::npos)
+        return true; // Match in user-agent string for currently iterated whitelist entity.
+    }
+
+    // Did not find a match in user-agent.
+    return false;
+  } else {
+
+    // No whitelist defined, allowing everything.
+    return true;
+  }
+}
+
+
 void request_handler::write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor callback)
 {
   // Checking if we're done.
@@ -291,17 +337,6 @@ void request_handler::write_file (std::shared_ptr<std::ifstream> fs_ptr, excepti
       write_file (fs_ptr, x, callback);
     });
   }
-}
-
-
-string request_handler::get_mime (const string & filepath)
-{
-  // Returning MIME type for file extension.
-  string filename = filepath.substr (filepath.find_last_of ("/") + 1);
-  size_t index_of_dot = filename.find_last_of (".");
-  string extension = index_of_dot == string::npos ? "" : filename.substr (index_of_dot + 1);
-  string mime_type = _connection->server()->configuration().get<string> ("mime-" + extension, "");
-  return mime_type;
 }
 
 

@@ -19,9 +19,17 @@ scales upwards, to supercomputers, with thousands of CPUs, if you want it to.
 * If-Modified-Since.
 * Upgrade-Insecure-Requests
 * GET, HEAD and TRACE support.
+* User-Agent whitelist
 * Configurable.
 
-## No logging
+## The Paranoid web server
+
+Rosetta is a highly paranoid web server. Among other things, it does not do any logging. You
+can also configure it to only accept requests from specific User-Agents, such as the Tor
+browser. It support SSL and Upgrade-Insecure-Requests, and can be configured to be both
+a *"normal web server"*, in addition to being configured into *"paranoia land"*.
+
+### No logging
 
 Rosetta does not, have never, and will never, implement any type of logging of traffic.
 
@@ -29,6 +37,21 @@ The reasons for this, is because an adversary might gain control over your box. 
 then your log files will give away not only you, but also any users of your website. This
 creates a dangerous situation, where the log files of a web server, can unintentionally
 become your nemesis and Judas.
+
+### User-Agent whitelist
+
+Rosetta can be configured to only accept requests from a specific range of user agents.
+This allows you to for instance only accept requests from visitors using the Tor browser,
+which prevents others from visiting your website, unless they're within the safety of
+the Onion protocol.
+
+### Upgrade-Insecure-Requests
+
+Although it is not a part of the standard yet, Rosetta support automatic upgrading of
+insecure requests, for user agents that supports this feature. This means, that if a user
+accidentally visits your website, without prepending the request with *"https"*, the
+request will be redirected to a secure connection automatically, and no data will be
+served over a non-secure channel.
 
 ## Future plans
 

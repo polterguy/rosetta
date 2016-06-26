@@ -159,6 +159,7 @@ void create_default_configuration_file()
   config.set ("head-allowed", false);
   config.set ("ssl-certificate", "rosetta.crt");
   config.set ("ssl-private-key", "rosetta.key");
+  config.set ("user-agents-whitelist", "*");
 
   // Request settings.
   config.set ("max-uri-length", 1024);

@@ -75,16 +75,18 @@ protected:
 
 private:
 
-  /// Buffer for sending content back to client in chunks.
-  std::array<char, 8192> _response_buffer;
+  /// Returns true if server can accept request from User-Agent.
+  static bool can_accept (const class connection * connection, const class request * request);
 
   /// Implementation of actual file write operation.
-  /// This allows us to serialize file back to client on socket, without having to read entire file into memory.
   void write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor callback);
 
   /// Returns the MIME type according to file extension.
   string get_mime (const string & filepath);
 
+
+  /// Buffer for sending content back to client in chunks.
+  std::array<char, 8192> _response_buffer;
 
   /// The connection this instance belongs to.
   class connection * _connection;
