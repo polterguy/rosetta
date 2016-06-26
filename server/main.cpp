@@ -166,6 +166,7 @@ void create_default_configuration_file()
   // Request settings.
   config.set ("max-uri-length", 2048);
   config.set ("max-header-length", 8192);
+  config.set ("max-header-count", 25);
   config.set ("max-request-content-length", 4194304); // 4 MB
   config.set ("request-content-read-timeout", 300); // 5 minutes
   config.set ("upgrade-insecure-requests", false);

@@ -4,8 +4,8 @@ Rosetta Web Server
 Rosetta is a small, portable, and simple web server, aiming at being able to make
 anything with a network card, into a potential web server. You can run Rosetta in two
 different modes, *"thread-pool"* and *"single-thread"*. The latter could probably
-turn your wrist watch into a web server, if you tried a little bit. The former,
-scales upwards, to supercomputers, with thousands of CPUs, if you want it to.
+turn your wrist watch into a web server, if you tried. The former,
+scales upwards, to supercomputers, with thousands of CPUs.
 
 ## Features
 

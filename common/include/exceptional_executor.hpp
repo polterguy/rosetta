@@ -37,7 +37,7 @@ class exceptional_executor final
 public:
 
   /// Constructor taking a function that will evaluate when object goes out of scope, unless release() is called before.
-  exceptional_executor (std::function<void ()> functor);
+  explicit exceptional_executor (std::function<void ()> functor);
 
   /// Destructor that invokes functor object unless release is invoked before destruction occurs.
   ~exceptional_executor ();

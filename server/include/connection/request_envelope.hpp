@@ -30,16 +30,16 @@ namespace server {
 using std::string;
 using namespace rosetta::common;
 
-class request;
 class connection;
+class request;
 
-// How our headers and arguments are stored within class.
+// Helpers for HTTP headers and GET parameters collections types.
 typedef std::tuple<string, string> collection_type;
 typedef std::vector<collection_type> collection;
 typedef const std::vector<collection_type> const_collection;
 
 
-/// Helper for reading the request envelope, HTTP-Request line and headers.
+/// Helper for reading the request envelope; HTTP-Request line, and HTTP headers.
 class request_envelope
 {
 public:
@@ -48,7 +48,7 @@ public:
   request_envelope (connection * connection, request * request);
 
   /// Reads the request envelope from the connection, and invokes given callback afterwards.
-  void read (exceptional_executor x, functor callback);
+  void read (exceptional_executor x, functor on_success);
 
   /// Returns the URI of the request.
   const inline string & uri() const { return _uri; }
@@ -76,8 +76,11 @@ private:
   /// Parses the HTTP-Request line.
   void parse_request_line (const string & request_line);
 
-  /// Reads the HTTP headers.
-  void read_headers (exceptional_executor x, functor callback);
+  /// Reads the next HTTP headers from socket.
+  void read_headers (exceptional_executor x, functor on_success);
+
+  /// Parses and verifies sanity of the given HTTP header line.
+  void parse_http_header_line (const string & line);
 
   /// Parses the HTTP GET parameters.
   void parse_parameters (const string & params);
@@ -95,7 +98,7 @@ private:
   /// Path to resource requested.
   string _uri;
 
-  /// Path to resource requested.
+  /// File extension of request.
   string _extension;
 
   /// HTTP version of request.
@@ -104,7 +107,7 @@ private:
   /// Headers.
   collection _headers;
 
-  /// HTTP parameters.
+  /// GET parameters.
   collection _parameters;
 };
 

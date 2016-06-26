@@ -26,8 +26,6 @@
 namespace rosetta {
 namespace server {
 
-using std::string;
-
 class connection;
 
 class request;
@@ -43,17 +41,17 @@ public:
   static request_ptr create (connection * connection);
 
   /// Handles a request, and invokes the given function when finished.
-  void handle (exceptional_executor x);
+  void handle (exceptional_executor x, functor on_success);
 
   /// Returns the envelope of the request.
   const request_envelope & envelope() const { return _envelope; }
 
-  /// Writes the given status code back to client.
+  /// Writes the given error response back to client.
   void write_error_response (exceptional_executor x, int status_code);
 
 private:
 
-  /// Creates an instance of this class on the given connection.
+  /// Creates an instance of this class on the given connection. Private to ensure factory method is used.
   request (connection * connection);
 
   /// Reading content of request.
@@ -63,7 +61,7 @@ private:
   /// Connection this request belongs to.
   connection * _connection;
 
-  /// Envelope for request, HTTP-Request line and headers.
+  /// Envelope for request, HTTP-Request line, HTTP headers and GET parameters.
   request_envelope _envelope;
 
   /// Request handler, class responsible for taking correct action depending upon type/URI of request.

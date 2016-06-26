@@ -15,10 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <vector>
 #include <cctype>
-#include <algorithm>
-#include <boost/asio.hpp>
 #include <boost/algorithm/string.hpp>
 #include "common/include/match_condition.hpp"
 #include "server/include/server.hpp"
@@ -31,7 +28,6 @@ namespace rosetta {
 namespace server {
 
 using std::string;
-using boost::system::error_code;
 using namespace boost::asio;
 using namespace rosetta::common;
 
@@ -46,14 +42,20 @@ request_envelope::request_envelope (connection * connection, request * request)
 { }
 
 
-void request_envelope::read (exceptional_executor x, functor callback)
+// This method first reads the HTTP-Request line and parses it. Afterwards, it handles over control to the method
+// that is responsible for reading the HTTP headers.
+// It passes the X and on_success function on inwards, to the next layers, allowing them to decide whether or
+// not the request has been successfully parsed or not, and on_success() can be invoked, or x should be allowed to
+// go out of scope, cleaning thins up for us.
+// See the request::handle() for more details about this logic.
+void request_envelope::read (exceptional_executor x, functor on_success)
 {
   // Figuring out max length of URI.
   const size_t MAX_URI_LENGTH = _connection->server()->configuration().get<size_t> ("max-uri-length", 4096);
   match_condition match (MAX_URI_LENGTH);
 
   // Reading until "max_length" or CR/LF has been found.
-  _connection->socket().async_read_until (_connection->buffer(), match, [this, match, x, callback] (const error_code & error, size_t bytes_read) {
+  _connection->socket().async_read_until (_connection->buffer(), match, [this, match, x, on_success] (auto error, auto bytes_read) {
 
     // Checking if socket has an error, or HTTP-Request line was too long.
     if (error == error::operation_aborted)
@@ -72,28 +74,29 @@ void request_envelope::read (exceptional_executor x, functor callback)
     parse_request_line (get_line (_connection->buffer()));
 
     // Reading headers.
-    read_headers (x, callback);
+    read_headers (x, on_success);
   });
 }
 
 
-void request_envelope::read_headers (exceptional_executor x, functor callback)
+void request_envelope::read_headers (exceptional_executor x, functor on_success)
 {
   // Retrieving max header size.
-  const static size_t max_header_length = _connection->server()->configuration().get<size_t> ("max-header-length", 8192);
+  const size_t max_header_length = _connection->server()->configuration().get<size_t> ("max-header-length", 8192);
   match_condition match (max_header_length);
 
   // Reading first header.
-  _connection->socket().async_read_until (_connection->buffer(), match, [this, x, match, callback] (const error_code & error, size_t bytes_read) {
+  _connection->socket().async_read_until (_connection->buffer(), match, [this, x, match, on_success] (auto error, auto bytes_read) {
 
-    // Making sure there were no errors while reading socket.
+    // Checking if socket has an error, or header exceeded maximum length.
     if (error == error::operation_aborted)
-      return; // Probably due to a timeout on connection.
-    else if (error)
-      throw request_exception ("Socket error while reading HTTP headers.");
-    else if (match.has_error ()) {
+      return;
+    if (error)
+      throw request_exception ("Socket error while reading HTTP-Request line.");
 
-      // HTTP-Request line was too long. Returning 413 to client.
+    if (match.has_error() || _headers.size() > _connection->server()->configuration().get<size_t> ("max-header-count", 25)) {
+
+      // HTTP header was too much for us to handle, or there were too many HTTP headers sent from client. Returning 413 to client.
       _request->write_error_response (x, 413);
       return;
     }
@@ -102,39 +105,51 @@ void request_envelope::read_headers (exceptional_executor x, functor callback)
     string line = get_line (_connection->buffer());
 
     // Checking if there are any more headers being sent from client.
+    // When we are done reading headers, and there are no more headers, then there should be an additional empty string sent from client.
     if (line.size () == 0) {
 
       // No more headers, the previous header was the last.
-      callback (x);
-      return;
-    }
-
-    // Checking if this is continuation header value of the previous line read from socket.
-    if (line [0] == ' ' || line [0] == '\t') {
-
-      // This is a continuation of the header value that was read in the previous line from client.
-      string next_line = boost::algorithm::trim_left_copy_if (line, boost::is_any_of (" \t"));
-      _headers [_headers.size() - 1] = std::tuple<string, string> (std::get<0> (_headers.back()), std::get<1> (_headers.back()) + " " + next_line);
+      // Invoking given on_success() handler function.
+      on_success (x);
     } else {
 
-      // Splitting header into name and value.
-      const auto equals_idx = line.find (':');
-
-      // Retrieving header name, simply ignoring headers without a value, if forgiveness mode says so.
-      if (equals_idx != string::npos) {
-
-        // Retrieving actual header name and value, according to "forgiveness mode" of server.
-        string header_name = capitalize_header_name (boost::algorithm::trim_copy (line.substr (0, equals_idx)));
-        string header_value = boost::algorithm::trim_copy (line.substr (equals_idx + 1));
-
-        // Now adding actual header into headers collection.
-        _headers.push_back (collection_type (header_name, header_value));
-      } // else; Ignore header completely.
+      // Parsing HTTP header, before repeating the process, and invoking "self".
+      parse_http_header_line (line);
+      read_headers (x, on_success);
     }
-
-    // Reading next header from socket.
-    read_headers (x, callback);
   });
+}
+
+
+void request_envelope::parse_http_header_line (const string & line)
+{
+  // Making things slightly more tidy and comfortable in here ...
+  using namespace std;
+  using namespace boost;
+  using namespace boost::algorithm;
+
+  // Checking if this is continuation header value of the previous line read from socket.
+  if ((line [0] == ' ' || line [0] == '\t') && _headers.size() > 0) {
+
+    // This is a continuation of the header value that was read in the previous line from client.
+    // Appending content according to ruling of HTTP/1.1 standard.
+    get<1> (_headers.back()) += " " + trim_copy_if (line, is_any_of (" \t"));
+  } else {
+
+    // Splitting header into name and value.
+    const auto equals_idx = line.find (':');
+
+    // Retrieving header name, simply ignoring headers without a value to be more fault tolerant. (ref; 19.3 of HTTP/1.1 std)
+    if (equals_idx != string::npos) {
+
+      // Retrieving actual header name and value, Auto-Capitalizing header name, and trimming name/value, to be more fault tolerant. (ref; 19.3)
+      string name = capitalize_header_name (trim_copy (line.substr (0, equals_idx)));
+      string value = trim_copy (line.substr (equals_idx + 1));
+
+      // Now adding actual header into headers collection.
+      _headers.push_back (collection_type (name, value));
+    } // else; Ignore header completely.
+  }
 }
 
 
@@ -156,36 +171,37 @@ const string & request_envelope::header (const string & name) const
 
 void request_envelope::parse_request_line (const string & request_line)
 {
-  // Default document.
-  const static string DEFAULT_DOCUMENT = _connection->server()->configuration().get<string> ("default-page", "/index.html");
+  // Making things slightly more tidy and comfortable in here ...
+  using namespace std;
+  using namespace boost;
+  using namespace boost::algorithm;
 
   // Splitting initial HTTP line into its three parts.
-  std::vector<string> parts;
-  boost::algorithm::split (parts, request_line, ::isspace);
+  vector<string> parts;
+  split (parts, request_line, ::isspace);
 
   // Removing all empty parts of URI, meaning consecutive spaces.
-  parts.erase (std::remove (parts.begin(), parts.end(), ""), parts.end ());
+  parts.erase (remove (parts.begin(), parts.end(), ""), parts.end ());
 
   // Now we can start deducting which type of request, and path, etc, this is.
   size_t no_parts = parts.size ();
 
-  // At least the method and the URI needs to be supplied. The version is defaulted to HTTP/1.1, so it is optional, but
-  // only if forgiveness mode is equal to, or higher than 5.
-  if (parts.size() < 2)
+  // At least the method and the URI needs to be supplied. The version is defaulted to HTTP/1.1, so it is optional.
+  // This is in accordance to the HTTP/1.1 standard; 19.3.
+  if (parts.size() < 2 || parts.size() > 3)
     throw request_exception ("Malformed HTTP-Request line.");
 
   // To be more fault tolerant, according to the HTTP/1.1 standard, point 19.3, we make sure the method is in UPPERCASE.
   // We also default the version to HTTP/1.1, unless it is explicitly given, and if given, we make sure it is UPPERCASE.
-  // But only if server forgiveness mode is equal to, or higher than 5.
-  _type           = boost::algorithm::to_upper_copy (parts [0]);
+  _type           = to_upper_copy (parts [0]);
   _uri            = parts [1];
-  _version        = no_parts > 2 ? boost::algorithm::to_upper_copy (parts [2]) : "HTTP/1.1";
+  _version        = no_parts > 2 ? to_upper_copy (parts [2]) : "HTTP/1.1";
 
   // Checking if path is a request for the default document.
   if (_uri == "/") {
 
     // Serving default document.
-    _uri = DEFAULT_DOCUMENT;
+    _uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
   } else if (_uri [0] != '/') {
 
     // To make sure we're more fault tolerant, we prepend the URI with "/", if it is not given.
@@ -205,7 +221,7 @@ void request_envelope::parse_request_line (const string & request_line)
     parse_parameters (decode_uri (_uri.substr (2)));
 
     // Serving default document.
-    _uri = DEFAULT_DOCUMENT;
+    _uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
   } else if (index_of_pars != string::npos) {
 
     // URI contains GET parameters.

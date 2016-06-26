@@ -22,10 +22,6 @@
 #include <boost/asio.hpp>
 #include "server/include/server.hpp"
 
-using std::string;
-using namespace boost::asio;
-using namespace rosetta::common;
-
 namespace rosetta {
 namespace server {
 
@@ -36,18 +32,18 @@ class request;
 typedef std::shared_ptr<request> request_ptr;
 
 
-/// Wraps a single connection to our server, which might include multiple requests, and their associated response.
+/// Wraps a connection to our server.
 class connection final : public std::enable_shared_from_this<connection>, public boost::noncopyable
 {
 public:
 
-  /// Creates a new connection.
+  /// Factory method for creating a new connection.
   static connection_ptr create (class server * server, socket_ptr socket);
 
   /// Handles a connection to our server.
   void handle();
 
-  /// Close the connection.
+  /// Ensures connection is closed.
   void ensure_close();
 
   /// Sets the deadline timer for a specified amount of time, before connection is closed.
@@ -68,7 +64,9 @@ public:
 private:
 
   /// Creates a connection on the given socket, for the given server instance.
+  /// Private, to ensure only factory method can create instances.
   explicit connection (class server * server, socket_ptr socket);
+
 
   /// Server instance this connection belongs to.
   class server * _server;
@@ -76,17 +74,19 @@ private:
   /// Socket for connection.
   socket_ptr _socket;
 
-  /// Deadline timer, used to close connection, if a timeout occurs.
+  /// Deadline timer for closing connection when a timeout period has elapsed.
   deadline_timer _timer;
 
-  /// ASIO request stream buffer, kept by connection, to support HTTP pipelining, across multiple requests.
-  streambuf _buffer;
+  /// Request stream buffer.
+  boost::asio::streambuf _buffer;
 
   /// Request for connection.
   request_ptr _request;
 
   /// True if connection is on its way to be killed.
-  bool _killed = false;
+  /// Necessary to avoid multiple destroy invocations to fizzle, which might occur due to deadline_timer killing connection,
+  /// while another piece of logic is attempting to also kill it.
+  bool _being_killed = false;
 };
 
 
