@@ -32,7 +32,9 @@ namespace rosetta {
 namespace server {
 
 
-/// A common base class wrapping both SSL sockets and normal sockets.
+/// A common base class, wrapping both SSL sockets and normal sockets.
+/// Simply makes it possible to wrap the standard global functions from boost asio, into two
+/// different implementations. One for SSL and another for plain sockets.
 class rosetta_socket : public std::enable_shared_from_this<rosetta_socket>, public boost::noncopyable
 {
 public:
@@ -60,11 +62,14 @@ public:
 
   /// Returns true if socket is open.
   virtual bool is_open() = 0;
+
+  /// Returns true is socket is SSL type.
+  virtual bool is_secure() const = 0;
 };
 
 
 /// A plain socket.
-class rosetta_socket_plain : public rosetta_socket
+class rosetta_socket_plain final : public rosetta_socket
 {
 public:
   
@@ -112,6 +117,9 @@ public:
   /// Returns true if socket is open.
   bool is_open() override { return _socket.is_open(); }
 
+  /// Returns false.
+  virtual bool is_secure() const override { return false; }
+
 private:
 
   /// Actual boost asio socket for instance
@@ -120,7 +128,7 @@ private:
 
 
 /// An SSL socket.
-class rosetta_socket_ssl : public rosetta_socket
+class rosetta_socket_ssl final : public rosetta_socket
 {
 public:
 
@@ -154,7 +162,7 @@ public:
   }
 
   /// Returns SSL stream wrapping socket to caller.
-  ssl::stream<ip::tcp::socket> & socket() { return _socket; }
+  ssl::stream<ip::tcp::socket> & ssl_stream() { return _socket; }
 
   /// Returns remote endpoint for socket.
   ip::tcp::endpoint remote_endpoint () override { return _socket.lowest_layer().remote_endpoint(); }
@@ -167,6 +175,9 @@ public:
 
   /// Returns true if socket is open.
   bool is_open() override { return _socket.lowest_layer().is_open(); }
+
+  /// Returns true.
+  virtual bool is_secure() const override { return true; }
 
 private:
 

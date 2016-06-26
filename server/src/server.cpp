@@ -243,7 +243,7 @@ void server::on_accept_ssl ()
 {
   // Waiting for next request.
   auto socket = std::make_shared<rosetta_socket_ssl> (_service, _context);
-  _acceptor_ssl.async_accept (socket->socket().lowest_layer (), [this, socket] (const error_code & error) {
+  _acceptor_ssl.async_accept (socket->ssl_stream().lowest_layer (), [this, socket] (const error_code & error) {
 
     // Invoking "self" again to accept next request.
     on_accept_ssl ();
@@ -256,7 +256,7 @@ void server::on_accept_ssl ()
 
       // Settings options for SSL socket.
       ip::tcp::no_delay opt (true);
-      socket->socket().lowest_layer().set_option (opt);
+      socket->ssl_stream().lowest_layer().set_option (opt);
 
       // Making sure we timeout handshake, to not lock up resources, with a handshake that never comes.
       int seconds = _configuration.get<int> (SSL_HANDSHAKE_TIMEOUT, 5);
@@ -275,7 +275,7 @@ void server::on_accept_ssl ()
       });
 
       // Doing SSL handshake.
-      socket->socket().async_handshake (ssl::stream_base::server, [this, socket, handshake_timer] (const error_code & error) {
+      socket->ssl_stream().async_handshake (ssl::stream_base::server, [this, socket, handshake_timer] (const error_code & error) {
 
         // Verifying nothing went sour.
         if (error != error::operation_aborted) {

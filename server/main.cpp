@@ -165,6 +165,7 @@ void create_default_configuration_file()
   config.set ("max-header-length", 8192);
   config.set ("max-request-content-length", 4194304); // 4 MB
   config.set ("request-content-read-timeout", 300);
+  config.set ("upgrade-insecure-requests", false);
 
   // Connection settings.
   config.set ("connection-ssl-handshake-timeout", 20);

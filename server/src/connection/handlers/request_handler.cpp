@@ -27,6 +27,7 @@
 #include "server/include/connection/handlers/error_handler.hpp"
 #include "server/include/connection/handlers/trace_handler.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
+#include "server/include/connection/handlers/redirect_handler.hpp"
 #include "server/include/connection/handlers/static_file_handler.hpp"
 
 namespace rosetta {
@@ -40,10 +41,26 @@ using namespace rosetta::common;
 
 request_handler_ptr request_handler::create (class connection * connection, class request * request, int status_code)
 {
+  // Retrieving whether or not we should upgrade insecure requests automatically.
+  const static bool upgrade_insecure_requests = connection->server()->configuration().get <bool> ("upgrade-insecure-requests", false);
+  const static string ssl_port = connection->server()->configuration().get <string> ("ssl-port", "443");
+  const static string server_address = connection->server()->configuration().get <string> ("address", "localhost");
+
+  // Checking request type, and other parameters, deciding which type of request handler we should create.
   if (status_code >= 400) {
 
     // Some sort of error.
     return request_handler_ptr (new error_handler (connection, request, status_code));
+
+  } else if (upgrade_insecure_requests && !connection->is_secure() && request->envelope().header ("Upgrade-Insecure-Requests") == "1") {
+
+    // Both configuration, and client, prefers secure requests, and current connection is not secure.
+    // Redirecting client to SSL version of same resource.
+    string request_uri = request->envelope().uri();
+    if (request_uri == connection->server()->configuration().get <string> ("default-page", "/index.html"))
+      request_uri = "/";
+    string uri = "https://" + server_address + (ssl_port == "443" ? "" : ":" + ssl_port) + request_uri;
+    return request_handler_ptr (new redirect_handler (connection, request, 307, uri, true));
 
   } else if (request->envelope().type() == "TRACE") {
 
@@ -111,6 +128,9 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
     break;
   case 304:
     *status_line += "Not Modified";
+    break;
+  case 307:
+    *status_line += "Moved Temporarily";
     break;
   case 401:
     *status_line += "Unauthorized";

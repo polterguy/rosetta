@@ -17,6 +17,7 @@ scales upwards, to supercomputers, with thousands of CPUs, if you want it to.
 * Max connections per client.
 * Pipelining.
 * If-Modified-Since.
+* Upgrade-Insecure-Requests
 * GET, HEAD and TRACE support.
 * Configurable.
 

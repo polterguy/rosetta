@@ -62,6 +62,9 @@ public:
   /// Returns the stream buffer for the current instance.
   streambuf & buffer() { return _buffer; }
 
+  /// Returns true if connection is SSL.
+  bool is_secure() const { return _socket->is_secure (); };
+
 private:
 
   /// Creates a connection on the given socket, for the given server instance.
