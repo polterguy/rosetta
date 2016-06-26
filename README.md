@@ -63,6 +63,12 @@ This is turned **off** by default, but can easily be turned on by changing the
 **Chrome|Linux**, to only accept requests from Google Chrome, or some sort of Linux
 installation.
 
+### Turn OFF non-SSL traffic
+
+With Rosetta, you can also completely turn of non-SSL traffic, by setting the *"port"*
+property, in your configuration file, to **-1**. This prevents all traffic to your
+web server, that is not secured through SSL.
+
 ### Upgrade-Insecure-Requests
 
 Although it is not a part of the standard yet, Rosetta support automatic upgrading of
