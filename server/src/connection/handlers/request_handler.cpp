@@ -193,8 +193,9 @@ void request_handler::write_header (const string & key, const string & value, ex
   // Checking if this was our last header, and if so, appending an additional CR/LF sequence.
   if (is_last) {
 
-    // Making sure we submit the server name back to client.
-    *header_content += "Server: Rosetta\r\n"; // Notice, we do not supply a version number to make it more difficult for malware to exploit server!
+    // Making sure we submit the server name back to client, but only if configuration says so.
+    if (_connection->server()->configuration().get<bool> ("provide-server-info", false))
+      *header_content += "Server: Rosetta\r\n"; // Notice, we do not supply a version number to make it more difficult for malware to exploit server!
     *header_content += "\r\n";
   }
 

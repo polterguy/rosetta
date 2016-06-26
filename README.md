@@ -72,6 +72,16 @@ served over a non-secure channel.
 This feature is on by default, but can be modified through the configuration property
 called *"upgrade-insecure-requests"*. 0 means "off", 1 means "on".
 
+### Non-identifiable
+
+Rosetta will not identify itself by default. This means that a malicious hacker, will
+not be able to see which web server he or she is visiting. If you choose to turn this
+feature off, by changing the configuration property *"provide-server-info"* into "1",
+then Rosetta will still not provide any version information back to the client.
+
+This makes Rosetta harder to hack, since it provides less information back to a malicious
+hacker, about which type of server he or she is encountering.
+
 ## Future plans
 
 Implement support for all HTTP verbs, PUT, DELETE, POST and OPTIONS, in addition to Basic
