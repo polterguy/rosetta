@@ -10,17 +10,15 @@ scales upwards, to supercomputers, with thousands of CPUs, if you want it to.
 ## Features
 
 * SSL.
-* Thread pooling.
-* Single thread.
+* Multi-threading with pool of threads.
 * Persistent connections.
 * Timeouts.
 * Max connections per client.
 * Pipelining.
 * If-Modified-Since.
-* Upgrade-Insecure-Requests
-* GET, HEAD and TRACE support.
-* User-Agent whitelist
-* Configurable.
+* Upgrade-Insecure-Requests.
+* User-Agent whitelist.
+* Highly configurable.
 
 ## The Paranoid web server
 
@@ -34,9 +32,9 @@ a *"normal web server"*, in addition to being configured into *"paranoia land"*.
 Rosetta does not, have never, and will never, implement any type of logging of traffic.
 
 The reasons for this, is because an adversary might gain control over your box. If he does,
-then your log files will give away not only you, but also any users of your website. This
-creates a dangerous situation, where the log files of a web server, can unintentionally
-become your nemesis and Judas.
+then your log files will give away not only you, but also all users of your website. This
+creates a dangerous situation, where the log files of your web server, can unintentionally
+become you and your friends nemesis and Judas.
 
 ### User-Agent whitelist
 
@@ -49,14 +47,18 @@ This feature can be configured through the *"user-agents-whitelist"* configurati
 property. It works by creating a list of pipe separated (|) strings, which of the
 visiting user agent, must match at least one of, before the request is accepted.
 If it can not find a match, then the request is refused with a *"403 Forbidden"*
-response.
+response, without any additional information provided to the client.
 
 Visiting user-agents must not obey by the user agent rules, which means that this
 is only for preventing users, accidentally visiting your website, with a user agent
-that is not trusted.
+that is not trusted. However, for the ultra paranoid among us, this is an extra
+feature, protecting the privacy, of not only you, and your data, but also your visitors.
+
+This way, the web server, denies to become the Judas and Nemesis of not only you, but
+also your visitors and users.
 
 This is turned off by default, but can be turned on by changing the *"user-agents-whitelist"*
-property in your configuration file, to for instance *"Chrome|FireFox"* to only accept
+property in your configuration file, to for instance **Chrome|FireFox** to only accept
 requests from Google Chrome or FireFox.
 
 ### Upgrade-Insecure-Requests
