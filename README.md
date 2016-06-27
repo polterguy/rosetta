@@ -17,7 +17,7 @@ scales upwards, to supercomputers, with thousands of CPUs.
 * Pipelining
 * If-Modified-Since
 * Upgrade-Insecure-Requests
-* User-Agent whitelist
+* User-Agent whitelist and blacklist
 * Highly configurable
 
 ## The Paranoid web server
@@ -30,11 +30,15 @@ a *"normal web server"*, in addition to being configured into *"paranoia land"*.
 ### No logging
 
 Rosetta does not, have never, and will never, implement any type of logging of traffic.
+Except possibly for malicious and errors, resulting from an attempted attack.
 
 The reasons for this, is because an adversary might gain control over your box. If he does,
 then your log files will give away not only you, but also all users of your website. This
 creates a dangerous situation, where the log files of your web server, can unintentionally
-become you and your friends Nemesis and Judas.
+become your and your friends worst nightmare.
+
+When combined with SSL, it hence becomes impossible for an adversary to know which
+documents, from your server, your users have accessed. Significantly reducing your risk.
 
 ### User-Agent whitelist and blacklist
 
