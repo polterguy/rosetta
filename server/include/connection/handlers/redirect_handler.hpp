@@ -18,9 +18,6 @@
 #ifndef ROSETTA_SERVER_REDIRECT_HANDLER_HPP
 #define ROSETTA_SERVER_REDIRECT_HANDLER_HPP
 
-#include <memory>
-#include <utility>
-#include <boost/asio.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
 
@@ -43,17 +40,17 @@ public:
   redirect_handler (class connection * connection, class request * request, unsigned int status, const string & uri, bool no_store);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, functor callback) override;
+  virtual void handle (exceptional_executor x, functor on_success) override;
 
 private:
 
-  /// The file extension of the current request.
+  /// The HTTP status code of the response we should serve.
   const unsigned int _status;
 
-  /// The new URI of resource.
+  /// The URI of the redirect response.
   const string _uri;
 
-  /// If true, then inform cache that we don't want them to store a cached copy of this response.
+  /// If true, then make sure we return a "Cache-Control" header, with a "no-store" value to client.
   const bool _no_store;
 };
 

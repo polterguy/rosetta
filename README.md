@@ -91,6 +91,22 @@ then Rosetta will still not provide any version information back to the client.
 This makes Rosetta harder to hack, since it provides less information back to a malicious
 hacker, about which type of server he or she is encountering.
 
+### Built for ultra-secure platforms.
+
+Rosetta is built in C++, using boost ASIO, and is ultra-portable. This means you can run
+Rosetta on top of the best and most secure platforms, using proven technology, with a low
+risk. Rosetta have few dependencies, which makes its attack surface significantly smaller
+than other server systems.
+
+Rosetta is also built on top of the existing HTTP standard, and other web technologies,
+which have been *"debugged by the world"* for several decades, translating to a highly
+scalable and secure platform, for delivering content securely, to a multitude of different
+devices.
+
+Is there's a bug in PHP? No problem, Rosetta have no PHP bindings. Is there a bug in CGI?
+No problem, Rosetta have no CGI bindings. Is there a bug in database *"x"*? No problem,
+Rosetta have no bindings to it! Guaranteed!
+
 ## Future plans
 
 Implement support for all HTTP verbs, PUT, DELETE, POST and OPTIONS, in addition to Basic

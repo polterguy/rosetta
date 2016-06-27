@@ -18,17 +18,15 @@
 #ifndef ROSETTA_SERVER_TRACE_HANDLER_HPP
 #define ROSETTA_SERVER_TRACE_HANDLER_HPP
 
-#include <vector>
-#include <memory>
-#include <boost/asio.hpp>
+#include <string>
 #include "common/include/exceptional_executor.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
 
 namespace rosetta {
 namespace server {
 
-class connection;
 class request;
+class connection;
 
 
 /// Echoes the HTTP-Request line and the request headers from the request back to the client as text/plain content.
@@ -43,7 +41,7 @@ public:
   trace_handler (class connection * connection, class request * request);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, functor callback) override;
+  virtual void handle (exceptional_executor x, functor on_success) override;
 
 private:
 

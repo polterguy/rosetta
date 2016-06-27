@@ -15,24 +15,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <tuple>
-#include <vector>
-#include <fstream>
-#include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/algorithm/string.hpp>
 #include "common/include/date.hpp"
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
-#include "server/include/exceptions/request_exception.hpp"
 #include "server/include/connection/handlers/head_handler.hpp"
 
 namespace rosetta {
 namespace server {
 
 using std::string;
-using boost::system::error_code;
 using namespace rosetta::common;
 
 
@@ -46,7 +39,7 @@ head_handler::head_handler (class connection * connection, class request * reque
 { }
 
 
-void head_handler::handle (exceptional_executor x, functor callback)
+void head_handler::handle (exceptional_executor x, functor on_success)
 {
   // Retrieving URI from request, removing initial "/" from URI, before checking sanity of URI.
   string uri = request()->envelope().uri().substr (1);
@@ -58,8 +51,8 @@ void head_handler::handle (exceptional_executor x, functor callback)
   }
 
   // Retrieving root path, and building full path for document.
-  const static string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
-  string full_path = WWW_ROOT_PATH + uri;
+  const string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
+  const string full_path = WWW_ROOT_PATH + uri;
 
   // Making sure file exists.
   if (!boost::filesystem::exists (full_path)) {
@@ -70,21 +63,18 @@ void head_handler::handle (exceptional_executor x, functor callback)
   }
 
   // Returning file to client.
-  write_head (full_path, x, callback);
+  write_head (full_path, x, on_success);
 }
 
 
-void head_handler::write_head (const string & full_path, exceptional_executor x, functor callback)
+void head_handler::write_head (const string & full_path, exceptional_executor x, functor on_success)
 {
   // First writing status 200.
-  write_status (200, x, [this, x, full_path, callback] (exceptional_executor x) {
+  write_status (200, x, [this, x, full_path, on_success] (auto x) {
 
-    // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
-    write_header ("Last-Modified", date::from_file_change (full_path).to_string (), x, [this, full_path, callback] (exceptional_executor x) {
-
-      // Notice, we are NOT writing any content in a HEAD response.
-      write_file_headers (full_path, true, x, callback);
-    });
+    // Notice, we are NOT writing any content in a HEAD response.
+    // But we write entire response, including "Content-Length", and "Last-Modified", except the content parts.
+    write_file_headers (full_path, true, x, on_success);
   });
 }
 

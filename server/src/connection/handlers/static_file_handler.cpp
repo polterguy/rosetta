@@ -46,7 +46,7 @@ static_file_handler::static_file_handler (class connection * connection, class r
 { }
 
 
-void static_file_handler::handle (exceptional_executor x, functor callback)
+void static_file_handler::handle (exceptional_executor x, functor on_success)
 {
   // Retrieving URI from request, removing initial "/" from URI, before checking sanity of URI.
   string uri = request()->envelope().uri().substr (1);
@@ -58,8 +58,8 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
   }
 
   // Retrieving root path, and building full path for document.
-  const static string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
-  string full_path = WWW_ROOT_PATH + uri;
+  const string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
+  const string full_path = WWW_ROOT_PATH + uri;
 
   // Making sure file exists.
   if (!boost::filesystem::exists (full_path)) {
@@ -73,11 +73,11 @@ void static_file_handler::handle (exceptional_executor x, functor callback)
   if (should_write_file (full_path)) {
 
     // Returning file to client.
-    write_full_file (full_path, x, callback);
+    write_file (full_path, 200, true, x, on_success);
   } else {
 
     // File has not been tampered with since the "If-Modified-Since" HTTP header, returning 304 response, without file content.
-    write_304_response (x, callback);
+    write_304_response (x, on_success);
   }
 }
 
@@ -110,26 +110,19 @@ bool static_file_handler::should_write_file (const string & full_path)
 }
 
 
-void static_file_handler::write_full_file (const string & full_path, exceptional_executor x, functor callback)
-{
-  // Then writing actual file.
-  write_file (full_path, 200, true, x, callback);
-}
-
-
-void static_file_handler::write_304_response (exceptional_executor x, functor callback)
+void static_file_handler::write_304_response (exceptional_executor x, functor on_success)
 {
   // Writing status code 304 (Not-Modified) back to client.
-  write_status (304, x, [this, callback] (exceptional_executor x) {
+  write_status (304, x, [this, on_success] (auto x) {
 
     // Writing standard HTTP headers to connection.
-    write_standard_headers (x, [this, callback] (exceptional_executor x) {
+    write_standard_headers (x, [this, on_success] (auto x) {
 
       // Making sure we close envelope.      
-      ensure_envelope_finished (x, [callback] (auto x) {
+      ensure_envelope_finished (x, [on_success] (auto x) {
 
         // invoking callback, since we're done writing the response.
-        callback (x);
+        on_success (x);
       });
     });
   });

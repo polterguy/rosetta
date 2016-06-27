@@ -18,9 +18,6 @@
 #ifndef ROSETTA_SERVER_HEAD_HANDLER_HPP
 #define ROSETTA_SERVER_HEAD_HANDLER_HPP
 
-#include <memory>
-#include <utility>
-#include <boost/asio.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
 
@@ -43,12 +40,12 @@ public:
   head_handler (class connection * connection, class request * request, const string & extension);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, functor callback) override;
+  virtual void handle (exceptional_executor x, functor on_success) override;
 
 private:
 
-  /// Writes file back to client.
-  void write_head (const string & full_path, exceptional_executor x, functor callback);
+  /// Writes head back to client.
+  void write_head (const string & full_path, exceptional_executor x, functor on_success);
 
 
   /// The file extension of the current request.

@@ -17,6 +17,7 @@
 
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
+#include "server/include/exceptions/server_exception.hpp"
 #include "server/include/connection/handlers/error_handler.hpp"
 
 namespace rosetta {
@@ -26,20 +27,25 @@ using std::string;
 using namespace rosetta::common;
 
 
-error_handler::error_handler (class connection * connection, class request * request, int status_code)
+error_handler::error_handler (class connection * connection, class request * request, unsigned int status_code)
   : request_handler (connection, request),
     _status_code (status_code)
-{ }
+{
+  // Verify that this actually is an error, and if not, throws an exception.
+  if (_status_code < 400)
+    throw server_exception ("Logical error in server. Tried to return a non-error status code as an error to client.");
+}
 
 
-void error_handler::handle (exceptional_executor x, functor callback)
+void error_handler::handle (exceptional_executor x, functor on_success)
 {
   // Figuring out which file to serve.
   string error_file = "error-pages/" + boost::lexical_cast<string> (_status_code) + ".html";
 
   // Using base class implementation for writing error file.
-  write_file (error_file, _status_code, false, x, [callback] (exceptional_executor x) {
-    // Letting x go out of scope, without invoking functor, to close connection.
+  write_file (error_file, _status_code, false, x, [on_success] (exceptional_executor x) {
+
+    // Intentionally letting x go out of scope, without invoking on_success(), to close connection.
   });
 }
 

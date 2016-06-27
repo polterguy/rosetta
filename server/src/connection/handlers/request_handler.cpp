@@ -144,7 +144,7 @@ request_handler_ptr request_handler::create_get_handler (class connection * conn
 {
   // Figuring out handler to use according to request extension, and if document type even is served/handled.
   const string & extension = request->envelope().extension();
-  string handler = extension.size () == 0 ?
+  const string & handler = extension.size () == 0 ?
       connection->server()->configuration().get<string> ("default-handler", "error") :
       connection->server()->configuration().get<string> (extension + "-handler", "error");
 

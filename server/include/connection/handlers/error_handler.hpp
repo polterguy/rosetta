@@ -18,15 +18,14 @@
 #ifndef ROSETTA_SERVER_ERROR_HANDLER_HPP
 #define ROSETTA_SERVER_ERROR_HANDLER_HPP
 
-#include <boost/asio.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
 
 namespace rosetta {
 namespace server {
 
-class connection;
 class request;
+class connection;
 
 
 /// Handles an HTTP request.
@@ -34,16 +33,16 @@ class error_handler final : public request_handler
 {
 public:
 
-  /// Creates a static file handler.
-  error_handler (class connection * connection, class request * request, int status_code);
+  /// Creates an error request handler.
+  error_handler (class connection * connection, class request * request, unsigned int status_code);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, functor callback) override;
+  virtual void handle (exceptional_executor x, functor on_success) override;
 
 private:
 
   /// Status code for error.
-  int _status_code;
+  unsigned int _status_code;
 };
 
 

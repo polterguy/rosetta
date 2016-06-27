@@ -18,9 +18,6 @@
 #ifndef ROSETTA_SERVER_STATIC_FILE_HANDLER_HPP
 #define ROSETTA_SERVER_STATIC_FILE_HANDLER_HPP
 
-#include <memory>
-#include <utility>
-#include <boost/asio.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
 
@@ -34,7 +31,7 @@ class request;
 class connection;
 
 
-/// Handles an HTTP request.
+/// Handles an static file HTTP request.
 class static_file_handler final : public request_handler
 {
 public:
@@ -43,18 +40,15 @@ public:
   static_file_handler (class connection * connection, class request * request, const string & extension);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, functor callback) override;
+  virtual void handle (exceptional_executor x, functor on_success) override;
 
 private:
 
   /// Checks if file should be rendered back to client, or if we should return a 304.
   bool should_write_file (const string & full_path);
 
-  /// Writes file back to client.
-  void write_full_file (const string & full_path, exceptional_executor x, functor callback);
-
   /// Writes 304 response back to client.
-  void write_304_response (exceptional_executor x, functor callback);
+  void write_304_response (exceptional_executor x, functor on_success);
 
 
   /// The file extension of the current request.

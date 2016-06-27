@@ -18,7 +18,6 @@
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
-#include "server/include/exceptions/server_exception.hpp"
 #include "server/include/exceptions/request_exception.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
 
@@ -126,10 +125,6 @@ void request::ensure_read_content (exceptional_executor x, functor callback)
 
 void request::write_error_response (exceptional_executor x, int status_code)
 {
-  // Verify that this actually is an error, and if not, throws an exception.
-  if (status_code < 400)
-    throw server_exception ("Logical error in server. Tried to return a non-error status as an error.");
-
   // Creating an error handler.
   _request_handler = request_handler::create (_connection, this, status_code);
   _request_handler->handle (x, [this] (auto x) {

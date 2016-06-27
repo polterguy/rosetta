@@ -15,17 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <tuple>
-#include <vector>
-#include <fstream>
-#include <boost/asio.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/algorithm/string.hpp>
-#include "common/include/date.hpp"
-#include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
-#include "server/include/exceptions/request_exception.hpp"
 #include "server/include/connection/handlers/redirect_handler.hpp"
 
 namespace rosetta {
@@ -36,7 +27,11 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-redirect_handler::redirect_handler (class connection * connection, class request * request, unsigned int status, const string & uri, bool no_store)
+redirect_handler::redirect_handler (class connection * connection,
+                                    class request * request,
+                                    unsigned int status,
+                                    const string & uri,
+                                    bool no_store)
   : request_handler (connection, request),
     _status (status),
     _uri (uri),
@@ -44,31 +39,29 @@ redirect_handler::redirect_handler (class connection * connection, class request
 { }
 
 
-void redirect_handler::handle (exceptional_executor x, functor callback)
+void redirect_handler::handle (exceptional_executor x, functor on_success)
 {
   // First writing status.
-  write_status (_status, x, [this, x, callback] (exceptional_executor x) {
+  write_status (_status, x, [this, x, on_success] (auto x) {
 
     // Then writing "Location" of resource requested.
     collection list = {{"Location", _uri}};
-    if (_no_store) {
 
-      // This redirect request should not be cached.
-      list.push_back (std::tuple<string, string> ("Cache-Control", "no-store"));
-    }
+    // Checking if this request should be cached or not.
+    if (_no_store)
+      list.push_back ({"Cache-Control", "no-store"});
 
-    // Rendering the headers, Location, and possibly Cache-Control.
-    write_headers (list, x, [this, callback] (exceptional_executor x) {
+    // Rendering the headers, "Location", and possibly "Cache-Control".
+    write_headers (list, x, [this, on_success] (auto x) {
 
       // Then making sure we add the "standard headers".
-      write_standard_headers (x, [this, callback] (auto x) {
+      write_standard_headers (x, [this, on_success] (auto x) {
 
         // Then making sure we close our response envelope.
-        ensure_envelope_finished (x, [callback] (auto x) {
+        ensure_envelope_finished (x, [on_success] (auto x) {
 
-          // Notice, we are NOT writing any content in a redirect response.
-          // Hence we invoke the on_success() callback provided when request was created.
-          callback (x);        
+          // Finished handling request.
+          on_success (x);        
         });
       });
     });

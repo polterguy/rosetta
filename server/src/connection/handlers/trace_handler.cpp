@@ -37,10 +37,10 @@ trace_handler::trace_handler (class connection * connection, class request * req
 { }
 
 
-void trace_handler::handle (exceptional_executor x, functor callback)
+void trace_handler::handle (exceptional_executor x, functor on_success)
 {
   // Writing status code.
-  write_status (200, x, [this, x, callback] (exceptional_executor x) {
+  write_status (200, x, [this, x, on_success] (auto x) {
 
     // Figuring out what we're sending, before we send the headers, to see the size of our request.
     auto buffer_ptr = build_content ();
@@ -52,19 +52,19 @@ void trace_handler::handle (exceptional_executor x, functor callback)
       {"Content-Length", boost::lexical_cast<string> (buffer_ptr->size ())}};
 
     // Writing HTTP headers to connection.
-    write_headers (headers, x, [this, callback, buffer_ptr] (exceptional_executor x) {
+    write_headers (headers, x, [this, on_success, buffer_ptr] (auto x) {
 
       // Writing standard headers.
-      write_standard_headers (x, [this, callback, buffer_ptr] (auto x) {
+      write_standard_headers (x, [this, on_success, buffer_ptr] (auto x) {
 
         // Making sure we close envelope.
-        ensure_envelope_finished (x, [this, callback, buffer_ptr] (auto x) {
+        ensure_envelope_finished (x, [this, on_success, buffer_ptr] (auto x) {
 
           // Writing entire request, HTTP-Request line, and HTTP headers, back to client, as content.
-          connection()->socket().async_write (buffer (*buffer_ptr), [buffer_ptr, callback, x] (const error_code & error, size_t bytes_written) {
+          connection()->socket().async_write (buffer (*buffer_ptr), [buffer_ptr, on_success, x] (auto error, auto bytes_written) {
 
             // Invoking callback, signaling we're done.
-            callback (x);
+            on_success (x);
           });
         });
       });
@@ -75,9 +75,8 @@ void trace_handler::handle (exceptional_executor x, functor callback)
 
 std::shared_ptr<std::vector<unsigned char> > trace_handler::build_content ()
 {
-  std::shared_ptr<std::vector<unsigned char> > buffer_ptr =  std::make_shared<std::vector<unsigned char> >();
+  auto buffer_ptr = std::make_shared<std::vector<unsigned char> >();
 
-  // Return the HTTP-Request line.
   // Starting with HTTP method.
   buffer_ptr->insert (buffer_ptr->end(), request()->envelope().type ().begin(), request()->envelope().type().end());
   buffer_ptr->push_back (' ');
@@ -87,9 +86,9 @@ std::shared_ptr<std::vector<unsigned char> > trace_handler::build_content ()
 
   // Pushing parameters into the HTTP-Request line URI.
   bool first = true;
-  for (auto idx : request()->envelope().parameters()) {
+  for (auto & idx : request()->envelope().parameters()) {
 
-    // Checking if this is the first parameter, or consecutive ones, to append either '?' or '&' accordingly.
+    // Checking if this is the first parameter, or consecutive ones, to append either '?', or '&', accordingly.
     if (first) {
       first = false;
       buffer_ptr->push_back ('?');
@@ -149,10 +148,10 @@ unsigned char to_hex (unsigned char ch)
 }
 
 
-string uri_encode (const string & entity)
+string uri_encode (const string & value)
 {
   std::vector<unsigned char> return_value;
-  for (unsigned char idx : entity) {
+  for (unsigned char idx : value) {
     if (idx == ' ') {
 
       // Encoding as '+'.
