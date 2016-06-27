@@ -55,7 +55,7 @@ public:
 protected:
 
   /// Protected constructor.
-  request_handler (connection * connection, request * request);
+  request_handler (class connection * connection, class request * request);
 
   /// Writing given HTTP headetr with given value back to client.
   void write_status (unsigned int status_code, exceptional_executor x, functor on_success);
@@ -87,8 +87,26 @@ protected:
 
 private:
 
-  /// Returns true if server can accept request from User-Agent.
-  static bool can_accept (const class connection * connection, const class request * request);
+  /// Returns true if User-Agent is in white list.
+  static bool in_whitelist (const class connection * connection, const class request * request);
+
+  /// Returns true if User-Agent is in black list.
+  static bool in_blacklist (const class connection * connection, const class request * request);
+
+  /// Returns true if we should upgrade request to a secure SSL connection.
+  static bool should_upgrade_insecure_requests (const class connection * connection, const class request * request);
+
+  /// Returns a request_handler for upgrading an insecure request. 307 temporary redirection handler.
+  static request_handler_ptr upgrade_insecure_request (class connection * connection, class request * request);
+
+  /// Returns a TRACE HTTP request_handler.
+  static request_handler_ptr create_trace_handler (class connection * connection, class request * request);
+
+  /// Returns a HEAD HTTP request_handler.
+  static request_handler_ptr create_head_handler (class connection * connection, class request * request);
+
+  /// Returns a GET HTTP request_handler.
+  static request_handler_ptr create_get_handler (class connection * connection, class request * request);
 
   /// Implementation of actual file write operation.
   /// Will read _response_buffer.size() from file, and write buffer content to socket, before invoking self, until entire file has been written.

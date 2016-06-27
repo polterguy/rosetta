@@ -159,7 +159,8 @@ void create_default_configuration_file()
   config.set ("head-allowed", false);
   config.set ("ssl-certificate", "rosetta.crt");
   config.set ("ssl-private-key", "rosetta.key");
-  config.set ("user-agents-whitelist", "*");
+  config.set ("user-agent-whitelist", "*");
+  config.set ("user-agent-blacklist", "");
   config.set ("provide-server-info", false);
   config.set ("static-response-headers", "");
 

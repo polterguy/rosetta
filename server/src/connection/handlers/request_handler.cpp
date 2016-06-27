@@ -36,24 +36,18 @@ namespace rosetta {
 namespace server {
 
 using std::string;
-using boost::system::error_code;
 using namespace boost::asio;
 using namespace rosetta::common;
 
 
 request_handler_ptr request_handler::create (class connection * connection, class request * request, int status_code)
 {
-  // Checking if we can accept request according to user-agent whitelist and blacklist definitions.
-  if (!can_accept (connection, request)) {
+  // Checking if we can accept User-Agent according whitelist and blacklist definitions.
+  if (!in_whitelist (connection, request) || in_blacklist (connection, request)) {
 
     // User-Agent not accepted!
     return request_handler_ptr (new error_handler (connection, request, 403));
   }
-
-  // Retrieving whether or not we should upgrade insecure requests automatically.
-  const bool upgrade_insecure_requests = connection->server()->configuration().get <bool> ("upgrade-insecure-requests", false);
-  const string ssl_port = connection->server()->configuration().get <string> ("ssl-port", "443");
-  const string server_address = connection->server()->configuration().get <string> ("address", "localhost");
 
   // Checking request type, and other parameters, deciding which type of request handler we should create.
   if (status_code >= 400) {
@@ -61,64 +55,108 @@ request_handler_ptr request_handler::create (class connection * connection, clas
     // Some sort of error.
     return request_handler_ptr (new error_handler (connection, request, status_code));
 
-  } else if (upgrade_insecure_requests && !connection->is_secure() && request->envelope().header ("Upgrade-Insecure-Requests") == "1" && ssl_port != "-1") {
+  } else if (should_upgrade_insecure_requests (connection, request)) {
 
-    // Both configuration, and client, prefers secure requests, and current connection is not secure.
-    // Redirecting client to SSL version of same resource, making sure we don't append "default document" to the Location URI.
-    string request_uri = request->envelope().uri();
-    if (request_uri == connection->server()->configuration().get <string> ("default-page", "/index.html"))
-      request_uri = "/";
-    string uri = "https://" + server_address + (ssl_port == "443" ? "" : ":" + ssl_port) + request_uri;
-
-    // Returning "Removed Temporarily" redirection, with a "no-store" value for the "Cache-Control" header.
-    return request_handler_ptr (new redirect_handler (connection, request, 307, uri, true));
+    // Both configuration, and client, prefers secure requests, and current connection is not secure, hence we upgrade.
+    return upgrade_insecure_request (connection, request);
 
   } else if (request->envelope().type() == "TRACE") {
 
-    // Checking if TRACE method is allowed according to configuration.
-    if (!connection->server()->configuration().get<bool> ("trace-allowed", false)) {
+    // Returning a TRACE handler.
+    return create_trace_handler (connection, request);
 
-      // Method not allowed.
-      return request_handler_ptr (new error_handler (connection, request, 405));
-    } else {
-
-      // Creating a TRACE response handler.
-      return request_handler_ptr (new trace_handler (connection, request));
-    }
   } else if (request->envelope().type() == "HEAD") {
 
-    // Checking if HEAD method is allowed according to configuration.
-    if (!connection->server()->configuration().get<bool> ("head-allowed", false)) {
+    // Returning a HEAD handler.
+    return create_head_handler (connection, request);
 
-      // Method not allowed.
-      return request_handler_ptr (new error_handler (connection, request, 405));
-    } else {
-
-      // Creating a HEAD response handler.
-      return request_handler_ptr (new head_handler (connection, request, request->envelope().extension()));
-    }
   } else if (request->envelope().type() == "GET") {
 
-    // Figuring out handler to use according to request extension, and if document type even is served/handled.
-    const string & extension = request->envelope().extension();
-    string handler = extension.size () == 0 ?
-        connection->server()->configuration().get<string> ("default-handler", "error") :
-        connection->server()->configuration().get<string> (extension + "-handler", "error");
+    // Returning a GET handler.
+    return create_get_handler (connection, request);
 
-    // Returning the correct handler to caller.
-    if (handler == "static-file-handler") {
-
-      // Static file handler.
-      return request_handler_ptr (new static_file_handler (connection, request, extension));
-    } else {
-
-      // Oops, these types of files are not served or handled.
-      return request_handler_ptr (new error_handler (connection, request, 404));
-    }
   } else {
 
     // Unsupported method.
     return request_handler_ptr (new error_handler (connection, request, 405));
+  }
+}
+
+
+bool request_handler::should_upgrade_insecure_requests (const class connection * connection, const class request * request)
+{
+  // Retrieving configuration settings for whether or not we should upgrade insecure requests.
+  const bool upgrade = connection->server()->configuration().get <bool> ("upgrade-insecure-requests", false);
+
+  // We only upgrade if configuration settings says so, and the current connection is insecure.
+  return upgrade && !connection->is_secure();
+}
+
+
+request_handler_ptr request_handler::upgrade_insecure_request (class connection * connection, class request * request)
+{
+  // Redirecting client to SSL version of same resource, making sure we don't append "default-page" to the Location URI.
+  string request_uri = request->envelope().uri();
+  if (request_uri == connection->server()->configuration().get <string> ("default-page", "/index.html"))
+    request_uri = "/";
+
+  // Retrieving server address and SSL port, for our "Location" response header.
+  const string server_address = connection->server()->configuration().get <string> ("address", "localhost");
+  const string ssl_port       = connection->server()->configuration().get <string> ("ssl-port", "443");
+  string new_uri              = "https://" + server_address + (ssl_port == "443" ? "" : ":" + ssl_port) + request_uri;
+
+  // Returning Redirect Temporarily, with a "no-store" value for the "Cache-Control" header.
+  return request_handler_ptr (new redirect_handler (connection, request, 307, new_uri, true));
+}
+
+
+request_handler_ptr request_handler::create_trace_handler (class connection * connection, class request * request)
+{
+  // Checking if TRACE method is allowed according to configuration.
+  if (!connection->server()->configuration().get<bool> ("trace-allowed", false)) {
+
+    // Method not allowed.
+    return request_handler_ptr (new error_handler (connection, request, 405));
+  } else {
+
+    // Creating a TRACE response handler, and returning to caller.
+    return request_handler_ptr (new trace_handler (connection, request));
+  }
+}
+
+
+request_handler_ptr request_handler::create_head_handler (class connection * connection, class request * request)
+{
+  // Checking if HEAD method is allowed according to configuration.
+  if (!connection->server()->configuration().get<bool> ("head-allowed", false)) {
+
+    // Method not allowed.
+    return request_handler_ptr (new error_handler (connection, request, 405));
+  } else {
+
+    // Creating a HEAD response handler.
+    return request_handler_ptr (new head_handler (connection, request, request->envelope().extension()));
+  }
+}
+
+
+request_handler_ptr request_handler::create_get_handler (class connection * connection, class request * request)
+{
+  // Figuring out handler to use according to request extension, and if document type even is served/handled.
+  const string & extension = request->envelope().extension();
+  string handler = extension.size () == 0 ?
+      connection->server()->configuration().get<string> ("default-handler", "error") :
+      connection->server()->configuration().get<string> (extension + "-handler", "error");
+
+  // Returning the correct handler to caller.
+  if (handler == "static-file-handler") {
+
+    // Static file handler.
+    return request_handler_ptr (new static_file_handler (connection, request, extension));
+  } else {
+
+    // Oops, these types of files are not served or handled.
+    return request_handler_ptr (new error_handler (connection, request, 404));
   }
 }
 
@@ -391,35 +429,68 @@ string request_handler::get_mime (const string & filepath)
 }
 
 
-bool request_handler::can_accept (const class connection * connection, const class request * request)
+bool request_handler::in_whitelist (const class connection * connection, const class request * request)
 {
   // Making things more tidy in here.
   using namespace std;
   using namespace boost::algorithm;
 
-  // Retrieve the User-Agent whitelist, and see if it has something besides "*" as value
-  const string user_agent_whitelist = connection->server()->configuration().get <string> ("user-agents-whitelist", "*");
+  // Retrieve the User-Agent whitelist, and see if it has something besides "*" ("accept all") as value.
+  const string user_agent_whitelist = connection->server()->configuration().get <string> ("user-agent-whitelist", "*");
   if (user_agent_whitelist != "*") {
 
     // Retrieving User-Agent header from request envelope.
     const string user_agent = request->envelope().header ("User-Agent");
     if (user_agent.size() == 0)
-      return false; // No user-agent string, and whitelist was defined. Refusing request.
+      return false; // No User-Agent string, and whitelist was defined. Refusing request.
 
     // Whitelist defined, checking if User-Agent string from request contains at least one of its entries.
     vector<string> whitelist_entities;
     split (whitelist_entities, user_agent_whitelist, boost::is_any_of ("|"));
     for (const auto & idx : whitelist_entities) {
       if (user_agent.find (idx) != string::npos)
-        return true; // Match in user-agent string for currently iterated whitelist entity.
+        return true; // Match in User-Agent for currently iterated whitelist entity.
     }
 
-    // Did not find a match in user-agent.
+    // Did not find a match in User-Agent.
     return false;
   } else {
 
-    // No whitelist defined, allowing everything.
+    // No whitelist defined, accepting everything.
     return true;
+  }
+}
+
+
+bool request_handler::in_blacklist (const class connection * connection, const class request * request)
+{
+  // Making things more tidy in here.
+  using namespace std;
+  using namespace boost::algorithm;
+
+  // Retrieve the User-Agent blacklist, and see if it has something besides "" (empty) as value.
+  const string user_agent_blacklist = connection->server()->configuration().get <string> ("user-agent-blacklist", "");
+  if (user_agent_blacklist != "") {
+
+    // Retrieving User-Agent header from request envelope.
+    const string user_agent = request->envelope().header ("User-Agent");
+    if (user_agent.size() == 0)
+      return false; // No User-Agent string, and blacklist was defined. Accepting request.
+
+    // Blacklist defined, checking if User-Agent string from request contains at least one of its entries.
+    vector<string> blacklist_entities;
+    split (blacklist_entities, user_agent_blacklist, boost::is_any_of ("|"));
+    for (const auto & idx : blacklist_entities) {
+      if (user_agent.find (idx) != string::npos)
+        return true; // Match in User-Agent for currently iterated blacklist entity.
+    }
+
+    // Did not find a match in User-Agent.
+    return false;
+  } else {
+
+    // No blacklist defined, accepting everything.
+    return false;
   }
 }
 

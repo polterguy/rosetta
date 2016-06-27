@@ -132,10 +132,6 @@ void request::write_error_response (exceptional_executor x, int status_code)
 
   // Creating an error handler.
   _request_handler = request_handler::create (_connection, this, status_code);
-  if (_request_handler == nullptr)
-    throw server_exception ("Error handler not found for status code; '" + boost::lexical_cast<string> (status_code) + "'.");
-
-  // Letting error handler take over from here.
   _request_handler->handle (x, [this] (auto x) {
 
     // Simply letting x go out of scope, to close down connection, and clean things up.

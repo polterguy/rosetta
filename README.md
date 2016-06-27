@@ -36,32 +36,33 @@ then your log files will give away not only you, but also all users of your webs
 creates a dangerous situation, where the log files of your web server, can unintentionally
 become you and your friends Nemesis and Judas.
 
-### User-Agent whitelist
+### User-Agent whitelist and blacklist
 
 Rosetta can be configured to only accept requests from a specific range of user agents.
-This allows you to for instance only accept requests from visitors using the Tor browser,
-which prevents users from visiting your website, unless they're within the safety of
-the Onion protocol, or using a user agent, that is insecure for other reasons. For
-instance, this feature, allows you to force your users to upgrade insecure browsers,
-to help them protect themselves against themselves.
+This allows you to for instance only accept requests from visitors using a specific user
+agent, which prevents users from visiting your website, if they are using a user agent,
+that is insecure for some reasons. For instance, this feature, allows you to force your
+users to upgrade insecure browsers, to help them protect themselves against themselves.
 
-This feature can be configured through the *"user-agents-whitelist"* configuration
-property. It works by creating a list of pipe separated (|) strings, which of the
-visiting user agent, must match at least one of, before the request is accepted.
-If it can not find a match, then the request is refused with a *"403 Forbidden"*
-response, without any additional information provided to the client.
+This feature can be configured through the *"user-agent-whitelist"* and the *"user-agent-
+blacklist"* configuration properties. It works by creating a list of pipe separated (|)
+strings, which if the visiting user agent, matches at least one of, then the user agent
+becomes either blacklisted (refused) or whitelisted (accepted).
 
 Visiting user-agents must not obey by the user agent rules, which means that this
 is only for preventing users, accidentally visiting your website, with a user agent
 that is not trusted. However, for the ultra paranoid among us, this is an extra
 feature, protecting the privacy, of not only you, and your data, but also your visitors.
-This way, the web server, denies to become the Judas and Nemesis of not only you, but
-also your visitors and users.
 
-This is turned **off** by default, but can easily be turned on by changing the
-*"user-agents-whitelist"* property in your configuration file, to for instance
-**Chrome|Linux**, to only accept requests from Google Chrome, or some sort of Linux
-installation.
+These features are turned **off** by default, but can easily be turned on, by changing
+the *"user-agent-whitelist"* and/or *"user-agent-blacklist"* properties in your
+configuration file, to for instance;
+
+user-agent-whitelist = Mac|Linux
+user-agent-blacklist = Chrome
+
+The above configuration would enable only Mac OS X clients and Linux clients, running
+any browsers, except Google Chrome to access your website.
 
 ### Turn OFF non-SSL traffic
 
