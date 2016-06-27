@@ -46,7 +46,7 @@ void trace_handler::handle (exceptional_executor x, functor callback)
     auto buffer_ptr = build_content ();
 
     // Building our request headers.
-    header_list headers {
+    collection headers {
       {"Content-Type", "text/plain; charset=utf-8" },
       {"Date", date::now ().to_string ()},
       {"Content-Length", boost::lexical_cast<string> (buffer_ptr->size ())}};
@@ -54,13 +54,21 @@ void trace_handler::handle (exceptional_executor x, functor callback)
     // Writing HTTP headers to connection.
     write_headers (headers, x, [this, callback, buffer_ptr] (exceptional_executor x) {
 
-      // Writing entire request, HTTP-Request line, and HTTP headers, back to client, as content.
-      connection()->socket().async_write (buffer (*buffer_ptr), [buffer_ptr, callback, x] (const error_code & error, size_t bytes_written) {
+      // Writing standard headers.
+      write_standard_headers (x, [this, callback, buffer_ptr] (auto x) {
 
-        // Invoking callback, signaling we're done.
-        callback (x);
+        // Making sure we close envelope.
+        ensure_envelope_finished (x, [this, callback, buffer_ptr] (auto x) {
+
+          // Writing entire request, HTTP-Request line, and HTTP headers, back to client, as content.
+          connection()->socket().async_write (buffer (*buffer_ptr), [buffer_ptr, callback, x] (const error_code & error, size_t bytes_written) {
+
+            // Invoking callback, signaling we're done.
+            callback (x);
+          });
+        });
       });
-    }, true);
+    });
   });
 }
 

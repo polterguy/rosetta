@@ -112,16 +112,8 @@ bool static_file_handler::should_write_file (const string & full_path)
 
 void static_file_handler::write_full_file (const string & full_path, exceptional_executor x, functor callback)
 {
-  // First writing status 200.
-  write_status (200, x, [this, x, full_path, callback] (exceptional_executor x) {
-
-    // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
-    write_header ("Last-Modified", date::from_file_change (full_path).to_string (), x, [this, full_path, callback] (exceptional_executor x) {
-
-      // Then writing actual file.
-      write_file (full_path, x, callback);
-    });
-  });
+  // Then writing actual file.
+  write_file (full_path, 200, true, x, callback);
 }
 
 
@@ -133,9 +125,13 @@ void static_file_handler::write_304_response (exceptional_executor x, functor ca
     // Writing standard HTTP headers to connection.
     write_standard_headers (x, [this, callback] (exceptional_executor x) {
 
-      // invoking callback, since we're done writing the response.
-      callback (x);
-    }, true);
+      // Making sure we close envelope.      
+      ensure_envelope_finished (x, [callback] (auto x) {
+
+        // invoking callback, since we're done writing the response.
+        callback (x);
+      });
+    });
   });
 }
 

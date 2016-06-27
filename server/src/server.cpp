@@ -15,6 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <iostream>
 #include "server/include/server.hpp"
 #include "server/include/multi_thread_server.hpp"
 #include "server/include/connection/connection.hpp"
@@ -105,6 +106,7 @@ void server::run ()
       
       // An exception occurred, simply re-iterating while loop, to re-start io_service.
       // We could do logging here, especially for debugging purposes.
+      std::cerr << error.what () << std::endl;
     }
   }
 }

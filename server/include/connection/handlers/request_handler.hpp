@@ -35,7 +35,10 @@ class request;
 class connection;
 class request_handler;
 typedef std::shared_ptr<request_handler> request_handler_ptr;
-typedef std::vector<std::tuple<string, string> > header_list;
+
+// Helpers for HTTP headers.
+typedef std::tuple<string, string> collection_type;
+typedef std::vector<collection_type> collection;
 
 
 /// Handles an HTTP request.
@@ -51,24 +54,30 @@ public:
 
 protected:
 
-  /// Protected constructor, to make sure only factory method can create instances.
+  /// Protected constructor.
   request_handler (connection * connection, request * request);
 
   /// Writing given HTTP headetr with given value back to client.
-  void write_status (unsigned int status_code, exceptional_executor x, functor callback);
+  void write_status (unsigned int status_code, exceptional_executor x, functor on_success);
 
-  /// Writing given HTTP headers with given value back to client.
-  void write_headers (header_list headers, exceptional_executor x, functor callback, bool is_last = false);
+  /// Writes a single HTTP header, with the given name/value combination back to client.
+  void write_header (const string & key, const string & value, exceptional_executor x, functor on_success);
 
-  /// Writing given HTTP header with given value back to client.
-  void write_header (const string & key, const string & value, exceptional_executor x, functor callback, bool is_last = false);
+  /// Writing given HTTP header collection back to client.
+  void write_headers (collection headers, exceptional_executor x, functor on_success);
 
-  /// Writing standard HTTP headers back to client.
-  void write_standard_headers (exceptional_executor x, functor callback, bool is_last = false);
+  /// Writes back the standard HTTP headers back to client, that the server is configured to pass back on every response.
+  void write_standard_headers (exceptional_executor x, functor on_success);
 
-  /// Writing the given file on socket back to client.
-  // Notice, the file we serve, is not necessarily the file requested. Hence, we cannot use request_envelope::extension() here.
-  void write_file (const string & file_path, exceptional_executor x, functor callback, bool write_content = true);
+  /// Ensures that the envelope of the response is flushed, and one empty line with CR/LF is written back to the client.
+  void ensure_envelope_finished (exceptional_executor x, functor on_success);
+
+  /// Writing the given file's HTTP headers on socket back to client.
+  void write_file_headers (const string & file_path, bool last_modified, exceptional_executor x, functor on_success);
+
+  /// Convenience method; Writes the given file on socket back to client, with a status code, default headers for a file,
+  /// standard headers for server, and basically everything.
+  void write_file (const string & file_path, unsigned int status_code, bool last_modified, exceptional_executor x, functor on_success);
 
   /// Returns connection for this instance.
   connection * connection() { return _connection; }
@@ -82,7 +91,8 @@ private:
   static bool can_accept (const class connection * connection, const class request * request);
 
   /// Implementation of actual file write operation.
-  void write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor callback);
+  /// Will read _response_buffer.size() from file, and write buffer content to socket, before invoking self, until entire file has been written.
+  void write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor on_success);
 
   /// Returns the MIME type according to file extension.
   string get_mime (const string & filepath);

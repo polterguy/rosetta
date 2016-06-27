@@ -83,7 +83,7 @@ void head_handler::write_head (const string & full_path, exceptional_executor x,
     write_header ("Last-Modified", date::from_file_change (full_path).to_string (), x, [this, full_path, callback] (exceptional_executor x) {
 
       // Notice, we are NOT writing any content in a HEAD response.
-      write_file (full_path, x, callback, false /* Signaling to write_file() that we do NOT want content written. */);
+      write_file_headers (full_path, true, x, callback);
     });
   });
 }

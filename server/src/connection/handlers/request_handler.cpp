@@ -23,6 +23,8 @@
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
 #include "server/include/exceptions/request_exception.hpp"
+
+// Including all HTTP handlers we support.
 #include "server/include/connection/handlers/head_handler.hpp"
 #include "server/include/connection/handlers/error_handler.hpp"
 #include "server/include/connection/handlers/trace_handler.hpp"
@@ -127,7 +129,7 @@ request_handler::request_handler (class connection * connection, class request *
 { }
 
 
-void request_handler::write_status (unsigned int status_code, exceptional_executor x, functor callback)
+void request_handler::write_status (unsigned int status_code, exceptional_executor x, functor on_success)
 {
   // Creating status line, and serializing to socket, making sure status_line stays around until after write operation is finished.
   std::shared_ptr<string> status_line = std::make_shared<string> ("HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ");
@@ -166,35 +168,41 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
     *status_line += "Not Implemented";
     break;
   default:
-    if (status_code > 200 && status_code < 300)
+    if (status_code > 200 && status_code < 300) {
+
+      // Some sort of unknown success status.
       *status_line += "Unknown Success Type";
-    else if (status_code >= 300 && status_code < 400)
-      *status_line += "Unknown Type";
-    else
+    } else if (status_code >= 300 && status_code < 400) {
+
+      // Some sort of unknown redirection status.
+      *status_line += "Unknown Redirection Type";
+    } else {
+
+      // Some sort of unknown error type.
       *status_line += "Unknown Error Type";
-    break;
+    } break;
   }
   *status_line += "\r\n";
 
   // Writing status line to socket.
-  _connection->socket().async_write (buffer (*status_line), [callback, x, status_line] (const error_code & error, size_t bytes_written) {
+  _connection->socket().async_write (buffer (*status_line), [on_success, x, status_line] (auto error, auto bytes_written) {
 
     // Sanity check.
     if (error)
       throw request_exception ("Socket error while writing HTTP status line.");
     else
-      callback (x);
+      on_success (x);
   });
 }
 
 
-void request_handler::write_headers (header_list headers, exceptional_executor x, functor callback, bool is_last)
+void request_handler::write_headers (collection headers, exceptional_executor x, functor on_success)
 {
   if (headers.size() == 0) {
 
-    // No more headers, checking if callback is not null, before we invoke it.
-    if (callback != nullptr)
-      callback (x);
+    // No more headers, invoking on_success().
+    on_success (x);
+
   } else {
 
     // Retrieving next key/value pair.
@@ -205,86 +213,93 @@ void request_handler::write_headers (header_list headers, exceptional_executor x
     headers.erase (headers.begin (), headers.begin () + 1);
 
     // Writing header.
-    write_header (key, value, x, [this, headers, callback, is_last] (exceptional_executor x) {
+    write_header (key, value, x, [this, headers, on_success] (auto x) {
 
-      // Invoking self.
-      write_headers (headers, x, callback, is_last);
-    }, headers.size() == 0 ? is_last : false);
+      // Invoking self, having popped off the first header in the collection.
+      write_headers (headers, x, on_success);
+    });
   }
 }
 
 
-void request_handler::write_header (const string & key, const string & value, exceptional_executor x, functor callback, bool is_last)
+void request_handler::write_header (const string & key, const string & value, exceptional_executor x, functor on_success)
 {
   // Creating header, making sure the string stays around until after socket write operation is finished.
   std::shared_ptr<string> header_content = std::make_shared<string> (key + ": " + value + "\r\n");
 
   // Writing header content to socket.
-  _connection->socket().async_write (buffer (*header_content), [this, callback, x, header_content, is_last] (const error_code & error, size_t bytes_written) {
-
-    // Sanity check.
-    if (error) {
-
-      // Oops, something went wrong!
-      throw request_exception ("Socket error while writing HTTP header.");
-    } else {
-
-      // Checking if this was our last header, and if so, we make sure we render the default headers for response.
-      if (is_last) {
-
-        // Caller says this is our last header.
-        write_standard_headers (x, callback, true);
-      } else {
-
-        // Caller says this is not our last header.
-        callback (x);
-      }
-    }
-  });
-}
-
-
-void request_handler::write_standard_headers (exceptional_executor x, functor callback, bool is_last)
-{
-  // Creating header, making sure the string stays around until after socket write operation is finished.
-  std::shared_ptr<string> header_content = std::make_shared<string> ("Date: " + date::now ().to_string () + "\r\n");
-
-  // Making sure we submit the server name back to client, but only if configuration says so.
-  if (_connection->server()->configuration().get<bool> ("provide-server-info", false))
-    *header_content += "Server: Rosetta\r\n"; // Notice, we do not supply a version number to make it more difficult for malware to exploit server!
-
-  // Checking if server is configured to render "static headers".
-  const string static_headers = _connection->server()->configuration().get <string> ("static-response-headers", "");
-  if (static_headers.size() > 0) {
-
-    // Server is configured to render "static headers".
-    std::vector<string> headers;
-    boost::algorithm::split (headers, static_headers, boost::is_any_of ("|"));
-    for (auto & idx : headers) {
-      *header_content += idx + "\r\n";
-    }
-  }
-
-  // Checking if this was our last header, and if so, appending an additional CR/LF sequence.
-  if (is_last) {
-
-    // Adding the last CR/LF sequence, to signal we're done rendering headers.
-    *header_content += "\r\n";
-  }
-
-  // Writing header content to socket.
-  _connection->socket().async_write (buffer (*header_content), [callback, x, header_content] (const error_code & error, size_t bytes_written) {
+  _connection->socket().async_write (buffer (*header_content), [this, on_success, x, header_content] (auto error, auto bytes_written) {
 
     // Sanity check.
     if (error)
       throw request_exception ("Socket error while writing HTTP header.");
     else
-      callback (x);
+      on_success (x);
   });
 }
 
 
-void request_handler::write_file (const string & filepath, exceptional_executor x, functor callback, bool write_content)
+void request_handler::write_standard_headers (exceptional_executor x, functor on_success)
+{
+  // Making things more tidy in here.
+  using namespace std;
+  using namespace boost::algorithm;
+
+  // Creating header, making sure the string stays around until after socket write operation is finished.
+  // First we add up the "Date" header, which should be returned with every single request, regardless of its type.
+  shared_ptr<string> header_content = make_shared<string> ("Date: " + date::now ().to_string () + "\r\n");
+
+  // Making sure we submit the server name back to client, if server is configured to do this.
+  // Notice, even if server configuration says that server should identify itself, we do not provide any version information!
+  // This is to make it harder to create a "targeted attack" trying to hack the server.
+  if (_connection->server()->configuration().get<bool> ("provide-server-info", false))
+    *header_content += "Server: Rosetta\r\n";
+
+  // Checking if server is configured to render "static headers".
+  // Notice that static headers are defined as a pipe separated (|) list of strings, with both name and value of header, for instance
+  // "Foo: bar|Howdy-World: circus". The given example would render two static headers, "Foo" and "Howdy-World", with their respective values.
+  const string static_headers = _connection->server()->configuration().get <string> ("static-response-headers", "");
+  if (static_headers.size() > 0) {
+
+    // Server is configured to render "static headers".
+    // Making sure we append the "static headers" from configuration into response.
+    vector<string> headers;
+    split (headers, static_headers, boost::is_any_of ("|"));
+    for (auto & idx : headers) {
+      *header_content += idx + "\r\n";
+    }
+  }
+
+  // Writing header content to socket.
+  _connection->socket().async_write (buffer (*header_content), [on_success, x, header_content] (auto error, auto bytes_written) {
+
+    // Sanity check.
+    if (error)
+      throw request_exception ("Socket error while writing HTTP header.");
+    else
+      on_success (x);
+  });
+}
+
+
+void request_handler::ensure_envelope_finished (exceptional_executor x, functor on_success)
+{
+  // Creating last empty line, to finish of envelope, making sure our buffer stays around, until async_write is finished doing its thing.
+  std::shared_ptr<string> cr_lf = std::make_shared<string> ("\r\n");
+
+  // Writing header content to socket.
+  _connection->socket().async_write (buffer (*cr_lf), [on_success, x, cr_lf] (auto error, auto bytes_written) {
+
+    // Sanity check.
+    if (error)
+      throw request_exception ("Socket error while writing HTTP header.");
+    else
+      on_success (x);
+  });
+}
+
+
+void request_handler::write_file_headers (const string & filepath, bool last_modified, exceptional_executor x, functor on_success)
 {
   // Figuring out size of file, and making sure it's not larger than what we are allowed to handle according to configuration of server.
   size_t size = boost::filesystem::file_size (filepath);
@@ -298,42 +313,91 @@ void request_handler::write_file (const string & filepath, exceptional_executor 
     return;
   }
 
-  // Opening up file, as a shared_ptr, making sure it stays around until all bytes have been written, and invoking actual implementation of file writing.
-  std::shared_ptr<std::ifstream> fs_ptr = std::make_shared<std::ifstream> (filepath, std::ios::in | std::ios::binary);
-  if (!fs_ptr->good())
-    throw request_exception ("Couldn't open file; '" + filepath + "' for reading.");
-
   // Building our standard response headers for a file transfer.
-  header_list headers {
+  collection headers {
     {"Content-Type", mime_type},
     {"Content-Length", boost::lexical_cast<string> (size)}};
 
-  // Writing HTTP headers to connection.
-  write_headers (headers, x, [this, fs_ptr, callback, write_content] (exceptional_executor x) {
+  // Checking if caller wants to add "Las-Modified" header to envelope.
+  if (last_modified)
+    headers.push_back ({"Last-Modified", date::from_file_change (filepath).to_string ()});
 
-    // Invoking implementation that actually writes file to socket.
-    if (write_content)
-      write_file (fs_ptr, x, callback);
-    else
-      callback (x); // Not writing content of file.
-  }, true);
+  // Writing special handler headers to connection.
+  write_headers (headers, x, [this, on_success] (auto x) {
+
+    // Invoking on_success() supplied by caller.
+    on_success (x);
+  });
+}
+
+
+void request_handler::write_file (const string & filepath, unsigned int status_code, bool last_modified, exceptional_executor x, functor on_success)
+{
+  // Making things slightly more tidy in here.
+  using namespace std;
+
+  // Retrieving MIME type, and verifying this is a type of file we actually serve.
+  string mime_type = get_mime (filepath);
+  if (mime_type == "") {
+
+    // File type is not served according to configuration of server.
+    _request->write_error_response (x, 403);
+    return;
+  }
+
+  // Writing status code.
+  write_status (status_code, x, [this, filepath, on_success, last_modified] (auto x) {
+
+    // Writing special file headers back to client.
+    write_file_headers (filepath, last_modified, x, [this, filepath, on_success] (auto x) {
+
+      // Writing standard headers to client.
+      write_standard_headers (x, [this, filepath, on_success] (auto x) {
+
+        // Make sure we close envelope.
+        ensure_envelope_finished (x, [this, filepath, on_success] (auto x) {
+
+          // Opening up file, as a shared_ptr, passing it into write_file(),
+          // such that file stays around, until all bytes have been written.
+          shared_ptr<ifstream> fs_ptr = make_shared<ifstream> (filepath, ios::in | ios::binary);
+          if (!fs_ptr->good())
+            throw request_exception ("Couldn't open file; '" + filepath + "' for reading.");
+
+          // Writing actual file.
+          write_file (fs_ptr, x, on_success);
+        });
+      });
+    });
+  });
 }
 
 
 string request_handler::get_mime (const string & filepath)
 {
-  // Returning MIME type for file extension.
+  // Finding file name of file, without any folders.
   string filename = filepath.substr (filepath.find_last_of ("/") + 1);
+
+  // Finding position of ".", if any, such that we can figure out file extension.
   size_t index_of_dot = filename.find_last_of (".");
+
+  // Now that we know the position of the last "." in file name, we can retrieve the extension of the file.
   string extension = index_of_dot == string::npos ? "" : filename.substr (index_of_dot + 1);
+
+  // Then we do a lookup into the configuration for our server, to see if it has defined a MIME type for the given file's extension.
   string mime_type = _connection->server()->configuration().get<string> ("mime-" + extension, "");
+
+  // Returning MIME type to caller.
   return mime_type;
 }
 
 
 bool request_handler::can_accept (const class connection * connection, const class request * request)
 {
-  // Retrieve the USer-Agent whitelist, and see if it has something besides "*" as value
+  // Making things more tidy in here.
+  using namespace std;
+  using namespace boost::algorithm;
+
+  // Retrieve the User-Agent whitelist, and see if it has something besides "*" as value
   const string user_agent_whitelist = connection->server()->configuration().get <string> ("user-agents-whitelist", "*");
   if (user_agent_whitelist != "*") {
 
@@ -343,8 +407,8 @@ bool request_handler::can_accept (const class connection * connection, const cla
       return false; // No user-agent string, and whitelist was defined. Refusing request.
 
     // Whitelist defined, checking if User-Agent string from request contains at least one of its entries.
-    std::vector<string> whitelist_entities;
-    boost::algorithm::split (whitelist_entities, user_agent_whitelist, boost::is_any_of ("|"));
+    vector<string> whitelist_entities;
+    split (whitelist_entities, user_agent_whitelist, boost::is_any_of ("|"));
     for (const auto & idx : whitelist_entities) {
       if (user_agent.find (idx) != string::npos)
         return true; // Match in user-agent string for currently iterated whitelist entity.
@@ -360,28 +424,35 @@ bool request_handler::can_accept (const class connection * connection, const cla
 }
 
 
-void request_handler::write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor callback)
+void request_handler::write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor on_success)
 {
   // Checking if we're done.
   if (fs_ptr->eof()) {
 
     // Yup, we're done!
-    callback (x);
+    on_success (x);
   } else {
 
     // Reading from file into array.
     fs_ptr->read (_response_buffer.data(), _response_buffer.size());
 
-    // Writing to socket, passing in fs_ptr, to make sure it stays around until operation is entirely done.
+    // Creating a buffer from the _response_buffer std::array.
     auto bf = buffer (_response_buffer.data(), fs_ptr->gcount());
-    _connection->socket().async_write (bf, [this, callback, x, fs_ptr] (const error_code & error, size_t bytes_written) {
+
+    // Writing buffer to socket, making sure we pass in shared_ptr to file stream, such that it stays around until we're entirely finished.
+    // Notice, this method will not read entire file into memory, but rather read 8192 bytes from the file, and flush these bytes to the
+    // socket, for then to invoke "self" multiple times, until entire file has been served over socket, back to client.
+    // This conserves memory and resources on the server, but also makes sure the file is open for a longer period.
+    // However, to make it possible to retrieve very large files, without completely exhausting the server's resources, this is the way
+    // to do things.
+    _connection->socket().async_write (bf, [this, on_success, x, fs_ptr] (const error_code & error, size_t bytes_written) {
 
       // Sanity check.
       if (error)
         throw request_exception ("Socket error while writing file.");
 
       // Invoking self.
-      write_file (fs_ptr, x, callback);
+      write_file (fs_ptr, x, on_success);
     });
   }
 }

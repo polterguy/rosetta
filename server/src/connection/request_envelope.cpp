@@ -244,7 +244,7 @@ void request_envelope::parse_uri (string & uri)
   } else {
 
     // No parameters, decoding URI.
-    uri = decode_uri (_uri);
+    uri = decode_uri (uri);
   }
 
   // Then, finally, we can set the URI.

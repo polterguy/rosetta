@@ -46,19 +46,32 @@ redirect_handler::redirect_handler (class connection * connection, class request
 
 void redirect_handler::handle (exceptional_executor x, functor callback)
 {
-  // First writing status 200.
+  // First writing status.
   write_status (_status, x, [this, x, callback] (exceptional_executor x) {
-    
-    header_list list = {{"Location", _uri}};
-    if (_no_store)
+
+    // Then writing "Location" of resource requested.
+    collection list = {{"Location", _uri}};
+    if (_no_store) {
+
+      // This redirect request should not be cached.
       list.push_back (std::tuple<string, string> ("Cache-Control", "no-store"));
+    }
 
-    // Making sure we add the Last-Modified header for our file, to help clients and proxies cache the file.
-    write_headers (list, x, [callback] (exceptional_executor x) {
+    // Rendering the headers, Location, and possibly Cache-Control.
+    write_headers (list, x, [this, callback] (exceptional_executor x) {
 
-      // Notice, we are NOT writing any content in a redirect response.
-      callback (x);
-    }, true);
+      // Then making sure we add the "standard headers".
+      write_standard_headers (x, [this, callback] (auto x) {
+
+        // Then making sure we close our response envelope.
+        ensure_envelope_finished (x, [callback] (auto x) {
+
+          // Notice, we are NOT writing any content in a redirect response.
+          // Hence we invoke the on_success() callback provided when request was created.
+          callback (x);        
+        });
+      });
+    });
   });
 }
 
