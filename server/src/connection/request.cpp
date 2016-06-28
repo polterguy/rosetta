@@ -15,6 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <boost/asio.hpp>
+#include <boost/filesystem.hpp>
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
@@ -53,9 +55,8 @@ void request::handle (exceptional_executor x, functor on_success)
   // Reading envelope, passing in reference to "self"
   _envelope.read (x, [this, on_success] (auto x) {
 
-    // Settings deadline timer.
-    const int CONTENT_READ_TIMEOUT = _connection->server()->configuration().get<size_t> ("request-content-read-timeout", 300);
-    _connection->set_deadline_timer (CONTENT_READ_TIMEOUT);
+    // Killing deadline timer while we handle request.
+    _connection->set_deadline_timer (-1);
 
     // Now reading is done, and we can let our request_handler take care of the rest.
     _request_handler = request_handler::create (_connection, this);
@@ -68,58 +69,11 @@ void request::handle (exceptional_executor x, functor on_success)
       // Request is now finished handled, and we need to determine if we should keep connection alive or not.
       if (_envelope.header ("Connection") != "close") {
 
-        // Connection should be kept alive, releasing exceptional_executor, and invoking on_success() on connection, should do the trick.
-        // But first we must do a "force read" of content, unless it has already been read, since otherwise the next request will be malformed,
-        // due to content being "in the way".
-        ensure_read_content (x, [this, on_success] (auto x) {
-
-          // Invoking on_success callback.
-          on_success (x);
-        });
+        // Invoking on_success callback.
+        on_success (x);
       } // else - x goes out of scope, and releases connection, and all resources associated with it ...
     });
   });
-}
-
-
-void request::ensure_read_content (exceptional_executor x, functor callback)
-{
-  // Checking if we have already read content.
-  if (_content_has_been_read)
-    return;
-
-  // Making sure we signal to any future invocations that content is already read.
-  _content_has_been_read = true;
-
-  // Max allowed length of content.
-  const size_t MAX_REQUEST_CONTENT_LENGTH = _connection->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
-
-  // Checking if there is any content first.
-  string content_length_str = _envelope.header ("Content-Length");
-
-  // Checking if there is any Content-Length
-  if (content_length_str.size() == 0) {
-
-    // No content.
-    callback (x);
-  } else {
-
-    // Checking that content does not exceed max request content length.
-    auto content_length = boost::lexical_cast<size_t> (content_length_str);
-    if (content_length > MAX_REQUEST_CONTENT_LENGTH)
-      return; // Too much data in content sent from client, according to configuration. Simply letting x go out of scope, cleans everything up.
-
-    // Reading content into streambuf, and keeping it there, for any request_handlers that might have interest in it, for some reasons.
-    _connection->socket().async_read (_connection->buffer(), transfer_exactly (content_length), [x, callback] (auto error, auto bytes_read) {
-
-      // Checking for socket errors.
-      if (error)
-        throw request_exception ("Socket error while reading request content.");
-
-      // Invoking functor callback supplied by caller.
-      callback (x);
-    });
-  }
 }
 
 

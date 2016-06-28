@@ -26,7 +26,7 @@
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
 #include "server/include/exceptions/request_exception.hpp"
-#include "server/include/connection/handlers/static_file_handler.hpp"
+#include "server/include/connection/handlers/get_file_handler.hpp"
 
 namespace rosetta {
 namespace server {
@@ -40,13 +40,13 @@ using namespace rosetta::common;
 bool sanity_check_uri (const string & uri);
 
 
-static_file_handler::static_file_handler (class connection * connection, class request * request, const string & extension)
+get_file_handler::get_file_handler (class connection * connection, class request * request, const string & extension)
   : request_handler (connection, request),
     _extension (extension)
 { }
 
 
-void static_file_handler::handle (exceptional_executor x, functor on_success)
+void get_file_handler::handle (exceptional_executor x, functor on_success)
 {
   // Retrieving URI from request, removing initial "/" from URI, before checking sanity of URI.
   string uri = request()->envelope().uri().substr (1);
@@ -82,7 +82,7 @@ void static_file_handler::handle (exceptional_executor x, functor on_success)
 }
 
 
-bool static_file_handler::should_write_file (const string & full_path)
+bool get_file_handler::should_write_file (const string & full_path)
 {
   // Checking if client passed in an "If-Modified-Since" header.
   string if_modified_since = request()->envelope().header ("If-Modified-Since");
@@ -110,7 +110,7 @@ bool static_file_handler::should_write_file (const string & full_path)
 }
 
 
-void static_file_handler::write_304_response (exceptional_executor x, functor on_success)
+void get_file_handler::write_304_response (exceptional_executor x, functor on_success)
 {
   // Writing status code 304 (Not-Modified) back to client.
   write_status (304, x, [this, on_success] (auto x) {

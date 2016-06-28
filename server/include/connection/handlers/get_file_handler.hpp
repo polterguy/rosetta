@@ -32,12 +32,12 @@ class connection;
 
 
 /// Handles an static file HTTP request.
-class static_file_handler final : public request_handler
+class get_file_handler final : public request_handler
 {
 public:
 
   /// Creates a static file handler.
-  static_file_handler (class connection * connection, class request * request, const string & extension);
+  get_file_handler (class connection * connection, class request * request, const string & extension);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, functor on_success) override;

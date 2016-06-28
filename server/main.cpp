@@ -178,17 +178,17 @@ void create_default_configuration_file()
   config.set ("max-connections-per-client", 2);
 
   // Request Handlers, according to file extensions.
-  config.set ("handler-html", "static-file-handler");
-  config.set ("handler-js", "static-file-handler");
-  config.set ("handler-css", "static-file-handler");
-  config.set ("handler-png", "static-file-handler");
-  config.set ("handler-gif", "static-file-handler");
-  config.set ("handler-jpeg", "static-file-handler");
-  config.set ("handler-jpg", "static-file-handler");
-  config.set ("handler-ico", "static-file-handler");
-  config.set ("handler-xml", "static-file-handler");
-  config.set ("handler-zip", "static-file-handler");
-  config.set ("handler-json", "static-file-handler");
+  config.set ("handler-html", "get-file-handler");
+  config.set ("handler-js", "get-file-handler");
+  config.set ("handler-css", "get-file-handler");
+  config.set ("handler-png", "get-file-handler");
+  config.set ("handler-gif", "get-file-handler");
+  config.set ("handler-jpeg", "get-file-handler");
+  config.set ("handler-jpg", "get-file-handler");
+  config.set ("handler-ico", "get-file-handler");
+  config.set ("handler-xml", "get-file-handler");
+  config.set ("handler-zip", "get-file-handler");
+  config.set ("handler-json", "get-file-handler");
 
   // Common MIME types.
   config.set ("mime-html", "text/html; charset=utf-8");

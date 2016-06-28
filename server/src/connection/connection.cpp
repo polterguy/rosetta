@@ -54,7 +54,7 @@ void connection::handle()
 
     // Closing connection.
     ensure_close ();
-  }), [this] (auto x) {
+  }), [this, self] (auto x) {
 
     // Invoked when request is finished handled.
     // Releasing exceptional_executor, and invoking handle(), to wait for next request coming from client.

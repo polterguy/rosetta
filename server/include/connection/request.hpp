@@ -54,9 +54,6 @@ private:
   /// Creates an instance of this class on the given connection. Private to ensure factory method is used.
   request (connection * connection);
 
-  /// Reading content of request.
-  void ensure_read_content (exceptional_executor x, functor callback);
-
 
   /// Connection this request belongs to.
   connection * _connection;
@@ -66,9 +63,6 @@ private:
 
   /// Request handler, class responsible for taking correct action depending upon type/URI of request.
   request_handler_ptr _request_handler;
-
-  /// True if content has already been read, otherwise false.
-  bool _content_has_been_read = false;
 };
 
 

@@ -30,7 +30,8 @@
 #include "server/include/connection/handlers/trace_handler.hpp"
 #include "server/include/connection/handlers/request_handler.hpp"
 #include "server/include/connection/handlers/redirect_handler.hpp"
-#include "server/include/connection/handlers/static_file_handler.hpp"
+#include "server/include/connection/handlers/get_file_handler.hpp"
+#include "server/include/connection/handlers/put_file_handler.hpp"
 
 namespace rosetta {
 namespace server {
@@ -72,8 +73,13 @@ request_handler_ptr request_handler::create (class connection * connection, clas
 
   } else if (request->envelope().type() == "GET") {
 
-    // Returning a GET handler.
+    // Returning a GET file handler.
     return create_get_handler (connection, request);
+
+  } else if (request->envelope().type() == "PUT") {
+
+    // Returning a GET file handler.
+    return create_put_handler (connection, request);
 
   } else {
 
@@ -91,18 +97,22 @@ bool request_handler::should_upgrade_insecure_requests (const class connection *
     // Checking if server is configured to allow for automatic upgrading of insecure requests.
     if (connection->server()->configuration().get <bool> ("upgrade-insecure-requests", false)) {
 
-      // Checking if server is configure with, and has a root certificate and a private key.
-      const string & certificate = connection->server()->configuration().get<string> ("ssl-certificate", "");
-      const string & key = connection->server()->configuration().get<string> ("ssl-private-key", "");
+      // Checking if client prefers SSL sockets.
+      if (request->envelope().header ("Upgrade-Insecure-Requests") == "1") {
 
-      // Checking if neither of the above values are empty.
-      if (certificate.size() > 0 && key.size() > 0) {
+        // Checking if server is configure with, and has a root certificate and a private key.
+        const string & certificate = connection->server()->configuration().get<string> ("ssl-certificate", "");
+        const string & key = connection->server()->configuration().get<string> ("ssl-private-key", "");
 
-        // Checking if certificate file and key file actually exists on disc.
-        if (boost::filesystem::exists (certificate) && boost::filesystem::exists (key)) {
+        // Checking if neither of the above values are empty.
+        if (certificate.size() > 0 && key.size() > 0) {
 
-          // We can safely upgrade the current request!
-          return true;
+          // Checking if certificate file and key file actually exists on disc.
+          if (boost::filesystem::exists (certificate) && boost::filesystem::exists (key)) {
+
+            // We can safely upgrade the current request!
+            return true;
+          }
         }
       }
     }
@@ -162,19 +172,42 @@ request_handler_ptr request_handler::create_head_handler (class connection * con
 
 request_handler_ptr request_handler::create_get_handler (class connection * connection, class request * request)
 {
-  // Figuring out handler to use according to request extension, and if document type is served/handled.
-  const string & extension = request->envelope().extension();
-  const string & handler   = connection->server()->configuration().get<string> ("handler-" + extension, "error");
+  // Figuring out if user requested a file or a folder.
+  if (request->envelope().extension().size() > 0) {
 
-  // Returning the correct handler to caller.
-  if (handler == "static-file-handler") {
+    // Figuring out handler to use according to request extension, and if document type is served/handled.
+    const string & extension = request->envelope().extension();
+    const string & handler   = connection->server()->configuration().get<string> ("handler-" + extension, "error");
 
-    // Static file handler.
-    return request_handler_ptr (new static_file_handler (connection, request, extension));
+    // Returning the correct handler to caller.
+    if (handler == "get-file-handler") {
+
+      // Static file GET handler.
+      return request_handler_ptr (new get_file_handler (connection, request, extension));
+    } else {
+
+      // Oops, these types of files are not served or handled.
+      return request_handler_ptr (new error_handler (connection, request, 404));
+    }
   } else {
 
     // Oops, these types of files/folders are not served or handled.
     return request_handler_ptr (new error_handler (connection, request, 404));
+  }
+}
+
+
+request_handler_ptr request_handler::create_put_handler (class connection * connection, class request * request)
+{
+  // Figuring out if user requested a file or a folder.
+  if (request->envelope().extension().size() > 0) {
+
+    // User tries to PUT a file.
+    return request_handler_ptr (new put_file_handler (connection, request));
+  } else {
+
+    // Oops, no such PUT handler.
+    return request_handler_ptr (new error_handler (connection, request, 403));
   }
 }
 
