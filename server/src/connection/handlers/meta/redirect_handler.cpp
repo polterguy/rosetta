@@ -17,7 +17,7 @@
 
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
-#include "server/include/connection/handlers/redirect_handler.hpp"
+#include "server/include/connection/handlers/meta/redirect_handler.hpp"
 
 namespace rosetta {
 namespace server {

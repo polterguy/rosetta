@@ -19,7 +19,7 @@
 #include "common/include/date.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
-#include "server/include/connection/handlers/trace_handler.hpp"
+#include "server/include/connection/handlers/meta/trace_handler.hpp"
 
 namespace rosetta {
 namespace server {

@@ -57,50 +57,33 @@ void put_file_handler::save_request_content (const string & filename, exceptiona
   const int CONTENT_READ_TIMEOUT = connection()->server()->configuration().get<size_t> ("request-content-read-timeout", 300);
   connection()->set_deadline_timer (CONTENT_READ_TIMEOUT);
 
-  // Max allowed length of content.
-  const size_t MAX_REQUEST_CONTENT_LENGTH = connection()->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
+  // Retrieving Content-Length of request.
+  size_t content_length = get_content_length ();
 
-  // Checking if there is any content first.
-  string content_length_str = request()->envelope().header ("Content-Length");
+  // Creating file, to pass in as shared_ptr, to make sure it stays valid, until process is finished.
+  auto file_ptr = make_shared<ofstream> (filename + ".partial", ios::binary | ios::trunc | ios::out);
 
-  // Checking if there is any Content-Length
-  if (content_length_str.size() == 0) {
+  // Creating an input stream wrapping the asio stream buffer.
+  auto ss_ptr = make_shared<istream> (&connection()->buffer());
 
-    // No content.
-    throw request_exception ("No content in request.");
-  } else {
+  // Creating exceptional_executor, to make sure file becomes deleted, unless entire operation succeeds.
+  exceptional_executor x2 ([file_ptr, filename] () {
 
-    // Checking that Content-Length does not exceed max request content length.
-    auto content_length = boost::lexical_cast<size_t> (content_length_str);
-    if (content_length > MAX_REQUEST_CONTENT_LENGTH)
-      throw request_exception ("Too much content in request for server to handle.");
+    // Closing existing file pointer, and deleting file, since operation was not successful.
+    file_ptr->close ();
+    boost::system::error_code ec;
+    boost::filesystem::remove (filename, ec);
+  });
 
-    // Checking that Content-Length is not 0, or negative.
-    if (content_length <= 0)
-      throw request_exception ("No content provided to PUT handler.");
+  // Invoking implementation, that reads from socket, and saves to file.
+  save_request_content_to_file (file_ptr, ss_ptr, content_length, x, x2, [this, filename, on_success] (auto x) {
 
-    // Creating file, to pass in as shared_ptr, to make sure it stays valid, until process is finished.
-    auto file_ptr = make_shared<ofstream> (filename, ios::binary | ios::trunc | ios::out);
+    // Renaming file from its temporary name.
+    boost::filesystem::rename (filename + ".partial", filename);
 
-    // Creating an input stream wrapping the asio stream buffer.
-    auto ss_ptr = make_shared<istream> (&connection()->buffer());
-
-    // Creating exceptional_executor, to make sure file becomes deleted, unless entire operation succeeds.
-    exceptional_executor x2 ([file_ptr, filename] () {
-
-      // Closing existing file pointer, and deleting file, since operation was not successful.
-      file_ptr->close ();
-      boost::system::error_code ec;
-      boost::filesystem::remove (filename, ec);
-    });
-
-    // Invoking implementation, that reads from socket, and saves to file.
-    save_request_content_to_file (file_ptr, ss_ptr, content_length, x, x2, [this, on_success] (auto x) {
-
-      // Returning success to client.
-      write_success_envelope (x, on_success);
-    });
-  }
+    // Returning success to client.
+    write_success_envelope (x, on_success);
+  });
 }
 
 
@@ -148,6 +131,36 @@ void put_file_handler::save_request_content_to_file (std::shared_ptr<std::ofstre
       on_success (x);
     }
   });
+}
+
+
+size_t put_file_handler::get_content_length ()
+{
+  // Max allowed length of content.
+  const size_t MAX_REQUEST_CONTENT_LENGTH = connection()->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
+
+  // Checking if there is any content first.
+  string content_length_str = request()->envelope().header ("Content-Length");
+
+  // Checking if there is any Content-Length
+  if (content_length_str.size() == 0) {
+
+    // No content.
+    throw request_exception ("No Content-Length header in PUT request.");
+  } else {
+
+    // Checking that Content-Length does not exceed max request content length.
+    auto content_length = boost::lexical_cast<size_t> (content_length_str);
+    if (content_length > MAX_REQUEST_CONTENT_LENGTH)
+      throw request_exception ("Too much content in request for server to handle.");
+
+    // Checking that Content-Length is not 0, or negative.
+    if (content_length <= 0)
+      throw request_exception ("No content provided to PUT handler.");
+
+    // Returning Content-Length to caller.
+    return content_length;
+  }
 }
 
 

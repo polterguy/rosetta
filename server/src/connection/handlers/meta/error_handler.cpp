@@ -18,7 +18,7 @@
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
 #include "server/include/exceptions/server_exception.hpp"
-#include "server/include/connection/handlers/error_handler.hpp"
+#include "server/include/connection/handlers/meta/error_handler.hpp"
 
 namespace rosetta {
 namespace server {

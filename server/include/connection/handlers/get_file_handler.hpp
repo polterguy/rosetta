@@ -19,7 +19,7 @@
 #define ROSETTA_SERVER_STATIC_FILE_HANDLER_HPP
 
 #include "common/include/exceptional_executor.hpp"
-#include "server/include/connection/handlers/request_handler.hpp"
+#include "server/include/connection/request_handler.hpp"
 
 namespace rosetta {
 namespace server {

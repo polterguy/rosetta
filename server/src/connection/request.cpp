@@ -20,8 +20,8 @@
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
+#include "server/include/connection/request_handler.hpp"
 #include "server/include/exceptions/request_exception.hpp"
-#include "server/include/connection/handlers/request_handler.hpp"
 
 namespace rosetta {
 namespace server {

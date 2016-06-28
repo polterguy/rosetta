@@ -19,7 +19,7 @@
 #define ROSETTA_SERVER_PUT_FILE_HANDLER_HPP
 
 #include "common/include/exceptional_executor.hpp"
-#include "server/include/connection/handlers/request_handler.hpp"
+#include "server/include/connection/request_handler.hpp"
 
 namespace rosetta {
 namespace server {
@@ -55,6 +55,9 @@ private:
                                      exceptional_executor x,
                                      exceptional_executor x2,
                                      functor on_success);
+
+  /// Returns Content-Length of request, and verifies there is any content, and that request is not malformed.
+  size_t get_content_length ();
 
   /// Writes success return to client.
   void write_success_envelope (exceptional_executor x, functor on_success);

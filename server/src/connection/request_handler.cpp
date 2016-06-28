@@ -22,16 +22,16 @@
 #include "server/include/server.hpp"
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
+#include "server/include/connection/request_handler.hpp"
 #include "server/include/exceptions/request_exception.hpp"
 
 // Including all HTTP handlers we support.
-#include "server/include/connection/handlers/head_handler.hpp"
-#include "server/include/connection/handlers/error_handler.hpp"
-#include "server/include/connection/handlers/trace_handler.hpp"
-#include "server/include/connection/handlers/request_handler.hpp"
-#include "server/include/connection/handlers/redirect_handler.hpp"
 #include "server/include/connection/handlers/get_file_handler.hpp"
 #include "server/include/connection/handlers/put_file_handler.hpp"
+#include "server/include/connection/handlers/meta/head_handler.hpp"
+#include "server/include/connection/handlers/meta/error_handler.hpp"
+#include "server/include/connection/handlers/meta/trace_handler.hpp"
+#include "server/include/connection/handlers/meta/redirect_handler.hpp"
 
 namespace rosetta {
 namespace server {

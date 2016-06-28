@@ -15,45 +15,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROSETTA_SERVER_HEAD_HANDLER_HPP
-#define ROSETTA_SERVER_HEAD_HANDLER_HPP
+#ifndef ROSETTA_SERVER_ERROR_HANDLER_HPP
+#define ROSETTA_SERVER_ERROR_HANDLER_HPP
 
 #include "common/include/exceptional_executor.hpp"
-#include "server/include/connection/handlers/request_handler.hpp"
+#include "server/include/connection/request_handler.hpp"
 
 namespace rosetta {
 namespace server {
-
-using std::string;
-using namespace rosetta::common;
 
 class request;
 class connection;
 
 
 /// Handles an HTTP request.
-class head_handler final : public request_handler
+class error_handler final : public request_handler
 {
 public:
 
-  /// Creates a static file handler.
-  head_handler (class connection * connection, class request * request, const string & extension);
+  /// Creates an error request handler.
+  error_handler (class connection * connection, class request * request, unsigned int status_code);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, functor on_success) override;
 
 private:
 
-  /// Writes head back to client.
-  void write_head (const string & full_path, exceptional_executor x, functor on_success);
-
-
-  /// The file extension of the current request.
-  const string _extension;
+  /// Status code for error.
+  unsigned int _status_code;
 };
 
 
 } // namespace server
 } // namespace rosetta
 
-#endif // ROSETTA_SERVER_HEAD_HANDLER_HPP
+#endif // ROSETTA_SERVER_ERROR_HANDLER_HPP

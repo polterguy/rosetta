@@ -15,47 +15,42 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROSETTA_SERVER_REDIRECT_HANDLER_HPP
-#define ROSETTA_SERVER_REDIRECT_HANDLER_HPP
+#ifndef ROSETTA_SERVER_TRACE_HANDLER_HPP
+#define ROSETTA_SERVER_TRACE_HANDLER_HPP
 
+#include <string>
 #include "common/include/exceptional_executor.hpp"
-#include "server/include/connection/handlers/request_handler.hpp"
+#include "server/include/connection/request_handler.hpp"
 
 namespace rosetta {
 namespace server {
-
-using std::string;
-using namespace rosetta::common;
 
 class request;
 class connection;
 
 
-/// Handles an HTTP request.
-class redirect_handler final : public request_handler
+/// Echoes the HTTP-Request line and the request headers from the request back to the client as text/plain content.
+/// Notice, this will return the envelope of the request as Rosetta sees it, after having intelligently parsed it,
+/// and not necessarily exactly as the client sent the request. Except for the URI of the HTTP-Request line, that
+/// will be URI encoded.
+class trace_handler final : public request_handler
 {
 public:
 
-  /// Creates a redirect file handler.
-  redirect_handler (class connection * connection, class request * request, unsigned int status, const string & uri, bool no_store);
+  /// Creates a trace handler.
+  trace_handler (class connection * connection, class request * request);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, functor on_success) override;
 
 private:
 
-  /// The HTTP status code of the response we should serve.
-  const unsigned int _status;
-
-  /// The URI of the redirect response.
-  const string _uri;
-
-  /// If true, then make sure we return a "Cache-Control" header, with a "no-store" value to client.
-  const bool _no_store;
+  /// Builds up the buffer for what to return as content to client.
+  std::shared_ptr<std::vector<unsigned char> > build_content ();
 };
 
 
 } // namespace server
 } // namespace rosetta
 
-#endif // ROSETTA_SERVER_REDIRECT_HANDLER_HPP
+#endif // ROSETTA_SERVER_TRACE_HANDLER_HPP
