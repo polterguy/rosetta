@@ -142,11 +142,9 @@ request_handler_ptr request_handler::create_head_handler (class connection * con
 
 request_handler_ptr request_handler::create_get_handler (class connection * connection, class request * request)
 {
-  // Figuring out handler to use according to request extension, and if document type even is served/handled.
+  // Figuring out handler to use according to request extension, and if document type is served/handled.
   const string & extension = request->envelope().extension();
-  const string & handler = extension.size () == 0 ?
-      connection->server()->configuration().get<string> ("default-handler", "error") :
-      connection->server()->configuration().get<string> (extension + "-handler", "error");
+  const string & handler   = connection->server()->configuration().get<string> ("handler-" + extension, "error");
 
   // Returning the correct handler to caller.
   if (handler == "static-file-handler") {
@@ -155,7 +153,7 @@ request_handler_ptr request_handler::create_get_handler (class connection * conn
     return request_handler_ptr (new static_file_handler (connection, request, extension));
   } else {
 
-    // Oops, these types of files are not served or handled.
+    // Oops, these types of files/folders are not served or handled.
     return request_handler_ptr (new error_handler (connection, request, 404));
   }
 }

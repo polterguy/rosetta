@@ -118,7 +118,7 @@ connection_ptr server::create_connection (socket_ptr socket)
   // Checking if server is configured to only allow a maximum number of connections per client.
   const int max_connections_per_client = configuration().get<int> ("max-connections-per-client", 8);
   if (max_connections_per_client != -1) {
-    
+
     // Figuring out IP address for current connection.
     ip::address client_address = socket->remote_endpoint().address();
 
@@ -163,17 +163,17 @@ void server::setup_http_server ()
   if (port == "-1")
     return; // No HTTP traffic is accepted!
 
-  // Figuring out address and port to start endpoint for
+  // Figuring out address and port to start endpoint for.
   string address = _configuration.get<string> (ADDRESS_CONFIG_KEY, "localhost");
 
-  // Resolving address and port, for then to open endpoint
+  // Resolving address and port, for then to open endpoint.
   ip::tcp::resolver resolver (_service);
   ip::tcp::endpoint endpoint = *resolver.resolve ({address, port});
 
-  // Letting endpoint decide whether or not we should use IP version 4 or 6
+  // Letting endpoint decide whether or not we should use IP version 4 or 6.
   _acceptor.open (endpoint.protocol());
 
-  // Allowing the acceptor to reuse address, before binding to endpoint
+  // Allowing the acceptor to reuse address, before binding to endpoint.
   _acceptor.set_option (ip::tcp::acceptor::reuse_address (true));
   _acceptor.bind (endpoint);
 

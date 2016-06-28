@@ -149,16 +149,16 @@ void create_default_configuration_file()
 
   // Main server settings.
   config.set ("address", "localhost");
-  config.set ("port", 8080);
-  config.set ("ssl-port", 8081);
+  config.set ("port", 80);
+  config.set ("ssl-port", 443);
   config.set ("thread-model", "thread-pool");
   config.set ("threads", 128);
   config.set ("www-root", "www-root/");
   config.set ("default-page", "/index.html");
   config.set ("trace-allowed", false);
   config.set ("head-allowed", false);
-  config.set ("ssl-certificate", "rosetta.crt");
-  config.set ("ssl-private-key", "rosetta.key");
+  config.set ("ssl-certificate", "server.crt");
+  config.set ("ssl-private-key", "server.key");
   config.set ("user-agent-whitelist", "*");
   config.set ("user-agent-blacklist", "");
   config.set ("provide-server-info", false);
@@ -170,7 +170,7 @@ void create_default_configuration_file()
   config.set ("max-header-count", 25);
   config.set ("max-request-content-length", 4194304); // 4 MB
   config.set ("request-content-read-timeout", 300); // 5 minutes
-  config.set ("upgrade-insecure-requests", false);
+  config.set ("upgrade-insecure-requests", true);
 
   // Connection settings.
   config.set ("connection-ssl-handshake-timeout", 20);
@@ -178,18 +178,17 @@ void create_default_configuration_file()
   config.set ("max-connections-per-client", 2);
 
   // Request Handlers, according to file extensions.
-  config.set ("html-handler", "static-file-handler");
-  config.set ("js-handler", "static-file-handler");
-  config.set ("css-handler", "static-file-handler");
-  config.set ("png-handler", "static-file-handler");
-  config.set ("gif-handler", "static-file-handler");
-  config.set ("jpeg-handler", "static-file-handler");
-  config.set ("jpg-handler", "static-file-handler");
-  config.set ("ico-handler", "static-file-handler");
-  config.set ("xml-handler", "static-file-handler");
-  config.set ("zip-handler", "static-file-handler");
-  config.set ("json-handler", "static-file-handler");
-  config.set ("default-handler", "append-html-static-file-handler");
+  config.set ("handler-html", "static-file-handler");
+  config.set ("handler-js", "static-file-handler");
+  config.set ("handler-css", "static-file-handler");
+  config.set ("handler-png", "static-file-handler");
+  config.set ("handler-gif", "static-file-handler");
+  config.set ("handler-jpeg", "static-file-handler");
+  config.set ("handler-jpg", "static-file-handler");
+  config.set ("handler-ico", "static-file-handler");
+  config.set ("handler-xml", "static-file-handler");
+  config.set ("handler-zip", "static-file-handler");
+  config.set ("handler-json", "static-file-handler");
 
   // Common MIME types.
   config.set ("mime-html", "text/html; charset=utf-8");

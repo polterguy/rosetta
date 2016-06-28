@@ -5,3 +5,6 @@ build/*
 
 # Exlcuding config file, since it's automatically created during first execution
 rosetta.config
+*.crt
+
+*.key

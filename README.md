@@ -14,11 +14,14 @@ scales upwards, to supercomputers, with thousands of CPUs.
 * Persistent connections
 * Timeouts
 * Max connections per client
+* IP version 4 and 6
 * Pipelining
 * If-Modified-Since
 * Upgrade-Insecure-Requests
 * User-Agent whitelist and blacklist
+* No logging
 * Highly configurable
+* Paranoid by default
 
 ## The Paranoid web server
 
@@ -30,15 +33,17 @@ a *"normal web server"*, in addition to being configured into *"paranoia land"*.
 ### No logging
 
 Rosetta does not, have never, and will never, implement any type of logging of traffic.
-Except possibly for malicious and errors, resulting from an attempted attack.
+Except possibly for malicious requests, and errors, resulting from an attempted attack,
+or compromised client.
 
-The reasons for this, is because an adversary might gain control over your box. If he does,
+The reasons for this, is because an adversary might gain control over your server. If he does,
 then your log files will give away not only you, but also all users of your website. This
 creates a dangerous situation, where the log files of your web server, can unintentionally
-become your and your friends worst nightmare.
+become your and your friends enemy.
 
-When combined with SSL, it hence becomes impossible for an adversary to know which
-documents, from your server, your users have accessed. Significantly reducing your risk.
+This feature, combined with SSL, makes it impossible for an adversary to know which
+documents, from your server, your users have accessed. Significantly reducing your and
+your friends risk for using the web server.
 
 ### User-Agent whitelist and blacklist
 
@@ -110,6 +115,26 @@ devices.
 Is there's a bug in PHP? No problem, Rosetta have no PHP bindings. Is there a bug in CGI?
 No problem, Rosetta have no CGI bindings. Is there a bug in database *"x"*? No problem,
 Rosetta have no bindings to it! Guaranteed!
+
+### Paranoid by default
+
+Rosetta by default, unless configured otherwise, starts out as paranoid, in ultra-secure
+mode, by turning on and off all the switches, such that it starts out in a highly secure
+state, even before you start configuring it.
+
+This means that you don't have to study its documentation, or spend a lot of time
+making it secure, since by default, it already is secure when you start using it.
+
+The only thing you need to do, to make sure it becomes bullet proof in fact, is to put
+an SSL certificate and private key into the root folder of your server, with the name of
+*"server.crt"* and *"server.key"*.
+
+By default, Rosetta accepts insecure connections, but will attempt to upgrade automatically
+to secure connections, if the client supports this feature. It uses port 80 for normal HTTP
+traffic, and port 443 for SSL traffic. It does not accept HEAD and TRACE requests, and is
+configured to run in *"thread-pool"* mode, with 128 threads. It has sane values for timeouts,
+preventing malicious and/or badly written clients to lock up resources on your server, by
+creating requests that never finishes.
 
 ## Future plans
 
