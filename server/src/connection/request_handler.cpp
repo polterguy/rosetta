@@ -28,6 +28,7 @@
 // Including all HTTP handlers we support.
 #include "server/include/connection/handlers/get_file_handler.hpp"
 #include "server/include/connection/handlers/put_file_handler.hpp"
+#include "server/include/connection/handlers/delete_file_handler.hpp"
 #include "server/include/connection/handlers/meta/head_handler.hpp"
 #include "server/include/connection/handlers/meta/error_handler.hpp"
 #include "server/include/connection/handlers/meta/trace_handler.hpp"
@@ -80,6 +81,11 @@ request_handler_ptr request_handler::create (class connection * connection, clas
 
     // Returning a GET file handler.
     return create_put_handler (connection, request);
+
+  } else if (request->envelope().type() == "DELETE") {
+
+    // Returning a GET file handler.
+    return create_delete_handler (connection, request);
 
   } else {
 
@@ -207,6 +213,21 @@ request_handler_ptr request_handler::create_put_handler (class connection * conn
   } else {
 
     // Oops, no such PUT handler.
+    return request_handler_ptr (new error_handler (connection, request, 403));
+  }
+}
+
+
+request_handler_ptr request_handler::create_delete_handler (class connection * connection, class request * request)
+{
+  // Figuring out if user requested a file or a folder.
+  if (request->envelope().extension().size() > 0) {
+
+    // User tries to DELETE a file.
+    return request_handler_ptr (new delete_file_handler (connection, request));
+  } else {
+
+    // Oops, no such DELETE handler.
     return request_handler_ptr (new error_handler (connection, request, 403));
   }
 }

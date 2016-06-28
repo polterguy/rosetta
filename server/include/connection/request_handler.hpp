@@ -111,6 +111,9 @@ private:
   /// Returns a PUT HTTP request_handler.
   static request_handler_ptr create_put_handler (class connection * connection, class request * request);
 
+  /// Returns a DELETE HTTP request_handler.
+  static request_handler_ptr create_delete_handler (class connection * connection, class request * request);
+
   /// Implementation of actual file write operation.
   /// Will read _response_buffer.size() from file, and write buffer content to socket, before invoking self, until entire file has been written.
   void write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor on_success);
