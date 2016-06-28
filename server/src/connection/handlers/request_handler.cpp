@@ -85,11 +85,31 @@ request_handler_ptr request_handler::create (class connection * connection, clas
 
 bool request_handler::should_upgrade_insecure_requests (const class connection * connection, const class request * request)
 {
-  // Retrieving configuration settings for whether or not we should upgrade insecure requests.
-  const bool upgrade = connection->server()->configuration().get <bool> ("upgrade-insecure-requests", false);
+  // Checking if current request is secured already.
+  if (!connection->is_secure()) {
 
-  // We only upgrade if configuration settings says so, and the current connection is insecure.
-  return upgrade && !connection->is_secure();
+    // Checking if server is configured to allow for automatic upgrading of insecure requests.
+    if (connection->server()->configuration().get <bool> ("upgrade-insecure-requests", false)) {
+
+      // Checking if server is configure with, and has a root certificate and a private key.
+      const string & certificate = connection->server()->configuration().get<string> ("ssl-certificate", "");
+      const string & key = connection->server()->configuration().get<string> ("ssl-private-key", "");
+
+      // Checking if neither of the above values are empty.
+      if (certificate.size() > 0 && key.size() > 0) {
+
+        // Checking if certificate file and key file actually exists on disc.
+        if (boost::filesystem::exists (certificate) && boost::filesystem::exists (key)) {
+
+          // We can safely upgrade the current request!
+          return true;
+        }
+      }
+    }
+  }
+
+  // This request should not be upgraded for some reasons.
+  return false;
 }
 
 
