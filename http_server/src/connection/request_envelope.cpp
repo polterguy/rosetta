@@ -146,9 +146,7 @@ void request_envelope::parse_uri (string uri)
   // Notice, we only allow for [a-z], [A-Z], [0-9] in addition to '.' and '-', to make URIs more robust and lessen the attack surface.
   // If anything besides these characters are found in the URI, we entirely refuse connection, by throwing an exception!
   for (auto & idx : uri) {
-    if (idx < 32 || idx >= 122)
-      throw request_exception ("Illegal characters found in path.");
-    if (idx > 32 && idx < 45)
+    if (idx < 45 || idx > 122)
       throw request_exception ("Illegal characters found in path.");
     if (idx > 57 && idx < 65)
       throw request_exception ("Illegal characters found in path.");

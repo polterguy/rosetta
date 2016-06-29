@@ -37,19 +37,13 @@ put_file_handler::put_file_handler (class connection * connection, class request
 
 void put_file_handler::handle (exceptional_executor x, functor on_success)
 {
-  // Retrieving URI from request, removing initial "/", before prepending it with the www-root folder.
-  auto uri = request()->envelope().path();
-
-  // Retrieving root path, and building full path for document.
-  const string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
-  const string filename = WWW_ROOT_PATH + uri.c_str();
-
-  // Writing file to server.
-  save_request_content (filename, x, on_success);
+  // Retrieving URI from request.
+  auto path = request()->envelope().path();
+  save_request_content (path, x, on_success);
 }
 
 
-void put_file_handler::save_request_content (const string & filename, exceptional_executor x, functor on_success)
+void put_file_handler::save_request_content (path filename, exceptional_executor x, functor on_success)
 {
   // Making things more tidy in here.
   using namespace std;
@@ -62,7 +56,7 @@ void put_file_handler::save_request_content (const string & filename, exceptiona
   size_t content_length = get_content_length ();
 
   // Creating file, to pass in as shared_ptr, to make sure it stays valid, until process is finished.
-  auto file_ptr = make_shared<std::ofstream> (filename + ".partial", ios::binary | ios::trunc | ios::out);
+  auto file_ptr = make_shared<std::ofstream> (filename.string () + ".partial", ios::binary | ios::trunc | ios::out);
 
   // Creating an input stream wrapping the asio stream buffer.
   auto ss_ptr = make_shared<istream> (&connection()->buffer());
@@ -80,7 +74,7 @@ void put_file_handler::save_request_content (const string & filename, exceptiona
   save_request_content_to_file (file_ptr, ss_ptr, content_length, x, x2, [this, filename, on_success] (auto x) {
 
     // Renaming file from its temporary name.
-    boost::filesystem::rename (filename + ".partial", filename);
+    boost::filesystem::rename (filename.string () + ".partial", filename);
 
     // Returning success to client.
     write_success_envelope (x, on_success);

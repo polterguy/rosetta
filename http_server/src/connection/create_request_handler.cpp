@@ -29,6 +29,7 @@
 #include "http_server/include/connection/handlers/get_file_handler.hpp"
 #include "http_server/include/connection/handlers/get_folder_handler.hpp"
 #include "http_server/include/connection/handlers/put_file_handler.hpp"
+#include "http_server/include/connection/handlers/put_folder_handler.hpp"
 #include "http_server/include/connection/handlers/delete_file_handler.hpp"
 #include "http_server/include/connection/handlers/meta/head_handler.hpp"
 #include "http_server/include/connection/handlers/meta/error_handler.hpp"
@@ -232,14 +233,14 @@ request_handler_ptr create_put_handler (class connection * connection, class req
     return request_handler_ptr (new error_handler (connection, request, 404)); // No such folder.
 
   // Figuring out if user requested a file or a folder.
-  if (is_regular_file (request->envelope().path())) {
+  if (request->envelope().path().extension() != "") {
 
     // User tries to PUT a file.
     return request_handler_ptr (new put_file_handler (connection, request));
   } else {
 
     // Oops, no such PUT handler. (yet)
-    return request_handler_ptr (new error_handler (connection, request, 403));
+    return request_handler_ptr (new put_folder_handler (connection, request));
   }
 }
 

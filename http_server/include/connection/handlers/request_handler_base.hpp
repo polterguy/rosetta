@@ -84,14 +84,14 @@ protected:
   /// Returns request for this instance.
   request * request() { return _request; }
 
+  /// Returns the MIME type according to file extension.
+  string get_mime (path filename);
+
 private:
 
   /// Implementation of actual file write operation.
   /// Will read _response_buffer.size() from file, and write buffer content to socket, before invoking self, until entire file has been written.
   void write_file (shared_ptr<ifstream> fs_ptr, exceptional_executor x, functor on_success);
-
-  /// Returns the MIME type according to file extension.
-  string get_mime (path filename);
 
 
   /// Buffer for sending content back to client in chunks.

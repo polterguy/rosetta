@@ -109,7 +109,7 @@ void get_folder_handler::write_folder (path folderpath, exceptional_executor x, 
   // Using shared_ptr of vector to hold folder information.
   auto buffer_ptr = std::make_shared<std::vector<unsigned char>> ();
   buffer_ptr->push_back ('{');
-  string folder_content = "\"content\":";
+  string folder_content = "\"files\":";
   buffer_ptr->insert (buffer_ptr->end(), folder_content.begin(), folder_content.end());
   buffer_ptr->push_back ('[');
 

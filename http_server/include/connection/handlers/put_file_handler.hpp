@@ -52,7 +52,7 @@ public:
 private:
 
   /// Saves content of request to the specified file.
-  void save_request_content (const string & filename, exceptional_executor x, functor on_success);
+  void save_request_content (path filename, exceptional_executor x, functor on_success);
 
   /// Write request content to file.
   void save_request_content_to_file (shared_ptr<std::ofstream> file_ptr,
