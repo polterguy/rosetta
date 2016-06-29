@@ -149,11 +149,11 @@ void create_default_configuration_file()
 
   // Main server settings.
   config.set ("address", "localhost");
-  config.set ("port", 80);
-  config.set ("ssl-port", 443);
+  config.set ("port", 8080);
+  config.set ("ssl-port", 8081);
   config.set ("thread-model", "thread-pool");
   config.set ("threads", 128);
-  config.set ("www-root", "www-root/");
+  config.set ("www-root", "www-root");
   config.set ("default-page", "/index.html");
   config.set ("trace-allowed", false);
   config.set ("head-allowed", false);
@@ -178,30 +178,30 @@ void create_default_configuration_file()
   config.set ("max-connections-per-client", 2);
 
   // Request Handlers, according to file extensions.
-  config.set ("handler-html", "get-file-handler");
-  config.set ("handler-js", "get-file-handler");
-  config.set ("handler-css", "get-file-handler");
-  config.set ("handler-png", "get-file-handler");
-  config.set ("handler-gif", "get-file-handler");
-  config.set ("handler-jpeg", "get-file-handler");
-  config.set ("handler-jpg", "get-file-handler");
-  config.set ("handler-ico", "get-file-handler");
-  config.set ("handler-xml", "get-file-handler");
-  config.set ("handler-zip", "get-file-handler");
-  config.set ("handler-json", "get-file-handler");
+  config.set ("handler.html", "get-file-handler");
+  config.set ("handler.js", "get-file-handler");
+  config.set ("handler.css", "get-file-handler");
+  config.set ("handler.png", "get-file-handler");
+  config.set ("handler.gif", "get-file-handler");
+  config.set ("handler.jpeg", "get-file-handler");
+  config.set ("handler.jpg", "get-file-handler");
+  config.set ("handler.ico", "get-file-handler");
+  config.set ("handler.xml", "get-file-handler");
+  config.set ("handler.zip", "get-file-handler");
+  config.set ("handler.json", "get-file-handler");
 
   // Common MIME types.
-  config.set ("mime-html", "text/html; charset=utf-8");
-  config.set ("mime-css", "text/css; charset=utf-8");
-  config.set ("mime-js", "application/javascript; charset=utf-8");
-  config.set ("mime-json", "application/json; charset=utf-8");
-  config.set ("mime-png", "image/png");
-  config.set ("mime-jpg", "image/jpeg");
-  config.set ("mime-jpeg", "image/jpeg");
-  config.set ("mime-ico", "image/x-icon");
-  config.set ("mime-bz", "application/x-bzip");
-  config.set ("mime-zip", "application/zip");
-  config.set ("mime-xml", "application/rss+xml");
+  config.set ("mime.html", "text/html; charset=utf-8");
+  config.set ("mime.css", "text/css; charset=utf-8");
+  config.set ("mime.js", "application/javascript; charset=utf-8");
+  config.set ("mime.json", "application/json; charset=utf-8");
+  config.set ("mime.png", "image/png");
+  config.set ("mime.jpg", "image/jpeg");
+  config.set ("mime.jpeg", "image/jpeg");
+  config.set ("mime.ico", "image/x-icon");
+  config.set ("mime.bz", "application/x-bzip");
+  config.set ("mime.zip", "application/zip");
+  config.set ("mime.xml", "application/rss+xml");
 
   // Saving configuration to file
   config.save (DEFAULT_CONFIGURATION_FILE);

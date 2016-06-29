@@ -30,19 +30,18 @@ using namespace rosetta::common;
 
 
 /// Verifies URI is sane, and not malformed, attempting to retrieve document outside of main folder, hidden files, etc.
-bool sanity_check_uri (const string & uri);
+bool sanity_check_uri (path uri);
 
 
-head_handler::head_handler (class connection * connection, class request * request, const string & extension)
-  : request_handler (connection, request),
-    _extension (extension)
+head_handler::head_handler (class connection * connection, class request * request)
+  : request_handler (connection, request)
 { }
 
 
 void head_handler::handle (exceptional_executor x, functor on_success)
 {
   // Retrieving URI from request, removing initial "/" from URI, before checking sanity of URI.
-  string uri = request()->envelope().uri().substr (1);
+  auto uri = request()->envelope().uri().string();
   if (!sanity_check_uri (uri)) {
 
     // URI is not "sane".
@@ -50,11 +49,8 @@ void head_handler::handle (exceptional_executor x, functor on_success)
     return;
   }
 
-  // Retrieving root path, and building full path for document.
-  const string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
-  const string full_path = WWW_ROOT_PATH + uri;
-
-  // Making sure file exists.
+  // Retrieving full path of document, and ensuring it exists.
+  path full_path = request()->envelope().path();
   if (!boost::filesystem::exists (full_path)) {
 
       // Writing error status response, and returning early.
@@ -67,7 +63,7 @@ void head_handler::handle (exceptional_executor x, functor on_success)
 }
 
 
-void head_handler::write_head (const string & full_path, exceptional_executor x, functor on_success)
+void head_handler::write_head (path full_path, exceptional_executor x, functor on_success)
 {
   // First writing status 200.
   write_status (200, x, [this, x, full_path, on_success] (auto x) {

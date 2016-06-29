@@ -78,11 +78,12 @@ std::shared_ptr<std::vector<unsigned char> > trace_handler::build_content ()
   auto buffer_ptr = std::make_shared<std::vector<unsigned char> >();
 
   // Starting with HTTP method.
-  buffer_ptr->insert (buffer_ptr->end(), request()->envelope().type ().begin(), request()->envelope().type().end());
+  buffer_ptr->insert (buffer_ptr->end(), request()->envelope().method().begin(), request()->envelope().method().end());
   buffer_ptr->push_back (' ');
 
   // Then the URI, without the parameters.
-  buffer_ptr->insert (buffer_ptr->end(), request()->envelope().uri ().begin(), request()->envelope().uri().end());
+  string path = request()->envelope().path().c_str();
+  buffer_ptr->insert (buffer_ptr->end(), path.begin(), path.end());
 
   // Pushing parameters into the HTTP-Request line URI.
   bool first = true;
@@ -112,7 +113,7 @@ std::shared_ptr<std::vector<unsigned char> > trace_handler::build_content ()
 
   // Adding HTTP version into content buffer.
   buffer_ptr->push_back (' ');
-  buffer_ptr->insert (buffer_ptr->end(), request()->envelope().version().begin(), request()->envelope().version().end());
+  buffer_ptr->insert (buffer_ptr->end(), request()->envelope().http_version().begin(), request()->envelope().http_version().end());
 
   // CR/LF sequence, to prepare for HTTP headers.
   buffer_ptr->push_back ('\r');

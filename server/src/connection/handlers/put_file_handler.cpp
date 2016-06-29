@@ -37,11 +37,11 @@ put_file_handler::put_file_handler (class connection * connection, class request
 void put_file_handler::handle (exceptional_executor x, functor on_success)
 {
   // Retrieving URI from request, removing initial "/", before prepending it with the www-root folder.
-  string uri = request()->envelope().uri().substr (1);
+  auto uri = request()->envelope().path();
 
   // Retrieving root path, and building full path for document.
   const string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
-  const string filename = WWW_ROOT_PATH + uri;
+  const string filename = WWW_ROOT_PATH + uri.c_str();
 
   // Writing file to server.
   save_request_content (filename, x, on_success);
@@ -61,7 +61,7 @@ void put_file_handler::save_request_content (const string & filename, exceptiona
   size_t content_length = get_content_length ();
 
   // Creating file, to pass in as shared_ptr, to make sure it stays valid, until process is finished.
-  auto file_ptr = make_shared<ofstream> (filename + ".partial", ios::binary | ios::trunc | ios::out);
+  auto file_ptr = make_shared<std::ofstream> (filename + ".partial", ios::binary | ios::trunc | ios::out);
 
   // Creating an input stream wrapping the asio stream buffer.
   auto ss_ptr = make_shared<istream> (&connection()->buffer());

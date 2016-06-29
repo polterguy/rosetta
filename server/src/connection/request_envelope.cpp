@@ -84,6 +84,80 @@ void request_envelope::read (exceptional_executor x, functor on_success)
 }
 
 
+void request_envelope::parse_request_line (const string & request_line)
+{
+  // Making things slightly more tidy and comfortable in here ...
+  using namespace std;
+  using namespace boost;
+  using namespace boost::algorithm;
+
+  // Splitting initial HTTP line into its three parts.
+  vector<string> parts;
+  split (parts, request_line, ::isspace);
+
+  // Removing all empty parts, which translates into consecutive spaces, to make logic more fault tolerant. Ref; HTTP/1.1 - 19.3.
+  parts.erase (remove (parts.begin(), parts.end(), ""), parts.end ());
+
+  // Now we can start deducting which type of request, and path, etc, this is.
+  size_t no_parts = parts.size ();
+
+  // At least the method and the URI needs to be supplied. The version is defaulted to HTTP/1.1, so it is actually optional.
+  // This is in accordance to the HTTP/1.1 standard; 19.3.
+  if (parts.size() < 2 || parts.size() > 3)
+    throw request_exception ("Malformed HTTP-Request line.");
+
+  // To be more fault tolerant, according to the HTTP/1.1 standard, point 19.3, we make sure the method is in UPPERCASE.
+  // We also default the version to HTTP/1.1, unless it is explicitly given, and if given, we make sure it is UPPERCASE.
+  _method           = to_upper_copy (parts [0]);
+  _http_version     = no_parts > 2 ? to_upper_copy (parts [2]) : "HTTP/1.1";
+
+  // Then, at last, we parse the URI.
+  parse_uri (parts [1]);
+}
+
+
+void request_envelope::parse_uri (string uri)
+{
+  // Checking if path is a request for the default document.
+  if (uri == "/") {
+
+    // Serving default document.
+    uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
+  } else if (uri [0] != '/') {
+
+    // To make sure we're more fault tolerant, we prepend the URI with "/", if it is not given. Ref; 19.3.
+    uri = "/" + uri;
+  }
+
+  // Checking if URI contains HTTP GET parameters.
+  auto index_of_pars = uri.find ("?");
+  if (index_of_pars == 1) {
+
+    // Default page was requested, as "/", with HTTP GET parameters.
+    parse_parameters (decode_uri (uri.substr (2)));
+
+    // Serving default document.
+    uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
+  } else if (index_of_pars != string::npos) {
+
+    // URI contains GET parameters.
+    parse_parameters (decode_uri (uri.substr (index_of_pars + 1)));
+
+    // Decoding URI.
+    uri = decode_uri (uri.substr (0, index_of_pars));
+  } else {
+
+    // No parameters, decoding URI.
+    uri = decode_uri (uri);
+  }
+
+  // Then, finally, we can set the URI and path.
+  _uri = uri;
+  _path += _connection->server()->configuration().get<string> ("www-root", "www-root");
+  _path += uri;
+}
+
+
 void request_envelope::read_headers (exceptional_executor x, functor on_success)
 {
   // Retrieving max header size.
@@ -158,7 +232,7 @@ void request_envelope::parse_http_header_line (const string & line)
 }
 
 
-const string & request_envelope::header (const string & name) const
+string request_envelope::header (const string & name) const
 {
   // Empty return value, used when there are no such header.
   const static string EMPTY_HEADER_VALUE = "";
@@ -171,84 +245,6 @@ const string & request_envelope::header (const string & name) const
 
   // No such header.
   return EMPTY_HEADER_VALUE;
-}
-
-
-void request_envelope::parse_request_line (const string & request_line)
-{
-  // Making things slightly more tidy and comfortable in here ...
-  using namespace std;
-  using namespace boost;
-  using namespace boost::algorithm;
-
-  // Splitting initial HTTP line into its three parts.
-  vector<string> parts;
-  split (parts, request_line, ::isspace);
-
-  // Removing all empty parts, which translates into consecutive spaces, to make logic more fault tolerant. Ref; HTTP/1.1 - 19.3.
-  parts.erase (remove (parts.begin(), parts.end(), ""), parts.end ());
-
-  // Now we can start deducting which type of request, and path, etc, this is.
-  size_t no_parts = parts.size ();
-
-  // At least the method and the URI needs to be supplied. The version is defaulted to HTTP/1.1, so it is actually optional.
-  // This is in accordance to the HTTP/1.1 standard; 19.3.
-  if (parts.size() < 2 || parts.size() > 3)
-    throw request_exception ("Malformed HTTP-Request line.");
-
-  // To be more fault tolerant, according to the HTTP/1.1 standard, point 19.3, we make sure the method is in UPPERCASE.
-  // We also default the version to HTTP/1.1, unless it is explicitly given, and if given, we make sure it is UPPERCASE.
-  _type           = to_upper_copy (parts [0]);
-  _version        = no_parts > 2 ? to_upper_copy (parts [2]) : "HTTP/1.1";
-
-  // Then, at last, we parse the URI.
-  parse_uri (parts [1]);
-}
-
-
-void request_envelope::parse_uri (string & uri)
-{
-  // Checking if path is a request for the default document.
-  if (uri == "/") {
-
-    // Serving default document.
-    uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
-  } else if (uri [0] != '/') {
-
-    // To make sure we're more fault tolerant, we prepend the URI with "/", if it is not given. Ref; 19.3.
-    uri = "/" + uri;
-  }
-
-  // Retrieving file name and extension of request URI.
-  _filename = uri.substr (uri.find_last_of ('/') + 1);
-  size_t pos_of_dot = _filename.find_last_of ('.');
-  if (pos_of_dot != string::npos)
-    _extension = _filename.substr (pos_of_dot + 1);
-
-  // Checking if URI contains HTTP GET parameters.
-  auto index_of_pars = uri.find ("?");
-  if (index_of_pars == 1) {
-
-    // Default page was requested, as "/", with HTTP GET parameters.
-    parse_parameters (decode_uri (uri.substr (2)));
-
-    // Serving default document.
-    uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
-  } else if (index_of_pars != string::npos) {
-
-    // URI contains GET parameters.
-    parse_parameters (decode_uri (uri.substr (index_of_pars + 1)));
-
-    // Decoding URI.
-    uri = decode_uri (uri.substr (0, index_of_pars));
-  } else {
-
-    // No parameters, decoding URI.
-    uri = decode_uri (uri);
-  }
-
-  // Then, finally, we can set the URI.
-  _uri = uri;
 }
 
 

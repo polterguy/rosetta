@@ -30,7 +30,7 @@ include_directories(.)
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y -Wall -Wextra -Wno-unused-parameter")
 
 # Making sure output is stuffed into correct directory
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/bin)
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 # Including boost libraries
 find_package (Boost COMPONENTS filesystem thread REQUIRED)

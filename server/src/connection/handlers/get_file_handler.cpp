@@ -37,19 +37,18 @@ using namespace rosetta::common;
 
 
 /// Verifies URI is sane, and not malformed, attempting to retrieve document outside of main folder, hidden files, etc.
-bool sanity_check_uri (const string & uri);
+bool sanity_check_uri (path uri);
 
 
-get_file_handler::get_file_handler (class connection * connection, class request * request, const string & extension)
-  : request_handler (connection, request),
-    _extension (extension)
+get_file_handler::get_file_handler (class connection * connection, class request * request)
+  : request_handler (connection, request)
 { }
 
 
 void get_file_handler::handle (exceptional_executor x, functor on_success)
 {
   // Retrieving URI from request, removing initial "/" from URI, before checking sanity of URI.
-  string uri = request()->envelope().uri().substr (1);
+  auto uri = request()->envelope().uri();
   if (!sanity_check_uri (uri)) {
 
     // URI is not "sane".
@@ -57,11 +56,8 @@ void get_file_handler::handle (exceptional_executor x, functor on_success)
     return;
   }
 
-  // Retrieving root path, and building full path for document.
-  const string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
-  const string full_path = WWW_ROOT_PATH + uri;
-
-  // Making sure file exists.
+  // Retrieving root path, and making sure it exists.
+  path full_path = request()->envelope().path();
   if (!boost::filesystem::exists (full_path)) {
 
       // Writing error status response, and returning early.
@@ -82,7 +78,7 @@ void get_file_handler::handle (exceptional_executor x, functor on_success)
 }
 
 
-bool get_file_handler::should_write_file (const string & full_path)
+bool get_file_handler::should_write_file (path full_path)
 {
   // Checking if client passed in an "If-Modified-Since" header.
   string if_modified_since = request()->envelope().header ("If-Modified-Since");
@@ -90,7 +86,7 @@ bool get_file_handler::should_write_file (const string & full_path)
 
     // We have an "If-Modified-Since" HTTP header, checking if file was tampered with since that date.
     date if_modified_date = date::parse (if_modified_since);
-    date file_modify_date = date::from_file_change (full_path);
+    date file_modify_date = date::from_file_change (full_path.string ());
 
     // Comparing dates.
     if (file_modify_date > if_modified_date) {
@@ -129,23 +125,18 @@ void get_file_handler::write_304_response (exceptional_executor x, functor on_su
 }
 
 
-bool sanity_check_uri (const string & uri)
+bool sanity_check_uri (path uri)
 {
   // Breaking up URI into components, and sanity checking each component, to verify client is not requesting an illegal URI.
-  std::vector<string> entities;
-  boost::split (entities, uri, boost::is_any_of ("/"));
-  for (string & idx : entities) {
+  for (auto & idx : uri) {
 
-    if (idx == "")
-      return false; // Two consecutive "/" after each other.
-
-    if (idx.find ("..") != string::npos) // Request is probably trying to access files outside of the main www-root folder.
+    if (idx.string().find ("..") != string::npos) // Request is probably trying to access files outside of the main "www-root" folder.
       return false;
 
-    if (idx.find ("~") == 0) // Linux backup file or folder.
+    if (idx.string().find ("~") == 0) // Linux backup file or folder.
       return false;
 
-    if (idx.find (".") == 0) // Linux hidden file or folder, or a file without a name, and only extension.
+    if (idx.string().find (".") == 0) // Linux hidden file or folder, or a file without a name, and only extension.
       return false;
   }
   return true; // URI is sane.

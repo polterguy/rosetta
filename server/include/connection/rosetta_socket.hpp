@@ -45,7 +45,7 @@ public:
   virtual void async_read_until (streambuf & buffer, match_condition & match, socket_callback callback) = 0;
 
   /// Reads exactly "no" bytes from socket.
-  virtual void async_read (streambuf & buffer, detail::transfer_exactly_t no, socket_callback callback) = 0;
+  virtual void async_read (streambuf & buffer, boost::asio::detail::transfer_exactly_t no, socket_callback callback) = 0;
 
   /// Writes the given const_buffer to socket.
   virtual void async_write (const_buffers_1 buffer, socket_callback callback) = 0;
@@ -87,7 +87,7 @@ public:
   }
 
   /// Reads exactly "no" bytes from socket.
-  void async_read (streambuf & buffer, detail::transfer_exactly_t no, socket_callback callback) override
+  void async_read (streambuf & buffer, boost::asio::detail::transfer_exactly_t no, socket_callback callback) override
   {
     boost::asio::async_read (_socket, buffer, no, callback);
   }
@@ -147,7 +147,7 @@ public:
   }
 
   /// Reads exactly "no" bytes from socket.
-  void async_read (streambuf & buffer, detail::transfer_exactly_t no, socket_callback callback) override
+  void async_read (streambuf & buffer, boost::asio::detail::transfer_exactly_t no, socket_callback callback) override
   {
     boost::asio::async_read (_socket, buffer, no, callback);
   }

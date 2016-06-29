@@ -16,12 +16,15 @@
  */
 
 #include <iostream>
+#include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
 #include "server/include/server.hpp"
 #include "server/include/multi_thread_server.hpp"
 #include "server/include/connection/connection.hpp"
 
 using std::string;
 using boost::system::error_code;
+using namespace boost::filesystem;
 
 namespace rosetta {
 namespace server {

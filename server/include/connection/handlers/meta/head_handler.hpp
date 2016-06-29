@@ -19,7 +19,7 @@
 #define ROSETTA_SERVER_HEAD_HANDLER_HPP
 
 #include "common/include/exceptional_executor.hpp"
-#include "server/include/connection/request_handler.hpp"
+#include "server/include/connection/handlers/request_handler_base.hpp"
 
 namespace rosetta {
 namespace server {
@@ -37,7 +37,7 @@ class head_handler final : public request_handler
 public:
 
   /// Creates a static file handler.
-  head_handler (class connection * connection, class request * request, const string & extension);
+  head_handler (class connection * connection, class request * request);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, functor on_success) override;
@@ -45,11 +45,7 @@ public:
 private:
 
   /// Writes head back to client.
-  void write_head (const string & full_path, exceptional_executor x, functor on_success);
-
-
-  /// The file extension of the current request.
-  const string _extension;
+  void write_head (path full_path, exceptional_executor x, functor on_success);
 };
 
 

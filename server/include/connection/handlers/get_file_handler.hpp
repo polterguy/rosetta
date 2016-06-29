@@ -19,7 +19,7 @@
 #define ROSETTA_SERVER_STATIC_FILE_HANDLER_HPP
 
 #include "common/include/exceptional_executor.hpp"
-#include "server/include/connection/request_handler.hpp"
+#include "server/include/connection/handlers/request_handler_base.hpp"
 
 namespace rosetta {
 namespace server {
@@ -37,7 +37,7 @@ class get_file_handler final : public request_handler
 public:
 
   /// Creates a static file handler.
-  get_file_handler (class connection * connection, class request * request, const string & extension);
+  get_file_handler (class connection * connection, class request * request);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, functor on_success) override;
@@ -45,14 +45,10 @@ public:
 private:
 
   /// Checks if file should be rendered back to client, or if we should return a 304.
-  bool should_write_file (const string & full_path);
+  bool should_write_file (path full_path);
 
   /// Writes 304 response back to client.
   void write_304_response (exceptional_executor x, functor on_success);
-
-
-  /// The file extension of the current request.
-  const string _extension;
 };
 
 

@@ -1,10 +1,11 @@
 
-# Entire bin folder and build folder
-bin/*
+# Main executable and build folder
+rosetta
 build/*
 
 # Exlcuding config file, since it's automatically created during first execution
 rosetta.config
-*.crt
 
-*.key
+# Excluding testing certificate and private key
+server.crt
+server.key

@@ -35,15 +35,11 @@ delete_file_handler::delete_file_handler (class connection * connection, class r
 
 void delete_file_handler::handle (exceptional_executor x, functor on_success)
 {
-  // Retrieving URI from request, removing initial "/", before prepending it with the www-root folder.
-  string uri = request()->envelope().uri().substr (1);
-
-  // Retrieving root path, and building full path for document.
-  const string WWW_ROOT_PATH = connection()->server()->configuration().get<string> ("www-root", "www-root/");
-  const string filename = WWW_ROOT_PATH + uri;
+  // Retrieving URI from request.
+  auto path = request()->envelope().path();
 
   // Deleting file.
-  boost::filesystem::remove (filename);
+  boost::filesystem::remove (path);
 
   // Returning success to client.
   write_success_envelope (x, on_success);

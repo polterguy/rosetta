@@ -22,12 +22,14 @@
 #include <tuple>
 #include <string>
 #include <vector>
+#include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
 
 namespace rosetta {
 namespace server {
 
 using std::string;
+using namespace boost::filesystem;
 using namespace rosetta::common;
 
 class connection;
@@ -51,22 +53,19 @@ public:
   void read (exceptional_executor x, functor on_success);
 
   /// Returns the URI of the request.
-  const inline string & uri() const { return _uri; }
+  inline class path uri() const { return _uri; }
 
-  /// Returns the extension of the request.
-  const inline string & extension() const { return _extension; }
-
-  /// Returns the file name, without path, of the request.
-  const inline string & filename() const { return _filename; }
+  /// Returns the server side path of the document/folder the uri is referring to.
+  inline class path path() const { return _path; }
 
   /// Returns the type of the request.
-  const inline string & type() const { return _type; }
+  inline string method() const { return _method; }
 
   /// Returns the HTTP version of the request.
-  const inline string & version() const { return _version; }
+  inline string http_version() const { return _http_version; }
 
   /// Retrieves the value of the header with the specified name, or empty string if no such header exists.
-  const string & header (const string & name) const;
+  string header (const string & name) const;
 
   /// Returns the headers collection for the current request.
   const const_collection & headers () const { return _headers; }
@@ -80,7 +79,7 @@ private:
   void parse_request_line (const string & request_line);
 
   /// Parses and verifies correctness of the URI from the HTTP-Request line.
-  void parse_uri (string & uri);
+  void parse_uri (string uri);
 
   /// Reads the next HTTP headers from socket.
   void read_headers (exceptional_executor x, functor on_success);
@@ -99,19 +98,16 @@ private:
   request * _request;
 
   /// Type of request, GET/POST/DELETE/PUT etc.
-  string _type;
+  string _method;
 
-  /// Path to resource requested.
-  string _uri;
+  /// Internal path to resource request is referring to.
+  class path _path;
 
-  /// File name, without path, that was requested.
-  string _filename;
-
-  /// File extension of request.
-  string _extension;
+  /// URI of request.
+  class path _uri;
 
   /// HTTP version of request.
-  string _version;
+  string _http_version;
 
   /// Headers.
   collection _headers;
