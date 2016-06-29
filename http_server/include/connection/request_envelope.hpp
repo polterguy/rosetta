@@ -59,13 +59,13 @@ public:
   inline class path path() const { return _path; }
 
   /// Returns the type of the request.
-  inline string method() const { return _method; }
+  inline const string & method() const { return _method; }
 
   /// Returns the HTTP version of the request.
-  inline string http_version() const { return _http_version; }
+  inline const string & http_version() const { return _http_version; }
 
   /// Retrieves the value of the header with the specified name, or empty string if no such header exists.
-  string header (const string & name) const;
+  const string & header (const string & name) const;
 
   /// Returns the headers collection for the current request.
   const const_collection & headers () const { return _headers; }

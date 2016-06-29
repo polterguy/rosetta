@@ -82,8 +82,8 @@ std::shared_ptr<std::vector<unsigned char> > trace_handler::build_content ()
   buffer_ptr->push_back (' ');
 
   // Then the URI, without the parameters.
-  string path = request()->envelope().path().c_str();
-  buffer_ptr->insert (buffer_ptr->end(), path.begin(), path.end());
+  string uri = request()->envelope().uri().string();
+  buffer_ptr->insert (buffer_ptr->end(), uri.begin(), uri.end());
 
   // Pushing parameters into the HTTP-Request line URI.
   bool first = true;

@@ -232,7 +232,7 @@ void request_envelope::parse_http_header_line (const string & line)
 }
 
 
-string request_envelope::header (const string & name) const
+const string & request_envelope::header (const string & name) const
 {
   // Empty return value, used when there are no such header.
   const static string EMPTY_HEADER_VALUE = "";
