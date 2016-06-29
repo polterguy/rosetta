@@ -46,7 +46,7 @@ endif()
 
 # Adding source files to compilation of main Rosetta project.
 file (GLOB MAIN "main.cpp")
-file (GLOB_RECURSE HTTP_SERVER "http/src/*.cpp")
+file (GLOB_RECURSE HTTP_SERVER "http_server/src/*.cpp")
 
 # Adding all C++ files compiler should compile into main executable
 add_executable (rosetta ${MAIN} ${HTTP_SERVER})

@@ -20,13 +20,13 @@
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 #include "common/include/configuration.hpp"
-#include "http/include/server.hpp"
-#include "http/include/exceptions/argument_exception.hpp"
+#include "http_server/include/server.hpp"
+#include "http_server/include/exceptions/argument_exception.hpp"
 
 using std::endl;
 using std::string;
 using namespace rosetta::common;
-using namespace rosetta::http;
+using namespace rosetta::http_server;
 
 // Name of default configuration file
 char const * const DEFAULT_CONFIGURATION_FILE = "rosetta.config";
@@ -38,7 +38,7 @@ void show_copyright_server_info (const configuration & config);
 
 
 /// Main entry point for Rosetta web server
-int main (int argc, char* argv[])
+int main (int argc, char * argv[])
 {
   // Making sure we trap everything that can go wrong, to give some sane feedback to
   // std::cerr if an exception occurs.
