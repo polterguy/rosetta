@@ -18,12 +18,9 @@
 #ifndef ROSETTA_SERVER_MATCH_CONDITION_HPP
 #define ROSETTA_SERVER_MATCH_CONDITION_HPP
 
-#include <string>
 #include <memory>
 #include <utility>
-#include <stdexcept>
 #include <boost/asio.hpp>
-#include "server/include/exceptions/request_exception.hpp"
 
 namespace rosetta {
 namespace common {

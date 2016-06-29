@@ -45,14 +45,11 @@ if (OPENSSL_FOUND)
 endif()
 
 # Adding source files to compilation of main Rosetta project.
-file (GLOB MAIN "server/main.cpp")
-file (GLOB SERVER "server/src/*.cpp")
-file (GLOB CONNECTION "server/src/connection/*.cpp")
-file (GLOB HANDLERS "server/src/connection/handlers/*.cpp")
-file (GLOB META_HANDLERS "server/src/connection/handlers/meta/*.cpp")
+file (GLOB MAIN "main.cpp")
+file (GLOB_RECURSE HTTP_SERVER "http/src/*.cpp")
 
 # Adding all C++ files compiler should compile into main executable
-add_executable (rosetta ${MAIN} ${SERVER} ${CONNECTION} ${HANDLERS} ${META_HANDLERS})
+add_executable (rosetta ${MAIN} ${HTTP_SERVER})
 
 # Creating "configuration" library as a statically linked library
 file (GLOB COMMON "common/src/*.cpp")
