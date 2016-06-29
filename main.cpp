@@ -73,9 +73,9 @@ void show_copyright_server_info (const configuration & config)
   configuration::serialize_copyright (std::cout, [config] (std::ostream & stream) {
     
     // Serializing information about how to view website, making sure we've accommodated for 80 characters per line.
-    string s = "# Open your browser and go to; 'http://localhost:"
+    string s = "# Go to; 'http://localhost:"
              + config.get<string>("port")
-             + "' to see your website.";
+             + "/index.html' to see your website.";
       
     // Making sure we've got 80 characters in string, padded by "#", before we serialize it to stream.
     while (s.size() < 79) { s += " "; }

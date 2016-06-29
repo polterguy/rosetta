@@ -139,6 +139,20 @@ void request_envelope::parse_uri (string uri)
     uri = decode_uri (uri);
   }
 
+  // Verify URI does not contain any characters besides the US ASCII characters.
+  // Notice, we only allow for [a-z], [A-Z], [0-9] in addition to '.' and '-', to make URIs more robust and lessen the attack surface.
+  // If anything besides these characters are found in the URI, we entirely refuse connection, by throwing an exception!
+  for (auto & idx : uri) {
+    if (idx < 32 || idx >= 122)
+      throw request_exception ("Illegal characters found in path.");
+    if (idx > 32 && idx < 45)
+      throw request_exception ("Illegal characters found in path.");
+    if (idx > 57 && idx < 65)
+      throw request_exception ("Illegal characters found in path.");
+    if (idx > 90 && idx < 97)
+      throw request_exception ("Illegal characters found in path.");
+  }
+
   // Then, finally, we can set the URI and path.
   _uri = uri;
   _path = _connection->server()->configuration().get<string> ("www-root", "www-root");
