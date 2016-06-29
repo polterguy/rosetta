@@ -310,8 +310,7 @@ void request_handler::write_file (std::shared_ptr<std::ifstream> fs_ptr, excepti
     // Notice, this method will not read entire file into memory, but rather read 8192 bytes from the file, and flush these bytes to the
     // socket, for then to invoke "self" multiple times, until entire file has been served over socket, back to client.
     // This conserves memory and resources on the server, but also makes sure the file is open for a longer period.
-    // However, to make it possible to retrieve very large files, without completely exhausting the server's resources, this is the way
-    // to do things.
+    // However, to make it possible to retrieve very large files, without completely exhausting the server's resources, this is our choice.
     _connection->socket().async_write (bf, [this, on_success, x, fs_ptr] (const error_code & error, size_t bytes_written) {
 
       // Sanity check.

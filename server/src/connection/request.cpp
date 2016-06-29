@@ -21,7 +21,7 @@
 #include "server/include/connection/request.hpp"
 #include "server/include/connection/connection.hpp"
 #include "server/include/exceptions/request_exception.hpp"
-#include "server/include/connection/request_handler_factory.hpp"
+#include "server/include/connection/create_request_handler.hpp"
 
 namespace rosetta {
 namespace server {
@@ -59,7 +59,7 @@ void request::handle (exceptional_executor x, functor on_success)
     _connection->set_deadline_timer (-1);
 
     // Now reading is done, and we can let our request_handler take care of the rest.
-    _request_handler = request_handler_factory::create (_connection, this);
+    _request_handler = create_request_handler (_connection, this);
     if (_request_handler == nullptr)
       return; // No handler for this request, returning without releasing "x", to close connection.
 
@@ -80,7 +80,7 @@ void request::handle (exceptional_executor x, functor on_success)
 void request::write_error_response (exceptional_executor x, int status_code)
 {
   // Creating an error handler.
-  _request_handler = request_handler_factory::create (_connection, this, status_code);
+  _request_handler = create_request_handler (_connection, this, status_code);
   _request_handler->handle (x, [this] (auto x) {
 
     // Simply letting x go out of scope, to close down connection, and clean things up.
