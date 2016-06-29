@@ -44,6 +44,9 @@ public:
   /// Returns the date as a string, formatted according to RFC 1123.
   string to_string () const;
 
+  /// Returns the date as a string, formatted according to ISO 8601.
+  string to_iso_string () const;
+
   /// Comparison less-than operator.
   friend bool operator < (const date & lhs, const date & rhs);
 

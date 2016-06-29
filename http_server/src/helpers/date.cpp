@@ -91,6 +91,16 @@ string date::to_string () const
 }
 
 
+string date::to_iso_string () const
+{
+  boost::local_time::local_time_facet * lf (new boost::local_time::local_time_facet("%Y-%m-%dT%H:%M:%S"));
+  std::stringstream ss;
+  ss.imbue (std::locale (ss.getloc(), lf));
+  ss << _date;
+  return ss.str();
+}
+
+
 bool operator < (const date & lhs, const date & rhs)
 {
   return lhs._date < rhs._date;

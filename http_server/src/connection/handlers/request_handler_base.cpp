@@ -313,7 +313,7 @@ void request_handler_base::write_file (shared_ptr<std::ifstream> fs_ptr, excepti
     // socket, for then to invoke "self" multiple times, until entire file has been served over socket, back to client.
     // This conserves memory and resources on the server, but also makes sure the file is open for a longer period.
     // However, to make it possible to retrieve very large files, without completely exhausting the server's resources, this is our choice.
-    _connection->socket().async_write (bf, [this, on_success, x, fs_ptr] (const error_code & error, size_t bytes_written) {
+    _connection->socket().async_write (bf, [this, on_success, x, fs_ptr] (auto error, auto bytes_written) {
 
       // Sanity check.
       if (error)

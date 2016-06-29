@@ -27,6 +27,7 @@
 // Including all HTTP handlers we support.
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
 #include "http_server/include/connection/handlers/get_file_handler.hpp"
+#include "http_server/include/connection/handlers/get_folder_handler.hpp"
 #include "http_server/include/connection/handlers/put_file_handler.hpp"
 #include "http_server/include/connection/handlers/delete_file_handler.hpp"
 #include "http_server/include/connection/handlers/meta/head_handler.hpp"
@@ -218,8 +219,8 @@ request_handler_ptr create_get_handler (class connection * connection, class req
     }
   } else {
 
-    // Oops, these types of files/folders are not served or handled. (yet)
-    return request_handler_ptr (new error_handler (connection, request, 404));
+    // This is a request for a "folder".
+    return request_handler_ptr (new get_folder_handler (connection, request));
   }
 }
 

@@ -36,10 +36,6 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-/// Verifies URI is sane, and not malformed, attempting to retrieve document outside of main folder, hidden files, etc.
-bool sanity_check_uri (path uri);
-
-
 get_file_handler::get_file_handler (class connection * connection, class request * request)
   : request_handler_base (connection, request)
 { }
@@ -47,25 +43,8 @@ get_file_handler::get_file_handler (class connection * connection, class request
 
 void get_file_handler::handle (exceptional_executor x, functor on_success)
 {
-  // Retrieving URI from request, removing initial "/" from URI, before checking sanity of URI.
-  auto uri = request()->envelope().uri();
-  if (!sanity_check_uri (uri)) {
-
-    // URI is not "sane".
-    request()->write_error_response (x, 404);
-    return;
-  }
-
-  // Retrieving root path, and making sure it exists.
+  // Retrieving root path, and checking if we should write it.
   path full_path = request()->envelope().path();
-  if (!boost::filesystem::exists (full_path)) {
-
-      // Writing error status response, and returning early.
-      request()->write_error_response (x, 404);
-      return;
-  }
-
-  // Checking if we should render file, or a 304 (Not-Modified) response.
   if (should_write_file (full_path)) {
 
     // Returning file to client.
@@ -122,24 +101,6 @@ void get_file_handler::write_304_response (exceptional_executor x, functor on_su
       });
     });
   });
-}
-
-
-bool sanity_check_uri (path uri)
-{
-  // Breaking up URI into components, and sanity checking each component, to verify client is not requesting an illegal URI.
-  for (auto & idx : uri) {
-
-    if (idx.string().find ("..") != string::npos) // Request is probably trying to access files outside of the main "www-root" folder.
-      return false;
-
-    if (idx.string().find ("~") == 0) // Linux backup file or folder.
-      return false;
-
-    if (idx.string().find (".") == 0) // Linux hidden file or folder, or a file without a name, and only extension.
-      return false;
-  }
-  return true; // URI is sane.
 }
 
 

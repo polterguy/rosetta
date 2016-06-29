@@ -40,6 +40,9 @@ string decode_uri (const string & uri);
 /// Auto-Capitalize HTTP header names.
 string capitalize_header_name (const string & name);
 
+/// Makes sure URI is "sane", and does not contain "/../", etc.
+bool sanity_check_uri (path uri);
+
 
 request_envelope::request_envelope (connection * connection, request * request)
   : _connection (connection),
@@ -154,6 +157,9 @@ void request_envelope::parse_uri (string uri)
   }
 
   // Then, finally, we can set the URI and path.
+  if (!sanity_check_uri (uri))
+    throw request_exception ("Illegal characters found in path.");
+
   _uri = uri;
   _path = _connection->server()->configuration().get<string> ("www-root", "www-root");
   _path += uri;
@@ -376,6 +382,24 @@ string capitalize_header_name (const string & name)
 
   // Returning to caller as string.
   return string (return_value.begin(), return_value.end());
+}
+
+
+bool sanity_check_uri (path uri)
+{
+  // Breaking up URI into components, and sanity checking each component, to verify client is not requesting an illegal URI.
+  for (auto & idx : uri) {
+
+    if (idx.string().find ("..") != string::npos) // Request is probably trying to access files outside of the main "www-root" folder.
+      return false;
+
+    if (idx.string().find ("~") == 0) // Linux backup file or folder.
+      return false;
+
+    if (idx.string().find (".") == 0) // Linux hidden file or folder, or a file without a name, and only extension.
+      return false;
+  }
+  return true; // URI is sane.
 }
 
 
