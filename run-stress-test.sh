@@ -1,0 +1,1 @@
+time ./stress-test.sh
