@@ -18,26 +18,32 @@
 #ifndef ROSETTA_SERVER_PUT_FILE_HANDLER_HPP
 #define ROSETTA_SERVER_PUT_FILE_HANDLER_HPP
 
+#include <array>
+#include <fstream>
+#include <iostream>
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
 
+using std::array;
+using std::string;
+using std::istream;
+using std::shared_ptr;
+using namespace rosetta::common;
+
 namespace rosetta {
 namespace http_server {
-
-using std::string;
-using namespace rosetta::common;
 
 class request;
 class connection;
 const static size_t BUFFER_SIZE = 8192;
 
 
-/// Handles an HTTP request.
-class put_file_handler final : public request_handler
+/// PUT handler for static files.
+class put_file_handler final : public request_handler_base
 {
 public:
 
-  /// Creates a static file handler.
+  /// Creates a PUT handler.
   put_file_handler (class connection * connection, class request * request);
 
   /// Handles the given request.
@@ -49,8 +55,8 @@ private:
   void save_request_content (const string & filename, exceptional_executor x, functor on_success);
 
   /// Write request content to file.
-  void save_request_content_to_file (std::shared_ptr<std::ofstream> file_ptr,
-                                     std::shared_ptr<std::istream> socket_stream_ptr,
+  void save_request_content_to_file (shared_ptr<std::ofstream> file_ptr,
+                                     shared_ptr<istream> socket_stream_ptr,
                                      size_t content_length,
                                      exceptional_executor x,
                                      exceptional_executor x2,
@@ -64,7 +70,7 @@ private:
 
 
   /// Buffer used for reading content from socket.
-  std::array<char, BUFFER_SIZE> _file_buffer;
+  array<char, BUFFER_SIZE> _file_buffer;
 };
 
 

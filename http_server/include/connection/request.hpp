@@ -21,6 +21,7 @@
 #include <memory>
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/request_envelope.hpp"
+#include "http_server/include/connection/create_request_handler.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
 
 namespace rosetta {

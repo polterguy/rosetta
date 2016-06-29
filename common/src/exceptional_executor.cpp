@@ -19,10 +19,10 @@
 #include "common/include/rosetta_exception.hpp"
 #include "common/include/exceptional_executor.hpp"
 
+using std::string;
+
 namespace rosetta {
 namespace common {
-
-using std::string;
 
 
 exceptional_executor::exceptional_executor (std::function<void ()> functor)

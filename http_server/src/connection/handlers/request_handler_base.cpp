@@ -24,24 +24,26 @@
 #include "http_server/include/exceptions/request_exception.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
 
-namespace rosetta {
-namespace http_server {
-
 using std::string;
+using std::shared_ptr;
+using std::make_shared;
 using namespace boost::asio;
 using namespace rosetta::common;
 
+namespace rosetta {
+namespace http_server {
 
-request_handler::request_handler (class connection * connection, class request * request)
+
+request_handler_base::request_handler_base (class connection * connection, class request * request)
   : _connection (connection),
     _request (request)
 { }
 
 
-void request_handler::write_status (unsigned int status_code, exceptional_executor x, functor on_success)
+void request_handler_base::write_status (unsigned int status_code, exceptional_executor x, functor on_success)
 {
   // Creating status line, and serializing to socket, making sure status_line stays around until after write operation is finished.
-  std::shared_ptr<string> status_line = std::make_shared<string> ("HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ");
+  shared_ptr<string> status_line = make_shared<string> ("HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ");
   switch (status_code) {
   case 200:
     *status_line += "OK";
@@ -105,7 +107,7 @@ void request_handler::write_status (unsigned int status_code, exceptional_execut
 }
 
 
-void request_handler::write_headers (collection headers, exceptional_executor x, functor on_success)
+void request_handler_base::write_headers (collection headers, exceptional_executor x, functor on_success)
 {
   if (headers.size() == 0) {
 
@@ -131,10 +133,10 @@ void request_handler::write_headers (collection headers, exceptional_executor x,
 }
 
 
-void request_handler::write_header (const string & key, const string & value, exceptional_executor x, functor on_success)
+void request_handler_base::write_header (const string & key, const string & value, exceptional_executor x, functor on_success)
 {
   // Creating header, making sure the string stays around until after socket write operation is finished.
-  std::shared_ptr<string> header_content = std::make_shared<string> (key + ": " + value + "\r\n");
+  shared_ptr<string> header_content = make_shared<string> (key + ": " + value + "\r\n");
 
   // Writing header content to socket.
   _connection->socket().async_write (buffer (*header_content), [this, on_success, x, header_content] (auto error, auto bytes_written) {
@@ -148,7 +150,7 @@ void request_handler::write_header (const string & key, const string & value, ex
 }
 
 
-void request_handler::write_standard_headers (exceptional_executor x, functor on_success)
+void request_handler_base::write_standard_headers (exceptional_executor x, functor on_success)
 {
   // Making things more tidy in here.
   using namespace std;
@@ -191,10 +193,10 @@ void request_handler::write_standard_headers (exceptional_executor x, functor on
 }
 
 
-void request_handler::ensure_envelope_finished (exceptional_executor x, functor on_success)
+void request_handler_base::ensure_envelope_finished (exceptional_executor x, functor on_success)
 {
   // Creating last empty line, to finish of envelope, making sure our buffer stays around, until async_write is finished doing its thing.
-  std::shared_ptr<string> cr_lf = std::make_shared<string> ("\r\n");
+  shared_ptr<string> cr_lf = make_shared<string> ("\r\n");
 
   // Writing header content to socket.
   _connection->socket().async_write (buffer (*cr_lf), [on_success, x, cr_lf] (auto error, auto bytes_written) {
@@ -208,7 +210,7 @@ void request_handler::ensure_envelope_finished (exceptional_executor x, functor 
 }
 
 
-void request_handler::write_file_headers (path filepath, bool last_modified, exceptional_executor x, functor on_success)
+void request_handler_base::write_file_headers (path filepath, bool last_modified, exceptional_executor x, functor on_success)
 {
   // Figuring out size of file, and making sure it's not larger than what we are allowed to handle according to configuration of server.
   size_t size = file_size (filepath);
@@ -240,7 +242,7 @@ void request_handler::write_file_headers (path filepath, bool last_modified, exc
 }
 
 
-void request_handler::write_file (path filepath, unsigned int status_code, bool last_modified, exceptional_executor x, functor on_success)
+void request_handler_base::write_file (path filepath, unsigned int status_code, bool last_modified, exceptional_executor x, functor on_success)
 {
   // Making things slightly more tidy in here.
   using namespace std;
@@ -281,7 +283,7 @@ void request_handler::write_file (path filepath, unsigned int status_code, bool 
 }
 
 
-string request_handler::get_mime (path filename)
+string request_handler_base::get_mime (path filename)
 {
   // Then we do a lookup into the configuration for our server, to see if it has defined a MIME type for the given file's extension.
   string mime_type = _connection->server()->configuration().get<string> ("mime" + filename.extension().string (), "");
@@ -291,7 +293,7 @@ string request_handler::get_mime (path filename)
 }
 
 
-void request_handler::write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor on_success)
+void request_handler_base::write_file (shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor on_success)
 {
   // Checking if we're done.
   if (fs_ptr->eof()) {

@@ -18,21 +18,23 @@
 #ifndef ROSETTA_SERVER_STATIC_FILE_HANDLER_HPP
 #define ROSETTA_SERVER_STATIC_FILE_HANDLER_HPP
 
+#include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
 
+using std::string;
+using namespace boost::filesystem;
+using namespace rosetta::common;
+
 namespace rosetta {
 namespace http_server {
-
-using std::string;
-using namespace rosetta::common;
 
 class request;
 class connection;
 
 
-/// Handles an static file HTTP request.
-class get_file_handler final : public request_handler
+/// GET handler for static files.
+class get_file_handler final : public request_handler_base
 {
 public:
 

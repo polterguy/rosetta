@@ -18,25 +18,26 @@
 #ifndef ROSETTA_SERVER_HEAD_HANDLER_HPP
 #define ROSETTA_SERVER_HEAD_HANDLER_HPP
 
+#include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
 
+using namespace boost::filesystem;
+using namespace rosetta::common;
+
 namespace rosetta {
 namespace http_server {
-
-using std::string;
-using namespace rosetta::common;
 
 class request;
 class connection;
 
 
-/// Handles an HTTP request.
-class head_handler final : public request_handler
+/// HEAD handler.
+class head_handler final : public request_handler_base
 {
 public:
 
-  /// Creates a static file handler.
+  /// Creates a HEAD handler.
   head_handler (class connection * connection, class request * request);
 
   /// Handles the given request.

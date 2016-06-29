@@ -18,21 +18,22 @@
 #ifndef ROSETTA_SERVER_REDIRECT_HANDLER_HPP
 #define ROSETTA_SERVER_REDIRECT_HANDLER_HPP
 
+#include <string>
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
 
-namespace rosetta {
-namespace http_server {
-
 using std::string;
 using namespace rosetta::common;
+
+namespace rosetta {
+namespace http_server {
 
 class request;
 class connection;
 
 
 /// Handles an HTTP request.
-class redirect_handler final : public request_handler
+class redirect_handler final : public request_handler_base
 {
 public:
 

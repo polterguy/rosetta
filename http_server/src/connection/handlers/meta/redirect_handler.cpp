@@ -32,7 +32,7 @@ redirect_handler::redirect_handler (class connection * connection,
                                     unsigned int status,
                                     const string & uri,
                                     bool no_store)
-  : request_handler (connection, request),
+  : request_handler_base (connection, request),
     _status (status),
     _uri (uri),
     _no_store (no_store)

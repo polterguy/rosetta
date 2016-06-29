@@ -33,7 +33,7 @@ string uri_encode (const string & entity);
 
 
 trace_handler::trace_handler (class connection * connection, class request * request)
-  : request_handler (connection, request)
+  : request_handler_base (connection, request)
 { }
 
 

@@ -21,6 +21,8 @@
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
 
+using namespace rosetta::common;
+
 namespace rosetta {
 namespace http_server {
 
@@ -28,8 +30,8 @@ class request;
 class connection;
 
 
-/// Handles an HTTP request.
-class error_handler final : public request_handler
+/// Error handler.
+class error_handler final : public request_handler_base
 {
 public:
 

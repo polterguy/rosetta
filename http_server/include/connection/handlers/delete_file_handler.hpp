@@ -31,8 +31,8 @@ class request;
 class connection;
 
 
-/// Handler for deleting static files.
-class delete_file_handler final : public request_handler
+/// DELETE handler for static files.
+class delete_file_handler final : public request_handler_base
 {
 public:
 

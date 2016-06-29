@@ -31,7 +31,7 @@ using namespace rosetta::common;
 
 
 put_file_handler::put_file_handler (class connection * connection, class request * request)
-  : request_handler (connection, request)
+  : request_handler_base (connection, request)
 { }
 
 

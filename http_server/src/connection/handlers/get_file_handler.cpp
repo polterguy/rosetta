@@ -41,7 +41,7 @@ bool sanity_check_uri (path uri);
 
 
 get_file_handler::get_file_handler (class connection * connection, class request * request)
-  : request_handler (connection, request)
+  : request_handler_base (connection, request)
 { }
 
 

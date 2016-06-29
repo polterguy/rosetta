@@ -30,13 +30,13 @@ namespace rosetta {
 namespace http_server {
 
 using std::string;
+using std::ifstream;
+using std::shared_ptr;
 using namespace rosetta::common;
 using namespace boost::filesystem;
 
 class request;
 class connection;
-class request_handler;
-typedef std::shared_ptr<request_handler> request_handler_ptr;
 
 // Helpers for HTTP headers.
 typedef std::tuple<string, string> collection_type;
@@ -44,7 +44,7 @@ typedef std::vector<collection_type> collection;
 
 
 /// Handles an HTTP request.
-class request_handler : public boost::noncopyable
+class request_handler_base : public boost::noncopyable
 {
 public:
 
@@ -54,7 +54,7 @@ public:
 protected:
 
   /// Protected constructor.
-  request_handler (class connection * connection, class request * request);
+  request_handler_base (class connection * connection, class request * request);
 
   /// Writing given HTTP headetr with given value back to client.
   void write_status (unsigned int status_code, exceptional_executor x, functor on_success);
@@ -88,7 +88,7 @@ private:
 
   /// Implementation of actual file write operation.
   /// Will read _response_buffer.size() from file, and write buffer content to socket, before invoking self, until entire file has been written.
-  void write_file (std::shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor on_success);
+  void write_file (shared_ptr<ifstream> fs_ptr, exceptional_executor x, functor on_success);
 
   /// Returns the MIME type according to file extension.
   string get_mime (path filename);

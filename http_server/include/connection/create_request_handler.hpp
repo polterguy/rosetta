@@ -25,8 +25,8 @@ namespace http_server {
 
 class request;
 class connection;
-class request_handler;
-typedef std::shared_ptr<request_handler> request_handler_ptr;
+class request_handler_base;
+typedef std::shared_ptr<request_handler_base> request_handler_ptr;
 
 
 /// Creates the specified type of handler, according to file extension given, and configuration of server.

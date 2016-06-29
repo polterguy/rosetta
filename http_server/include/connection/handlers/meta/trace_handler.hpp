@@ -18,9 +18,14 @@
 #ifndef ROSETTA_SERVER_TRACE_HANDLER_HPP
 #define ROSETTA_SERVER_TRACE_HANDLER_HPP
 
-#include <string>
+#include <vector>
+#include <memory>
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
+
+using std::vector;
+using std::shared_ptr;
+using namespace rosetta::common;
 
 namespace rosetta {
 namespace http_server {
@@ -30,10 +35,7 @@ class connection;
 
 
 /// Echoes the HTTP-Request line and the request headers from the request back to the client as text/plain content.
-/// Notice, this will return the envelope of the request as Rosetta sees it, after having intelligently parsed it,
-/// and not necessarily exactly as the client sent the request. Except for the URI of the HTTP-Request line, that
-/// will be URI encoded.
-class trace_handler final : public request_handler
+class trace_handler final : public request_handler_base
 {
 public:
 
@@ -46,7 +48,7 @@ public:
 private:
 
   /// Builds up the buffer for what to return as content to client.
-  std::shared_ptr<std::vector<unsigned char> > build_content ();
+  shared_ptr<vector<unsigned char> > build_content ();
 };
 
 

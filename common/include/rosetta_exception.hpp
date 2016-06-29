@@ -21,8 +21,6 @@
 #include <string>
 #include <exception>
 
-using std::string;
-
 namespace rosetta {
 namespace common {
 
@@ -34,7 +32,7 @@ class rosetta_exception : public std::exception
 public:
    
   /// Constructor taking the error message.
-  rosetta_exception (const string & msg) : _message(msg) { }
+  rosetta_exception (const std::string & msg) : _message(msg) { }
   
   /// Returns the error message supplied when throwing exception.
   virtual char const * what() const throw () { return _message.c_str(); }
@@ -42,7 +40,7 @@ public:
 private:
   
   /// Contains the message supplied when exception was thrown.
-  string _message;
+  std::string _message;
 };
 
 

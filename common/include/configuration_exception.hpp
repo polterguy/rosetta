@@ -21,8 +21,6 @@
 #include <string>
 #include "common/include/rosetta_exception.hpp"
 
-using std::string;
-
 namespace rosetta {
 namespace common {
    
@@ -33,7 +31,7 @@ class configuration_exception : public rosetta_exception
 public:
    
   /// Constructor taking an error message
-  configuration_exception (const string & msg) : rosetta_exception (msg) { }
+  configuration_exception (const std::string & msg) : rosetta_exception (msg) { }
 };
 
 

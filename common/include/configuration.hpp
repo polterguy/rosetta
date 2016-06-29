@@ -21,6 +21,7 @@
 #include <map>
 #include <string>
 #include <ostream>
+#include <functional>
 #include <boost/lexical_cast.hpp>
 #include "common/include/configuration_exception.hpp"
 
