@@ -118,12 +118,7 @@ void request_envelope::parse_request_line (const string & request_line)
 
 void request_envelope::parse_uri (string uri)
 {
-  // Checking if path is a request for the default document.
-  if (uri == "/") {
-
-    // Serving default document.
-    uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
-  } else if (uri [0] != '/') {
+  if (uri [0] != '/') {
 
     // To make sure we're more fault tolerant, we prepend the URI with "/", if it is not given. Ref; 19.3.
     uri = "/" + uri;
@@ -131,14 +126,7 @@ void request_envelope::parse_uri (string uri)
 
   // Checking if URI contains HTTP GET parameters.
   auto index_of_pars = uri.find ("?");
-  if (index_of_pars == 1) {
-
-    // Default page was requested, as "/", with HTTP GET parameters.
-    parse_parameters (decode_uri (uri.substr (2)));
-
-    // Serving default document.
-    uri = _connection->server()->configuration().get<string> ("default-page", "/index.html");
-  } else if (index_of_pars != string::npos) {
+  if (index_of_pars != string::npos) {
 
     // URI contains GET parameters.
     parse_parameters (decode_uri (uri.substr (index_of_pars + 1)));
@@ -153,7 +141,7 @@ void request_envelope::parse_uri (string uri)
 
   // Then, finally, we can set the URI and path.
   _uri = uri;
-  _path += _connection->server()->configuration().get<string> ("www-root", "www-root");
+  _path = _connection->server()->configuration().get<string> ("www-root", "www-root");
   _path += uri;
 }
 

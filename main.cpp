@@ -154,7 +154,6 @@ void create_default_configuration_file()
   config.set ("thread-model", "thread-pool");
   config.set ("threads", 128);
   config.set ("www-root", "www-root");
-  config.set ("default-page", "/index.html");
   config.set ("trace-allowed", false);
   config.set ("head-allowed", false);
   config.set ("ssl-certificate", "server.crt");
@@ -165,7 +164,7 @@ void create_default_configuration_file()
   config.set ("static-response-headers", "");
 
   // Request settings.
-  config.set ("max-uri-length", 2048);
+  config.set ("max-uri-length", 4096);
   config.set ("max-header-length", 8192);
   config.set ("max-header-count", 25);
   config.set ("max-request-content-length", 4194304); // 4 MB
