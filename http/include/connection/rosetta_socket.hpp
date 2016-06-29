@@ -22,7 +22,7 @@
 #include <functional>
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
-#include "common/include/match_condition.hpp"
+#include "http/include/helpers/match_condition.hpp"
 
 using namespace boost::asio;
 using boost::system::error_code;
