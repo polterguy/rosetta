@@ -18,6 +18,7 @@
 #ifndef ROSETTA_SERVER_THREAD_POOL_SERVER_HPP
 #define ROSETTA_SERVER_THREAD_POOL_SERVER_HPP
 
+#include <functional>
 #include "http_server/include/server.hpp"
 
 using namespace rosetta::common;
@@ -38,7 +39,7 @@ public:
   void run() override;
 
   /// Creates a new connection on the given socket. Overridden to make sure we wrap creation inside of a strand.
-  connection_ptr create_connection (socket_ptr socket) override;
+  void create_connection (socket_ptr socket, std::function<void(connection_ptr c)> on_success) override;
 
   /// Removes the specified connection from server. Overridden to make sure we wrap removal inside of a strand.
   void remove_connection (connection_ptr connection) override;

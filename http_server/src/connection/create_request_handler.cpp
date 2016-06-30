@@ -147,10 +147,8 @@ bool should_upgrade_insecure_requests (const class connection * connection, cons
 
 request_handler_ptr upgrade_insecure_request (class connection * connection, class request * request)
 {
-  // Redirecting client to SSL version of same resource, making sure we don't append "default-page" to the Location URI.
+  // Redirecting client to SSL version of same resource.
   auto request_uri = request->envelope().uri();
-  if (request_uri == connection->server()->configuration().get <path> ("default-page", "/index.html"))
-    request_uri = "/";
 
   // Retrieving server address and SSL port, for our "Location" response header.
   const string server_address = connection->server()->configuration().get <string> ("address", "localhost");

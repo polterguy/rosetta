@@ -62,20 +62,16 @@ void thread_pool_server::run ()
 }
 
 
-connection_ptr thread_pool_server::create_connection (socket_ptr socket)
+void thread_pool_server::create_connection (socket_ptr socket, std::function<void(connection_ptr c)> on_success)
 {
-  // Creating return value outside of strand.
-  connection_ptr return_value;
-
   // Dispatching base class invocation on the strand,
   // to make sure we don't have race conditions,
   // accessing the same list of connections.
-  _strand.dispatch ([this, & return_value, socket] () {
+  _strand.dispatch ([this, socket, on_success] () {
 
     // Creating our connection, inside of strand.
-    return_value = server::create_connection (socket);
+    server::create_connection (socket, on_success);
   });
-  return return_value;
 }
 
 

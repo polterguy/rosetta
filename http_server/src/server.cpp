@@ -65,7 +65,8 @@ server::server (const class configuration & configuration)
     _signals (_service),
     _acceptor (_service),
     _acceptor_ssl (_service),
-    _context (ssl::context::sslv23)
+    _context (ssl::context::sslv23),
+    _authentication (configuration.get<string> ("authentication-file", "auth"))
 {
   // Register quit signals.
   _signals.add (SIGINT);
@@ -117,7 +118,7 @@ void server::run ()
 }
 
 
-connection_ptr server::create_connection (socket_ptr socket)
+void server::create_connection (socket_ptr socket, std::function<void(connection_ptr c)> on_success)
 {
   // Checking if server is configured to only allow a maximum number of connections per client.
   const int max_connections_per_client = configuration().get<int> ("max-connections-per-client", 8);
@@ -144,7 +145,7 @@ connection_ptr server::create_connection (socket_ptr socket)
   // Creating a new connection as a shared pointer, and putting it into our list of connections.
   connection_ptr connection = connection::create (this, socket);
   _connections.insert (connection);
-  return connection;
+  on_success (connection);
 }
 
 
@@ -234,12 +235,10 @@ void server::on_accept ()
 
     if (!error) {
 
-      // Creating connection.
-      auto connection = create_connection (socket_ptr);
-
-      // Handling connection, but only if it was accepted.
-      if (connection != nullptr)
+      // Creating connection and handling it.
+      create_connection (socket_ptr, [] (connection_ptr connection) {
         connection->handle ();
+      });
     }
   });
 }
@@ -289,12 +288,10 @@ void server::on_accept_ssl ()
           // Canceling handshake timeout.
           handshake_timer->cancel ();
 
-          // Creating connection.
-          auto connection = create_connection (socket);
-
-          // Handling connection, but only if it was accepted.
-          if (connection != nullptr)
-            connection->handle ();
+          // Creating connection and handling it.
+          create_connection (socket, [] (connection_ptr connection) {
+            connection->handle ();            
+          });
         }
       });
     }

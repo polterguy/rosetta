@@ -20,9 +20,11 @@
 
 #include <set>
 #include <memory>
+#include <functional>
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include "common/include/configuration.hpp"
+#include "http_server/include/auth/authentication.hpp"
 #include "http_server/include/connection/rosetta_socket.hpp"
 
 using namespace boost::asio;
@@ -66,7 +68,7 @@ public:
 protected:
 
   /// Starts a connection on the given socket.
-  virtual connection_ptr create_connection (socket_ptr socket);
+  virtual void create_connection (socket_ptr socket, std::function<void(connection_ptr c)> on_success);
 
 private:
 
@@ -106,6 +108,9 @@ private:
 
   /// All live connections to our server.
   std::set<connection_ptr> _connections;
+
+  /// Authentication object for server.
+  authentication _authentication;
 };
 
 
