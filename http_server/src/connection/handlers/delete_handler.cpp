@@ -19,7 +19,7 @@
 #include "http_server/include/server.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
-#include "http_server/include/connection/handlers/delete_file_handler.hpp"
+#include "http_server/include/connection/handlers/delete_handler.hpp"
 
 namespace rosetta {
 namespace http_server {
@@ -28,12 +28,12 @@ using std::string;
 using namespace rosetta::common;
 
 
-delete_file_handler::delete_file_handler (class connection * connection, class request * request)
+delete_handler::delete_handler (class connection * connection, class request * request)
   : request_handler_base (connection, request)
 { }
 
 
-void delete_file_handler::handle (exceptional_executor x, functor on_success)
+void delete_handler::handle (exceptional_executor x, functor on_success)
 {
   // Retrieving URI from request.
   auto path = request()->envelope().path();
@@ -46,7 +46,7 @@ void delete_file_handler::handle (exceptional_executor x, functor on_success)
 }
 
 
-void delete_file_handler::write_success_envelope (exceptional_executor x, functor on_success)
+void delete_handler::write_success_envelope (exceptional_executor x, functor on_success)
 {
   // Writing status code success back to client.
   write_status (200, x, [this, on_success] (auto x) {

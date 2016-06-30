@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROSETTA_SERVER_DELETE_FILE_HANDLER_HPP
-#define ROSETTA_SERVER_DELETE_FILE_HANDLER_HPP
+#ifndef ROSETTA_SERVER_DELETE_HANDLER_HPP
+#define ROSETTA_SERVER_DELETE_HANDLER_HPP
 
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
@@ -32,12 +32,12 @@ class connection;
 
 
 /// DELETE handler for static files.
-class delete_file_handler final : public request_handler_base
+class delete_handler final : public request_handler_base
 {
 public:
 
   /// Creates a static file handler.
-  delete_file_handler (class connection * connection, class request * request);
+  delete_handler (class connection * connection, class request * request);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, functor on_success) override;
@@ -52,4 +52,4 @@ private:
 } // namespace http_server
 } // namespace rosetta
 
-#endif // ROSETTA_SERVER_DELETE_FILE_HANDLER_HPP
+#endif // ROSETTA_SERVER_DELETE_HANDLER_HPP

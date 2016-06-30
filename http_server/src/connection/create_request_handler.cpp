@@ -30,7 +30,7 @@
 #include "http_server/include/connection/handlers/get_folder_handler.hpp"
 #include "http_server/include/connection/handlers/put_file_handler.hpp"
 #include "http_server/include/connection/handlers/put_folder_handler.hpp"
-#include "http_server/include/connection/handlers/delete_file_handler.hpp"
+#include "http_server/include/connection/handlers/delete_handler.hpp"
 #include "http_server/include/connection/handlers/meta/head_handler.hpp"
 #include "http_server/include/connection/handlers/meta/error_handler.hpp"
 #include "http_server/include/connection/handlers/meta/trace_handler.hpp"
@@ -228,7 +228,7 @@ request_handler_ptr create_get_handler (class connection * connection, class req
 
 request_handler_ptr create_put_handler (class connection * connection, class request * request)
 {
-  // Checking that folder where user tries to put file actually exists.
+  // Checking that folder where user tries to put file/folder actually exists.
   if (!exists (request->envelope().path().parent_path()))
     return request_handler_ptr (new error_handler (connection, request, 404)); // No such folder.
 
@@ -255,7 +255,7 @@ request_handler_ptr create_delete_handler (class connection * connection, class 
   if (is_regular_file (request->envelope().path ())) {
 
     // User tries to DELETE a file.
-    return request_handler_ptr (new delete_file_handler (connection, request));
+    return request_handler_ptr (new delete_handler (connection, request));
   } else {
 
     // Oops, no such DELETE handler. (yet)
