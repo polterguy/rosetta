@@ -65,7 +65,7 @@ bool get_file_handler::should_write_file (path full_path)
 
     // We have an "If-Modified-Since" HTTP header, checking if file was tampered with since that date.
     date if_modified_date = date::parse (if_modified_since);
-    date file_modify_date = date::from_file_change (full_path.string ());
+    date file_modify_date = date::from_path_change (full_path);
 
     // Comparing dates.
     if (file_modify_date > if_modified_date) {

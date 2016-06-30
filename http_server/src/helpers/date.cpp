@@ -17,7 +17,6 @@
 
 #include <string>
 #include <sstream>
-#include <boost/filesystem.hpp>
 #include "http_server/include/helpers/date.hpp"
 
 using std::string;
@@ -42,7 +41,7 @@ date date::now()
 }
 
 
-date date::from_file_change(const string & filepath)
+date date::from_path_change(path filepath)
 {
   boost::posix_time::ptime pt = boost::posix_time::from_time_t (boost::filesystem::last_write_time (filepath));
   return date (boost::local_time::local_date_time (pt, boost::local_time::time_zone_ptr ()));

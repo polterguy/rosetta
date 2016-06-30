@@ -19,9 +19,11 @@
 #define ROSETTA_SERVER_DATE_HELPER_HPP
 
 #include <string>
+#include <boost/filesystem.hpp>
 #include <boost/date_time/local_time/local_time.hpp>
 
 using std::string;
+using namespace boost::filesystem;
 
 namespace rosetta {
 namespace http_server {
@@ -36,7 +38,7 @@ public:
   static date now ();
 
   /// Returns a date according to when a file was last changed.
-  static date from_file_change (const string & filepath);
+  static date from_path_change (path filepath);
 
   /// Parses a date from the given HTTP date format.
   static date parse (const string & value);

@@ -21,6 +21,7 @@
 #include "http_server/include/server.hpp"
 #include "http_server/include/multi_thread_server.hpp"
 #include "http_server/include/connection/connection.hpp"
+#include "http_server/include/exceptions/request_exception.hpp"
 
 using std::string;
 using boost::system::error_code;
@@ -110,7 +111,7 @@ void server::run ()
       // An exception occurred, simply re-iterating while loop, to re-start io_service.
       // We could do logging here, especially for debugging purposes.
       // If you wish to log, then please un-comment the following line.
-      // std::cerr << error.what () << std::endl;
+      //std::cerr << error.what () << std::endl;
     }
   }
 }
@@ -136,12 +137,7 @@ connection_ptr server::create_connection (socket_ptr socket)
     if (no_connections_for_ip >= max_connections_per_client) {
 
       // We refuse this connection.
-      error_code ignored_ec;
-      socket->shutdown (ip::tcp::socket::shutdown_both, ignored_ec);
-      socket->close ();
-
-      // And return nullptr to caller.
-      return nullptr;
+      throw request_exception ("Client has too many connections.");
     }
   }
 
@@ -226,8 +222,8 @@ void server::setup_https_server ()
 void server::on_accept ()
 {
   // Waiting for next request.
-  auto socket = std::make_shared<rosetta_socket_plain> (_service);
-  _acceptor.async_accept (socket->socket(), [this, socket] (const error_code & error) {
+  auto socket_ptr = std::make_shared<rosetta_socket_plain> (_service);
+  _acceptor.async_accept (socket_ptr->socket(), [this, socket_ptr] (const error_code & error) {
 
     // Invoking "self" again to accept next request.
     on_accept();
@@ -239,7 +235,7 @@ void server::on_accept ()
     if (!error) {
 
       // Creating connection.
-      auto connection = create_connection (socket);
+      auto connection = create_connection (socket_ptr);
 
       // Handling connection, but only if it was accepted.
       if (connection != nullptr)

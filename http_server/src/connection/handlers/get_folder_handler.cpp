@@ -65,7 +65,7 @@ bool get_folder_handler::should_write_folder (path full_path)
 
     // We have an "If-Modified-Since" HTTP header, checking if file was tampered with since that date.
     date if_modified_date   = date::parse (if_modified_since);
-    date folder_modify_date = date::from_file_change (full_path.string ());
+    date folder_modify_date = date::from_path_change (full_path);
 
     // Comparing dates.
     if (folder_modify_date > if_modified_date) {
@@ -156,7 +156,7 @@ void get_folder_handler::write_folder (path folderpath, exceptional_executor x, 
     }
 
     // Last changed.
-    string last_change = ",\"changed\":\"" + date::from_file_change (idx->path().string ()).to_iso_string () + "\"";
+    string last_change = ",\"changed\":\"" + date::from_path_change (idx->path()).to_iso_string () + "\"";
     buffer_ptr->insert (buffer_ptr->end(), last_change.begin(), last_change.end());
 
     // Closing JSON object.
@@ -181,7 +181,7 @@ void get_folder_handler::write_folder (path folderpath, exceptional_executor x, 
       collection headers {
         {"Content-Type", "application/json; charset=utf-8"},
         {"Content-Length", boost::lexical_cast<string> (size)},
-        {"Last-Modified", date::from_file_change (folderpath.string ()).to_string ()}};
+        {"Last-Modified", date::from_path_change (folderpath).to_string ()}};
 
       // Writing special handler headers to connection.
       write_headers (headers, x, [this, buffer_ptr, on_success] (auto x) {

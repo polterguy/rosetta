@@ -231,7 +231,7 @@ void request_handler_base::write_file_headers (path filepath, bool last_modified
 
   // Checking if caller wants to add "Las-Modified" header to envelope.
   if (last_modified)
-    headers.push_back ({"Last-Modified", date::from_file_change (filepath.string ()).to_string ()});
+    headers.push_back ({"Last-Modified", date::from_path_change (filepath).to_string ()});
 
   // Writing special handler headers to connection.
   write_headers (headers, x, [this, on_success] (auto x) {

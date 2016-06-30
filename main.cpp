@@ -174,7 +174,7 @@ void create_default_configuration_file()
   // Connection settings.
   config.set ("connection-ssl-handshake-timeout", 20);
   config.set ("connection-keep-alive-timeout", 20);
-  config.set ("max-connections-per-client", 2);
+  config.set ("max-connections-per-client", 8);
 
   // Request Handlers, according to file extensions.
   config.set ("handler.html", "get-file-handler");

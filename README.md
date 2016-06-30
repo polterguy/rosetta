@@ -10,6 +10,7 @@ scales upwards, to supercomputers, with thousands of CPUs.
 ## Features
 
 * SSL
+* GET/PUT/DELETE support, on files and folders
 * Multi-threading/thread-pool
 * Persistent connections
 * Timeouts
@@ -22,6 +23,11 @@ scales upwards, to supercomputers, with thousands of CPUs.
 * No logging
 * Highly configurable
 * Paranoid by default
+* Ultra-fast!!
+
+## Getting started with Rosetta
+
+Coming soon
 
 ## The Paranoid web server
 
@@ -144,10 +150,6 @@ to control your files, on your server, through standardized HTTP verbs, turning 
 box, into a *"publishing box"* or a *"content management system"*, based upon the
 standard verbs from HTTP, allowing you to publish new content, and manage your content,
 from anything you wish.
-
-## Getting started with Rosetta
-
-Coming soon
 
 ## License
 
