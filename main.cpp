@@ -162,7 +162,7 @@ void create_default_configuration_file()
   config.set ("user-agent-blacklist", "");
   config.set ("provide-server-info", false);
   config.set ("static-response-headers", "");
-  config.set ("authentication-file", "auth");
+  config.set ("authentication-file", "users.dat");
 
   // Request settings.
   config.set ("max-uri-length", 4096);
