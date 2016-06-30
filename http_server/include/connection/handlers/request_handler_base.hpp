@@ -19,21 +19,14 @@
 #define ROSETTA_SERVER_REQUEST_HANDLER_HPP
 
 #include <tuple>
-#include <memory>
 #include <vector>
-#include <fstream>
-#include <boost/asio.hpp>
-#include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
 
 namespace rosetta {
 namespace http_server {
 
 using std::string;
-using std::ifstream;
-using std::shared_ptr;
 using namespace rosetta::common;
-using namespace boost::filesystem;
 
 class request;
 class connection;
@@ -71,31 +64,13 @@ protected:
   /// Ensures that the envelope of the response is flushed, and one empty line with CR/LF is written back to the client.
   void ensure_envelope_finished (exceptional_executor x, functor on_success);
 
-  /// Writing the given file's HTTP headers on socket back to client.
-  void write_file_headers (path file_path, bool last_modified, exceptional_executor x, functor on_success);
-
-  /// Convenience method; Writes the given file on socket back to client, with a status code, default headers for a file,
-  /// standard headers for server, and basically everything.
-  void write_file (path file_path, unsigned int status_code, bool last_modified, exceptional_executor x, functor on_success);
-
   /// Returns connection for this instance.
   connection * connection() { return _connection; }
 
   /// Returns request for this instance.
   request * request() { return _request; }
 
-  /// Returns the MIME type according to file extension.
-  string get_mime (path filename);
-
 private:
-
-  /// Implementation of actual file write operation.
-  /// Will read _response_buffer.size() from file, and write buffer content to socket, before invoking self, until entire file has been written.
-  void write_file (shared_ptr<ifstream> fs_ptr, exceptional_executor x, functor on_success);
-
-
-  /// Buffer for sending content back to client in chunks.
-  std::array<char, 8192> _response_buffer;
 
   /// The connection this instance belongs to.
   class connection * _connection;

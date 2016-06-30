@@ -28,7 +28,7 @@ using namespace rosetta::common;
 
 
 error_handler::error_handler (class connection * connection, class request * request, unsigned int status_code)
-  : request_handler_base (connection, request),
+  : request_file_handler (connection, request),
     _status_code (status_code)
 {
   // Verify that this actually is an error, and if not, throws an exception.

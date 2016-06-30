@@ -20,7 +20,7 @@
 
 #include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
-#include "http_server/include/connection/handlers/request_handler_base.hpp"
+#include "http_server/include/connection/handlers/request_file_handler.hpp"
 
 using namespace boost::filesystem;
 using namespace rosetta::common;
@@ -33,7 +33,7 @@ class connection;
 
 
 /// HEAD handler.
-class head_handler final : public request_handler_base
+class head_handler final : public request_file_handler
 {
 public:
 

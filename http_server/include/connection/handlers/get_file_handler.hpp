@@ -20,7 +20,7 @@
 
 #include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
-#include "http_server/include/connection/handlers/request_handler_base.hpp"
+#include "http_server/include/connection/handlers/request_file_handler.hpp"
 
 using std::string;
 using namespace boost::filesystem;
@@ -34,7 +34,7 @@ class connection;
 
 
 /// GET handler for static files.
-class get_file_handler final : public request_handler_base
+class get_file_handler final : public request_file_handler
 {
 public:
 

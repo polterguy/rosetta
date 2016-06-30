@@ -26,6 +26,7 @@
 
 // Including all HTTP handlers we support.
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
+#include "http_server/include/connection/handlers/request_file_handler.hpp"
 #include "http_server/include/connection/handlers/get_file_handler.hpp"
 #include "http_server/include/connection/handlers/get_folder_handler.hpp"
 #include "http_server/include/connection/handlers/put_file_handler.hpp"

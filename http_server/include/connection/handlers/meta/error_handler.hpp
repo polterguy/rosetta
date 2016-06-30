@@ -19,7 +19,7 @@
 #define ROSETTA_SERVER_ERROR_HANDLER_HPP
 
 #include "common/include/exceptional_executor.hpp"
-#include "http_server/include/connection/handlers/request_handler_base.hpp"
+#include "http_server/include/connection/handlers/request_file_handler.hpp"
 
 using namespace rosetta::common;
 
@@ -31,7 +31,7 @@ class connection;
 
 
 /// Error handler.
-class error_handler final : public request_handler_base
+class error_handler final : public request_file_handler
 {
 public:
 
