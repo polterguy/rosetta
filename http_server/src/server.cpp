@@ -113,7 +113,7 @@ void server::run ()
       // An exception occurred, simply re-iterating while loop, to re-start io_service.
       // We could do logging here, especially for debugging purposes.
       // If you wish to log, then please un-comment the following line.
-      std::cerr << error.what () << std::endl;
+      //std::cerr << error.what () << std::endl;
     }
   }
 }

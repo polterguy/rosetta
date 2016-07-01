@@ -16,6 +16,7 @@
  */
 
 #include <cctype>
+#include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include "common/include/base64.hpp"
 #include "http_server/include/server.hpp"
@@ -89,6 +90,16 @@ void request_envelope::read (exceptional_executor x, functor on_success)
 }
 
 
+bool request_envelope::has_parameter (const string & name) const
+{
+  for (auto idx : _parameters) {
+    if (std::get<0> (idx) == name)
+      return true;
+  }
+  return false;
+}
+
+
 void request_envelope::parse_request_line (const string & request_line)
 {
   // Making things slightly more tidy and comfortable in here ...
@@ -144,9 +155,6 @@ void request_envelope::parse_uri (string uri)
     uri = decode_uri (uri);
   }
 
-  // Removing the last "/" if it was given.
-  trim_if (uri, boost::is_any_of ("/"));
-
   // Verify URI does not contain any characters besides the US ASCII characters.
   // Notice, we only allow for [a-z], [A-Z], [0-9] in addition to '.' and '-', to make URIs more robust and lessen the attack surface.
   // If anything besides these characters are found in the URI, we entirely refuse connection, by throwing an exception!
@@ -163,14 +171,11 @@ void request_envelope::parse_uri (string uri)
   if (!sanity_check_uri (uri))
     throw request_exception ("Illegal characters found in path.");
 
-  // And some security checking.
-  class path uri_path = uri;
-  if (uri_path.filename() == ".auth.dat")
-    throw security_exception ("Client tried to request '.auth.dat' file.");
 
-  _uri = uri_path;
-  _path = _connection->server()->configuration().get<string> ("www-root", "www-root") + "/";
-  _path += uri_path;
+  // Then setting path and URI of request.
+  _uri = uri;
+  _path = _connection->server()->configuration().get<string> ("www-root", "www-root");
+  _path += uri;
 }
 
 
@@ -429,6 +434,9 @@ bool sanity_check_uri (path uri)
 {
   // Breaking up URI into components, and sanity checking each component, to verify client is not requesting an illegal URI.
   for (auto & idx : uri) {
+    
+    if (idx.string() == ".") // If a folder is requested, then the iterator logic of boost filesystem will return the last "/" as a "." entity!
+      continue;
 
     if (idx.string().find ("..") != string::npos) // Request is probably trying to access files outside of the main "www-root" folder.
       return false;

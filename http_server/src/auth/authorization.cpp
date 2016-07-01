@@ -105,18 +105,15 @@ void authorization::initialize (const path current)
 
 bool authorization::authorize (const authentication::ticket & ticket, class path path, const string & verb) const
 {
-  // Making sure we're comparing apples and apples.
-  path.normalize();
-
   // Making sure path exists.
   if (!exists (path))
     return false; // NO ACCESS!
 
-  // Root is allowed to do everything ...
+  // Root is allowed to do everything!
   if (ticket.role == "root")
     return true;
 
-  // Getting directory
+  // Removing directory, such that we can use only directory name for lookup into _access.
   if (!is_directory (path))
     path.remove_filename();
 

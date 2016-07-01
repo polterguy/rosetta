@@ -39,7 +39,9 @@ void unauthorized_handler::handle (exceptional_executor x, functor on_success)
   string error_file = "error-pages/401.html";
 
   // Checking if this is a 401 (Unauthorized), and if so, adding up the WWW-Authenticate header.
-  if (_allow_authentication) {
+  // But only if caller says this is an OK thing to do, AND the configuration allows it to happen, if this request
+  // is not secure.
+  if (_allow_authentication && (connection()->is_secure() || connection()->server()->configuration().get<bool> ("authenticate-over-non-ssl", false))) {
 
     // Making sure we signal to client that it needs to authenticate.
     write_file (error_file, 401, {{"WWW-Authenticate", "Basic realm=\"User Visible Realm\""}}, x, [on_success] (auto x) {

@@ -16,6 +16,7 @@
  */
 
 #include <boost/asio.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 #include "http_server/include/server.hpp"
 #include "http_server/include/helpers/date.hpp"
@@ -44,6 +45,7 @@ namespace http_server {
 
 using std::string;
 using namespace boost::asio;
+using namespace boost::filesystem;
 using namespace rosetta::common;
 
 
@@ -222,6 +224,18 @@ request_handler_ptr create_get_handler (class connection * connection, class req
   } else {
 
     // This is a request for a "folder".
+    // Notice, that if a folder is requested without an "authorize" GET parameter, then the client will not send the "Authorization" header,
+    // even if the client actually is authorized. This creates a problem, since an authorized client will hence retrieve the "public content"
+    // of that folder, and not show any sub-folders the client has been authorized to view, since the client will not send any "Authorization" header.
+    // To fix this, such that a non-authorized client can still retrieve the content of a folder that is "public", while not showing the sub-folders
+    // that requires authorization to view, we show only the public folders for a folder GET request, unless an additional GET parameter is supplied,
+    // through "?authorize" in the URI of the request.
+    // If "?authorize" is added to the URI, then we return a 401 to the client, if it is not authorized, which forces the browser to retry the request,
+    // with the "Authorization" header, supplying the username and password to the server, making it possible to have two different types of content
+    // returned for a folder GET request; One "public version", unless folder itself requires authorization that is, and another "authorized" version,
+    // showing also sub-folders the client is authorized to view.
+    if (request->envelope().ticket().is_default() && request->envelope().has_parameter ("authorize"))
+      return request_handler_ptr (new unauthorized_handler (connection, request, true));
     return request_handler_ptr (new get_folder_handler (connection, request));
   }
 }
@@ -279,6 +293,19 @@ request_handler_ptr create_request_handler (class connection * connection, class
 
     // Some sort of error.
     return request_handler_ptr (new error_handler (connection, request, status_code));
+  }
+
+  // Making sure requested resource exists.
+  if (request->envelope().path().string().back() == '/') {
+
+    // Client tries to access a folder, making sure it exists.
+    if (!exists (request->envelope().path()) || !is_directory (request->envelope().path()))
+      return request_handler_ptr (new error_handler (connection, request, 404));
+  } else {
+
+    // Client tries to access a file, making sure it exists.
+    if (!exists (request->envelope().path()) || !is_regular_file (request->envelope().path()))
+      return request_handler_ptr (new error_handler (connection, request, 404));
   }
 
   // Authorizing request.

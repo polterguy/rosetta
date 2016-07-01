@@ -73,6 +73,9 @@ public:
 
   /// Returns the parameters collection for the current request.
   const const_collection & parameters () const { return _parameters; }
+  
+  /// Returns true if parameter exists, even if it was supplied without a value.
+  bool has_parameter (const string & name) const;
 
   /// Returns authenticity ticket of request.
   const authentication::ticket & ticket() const { return _ticket; }

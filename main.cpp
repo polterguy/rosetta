@@ -183,6 +183,7 @@ void create_default_configuration_file()
   config.set ("provide-server-info", false);
   config.set ("static-response-headers", "");
   config.set ("authentication-file", ".users.dat");
+  config.set ("authenticate-over-non-ssl", false);
 
   // Request settings.
   config.set ("max-uri-length", 4096);
