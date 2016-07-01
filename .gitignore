@@ -9,3 +9,5 @@ rosetta.config
 # Excluding testing certificate and private key
 server.crt
 server.key
+
+*.dat

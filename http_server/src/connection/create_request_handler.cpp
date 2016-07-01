@@ -22,6 +22,7 @@
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
 #include "http_server/include/exceptions/request_exception.hpp"
+#include "http_server/include/exceptions/security_exception.hpp"
 #include "http_server/include/connection/create_request_handler.hpp"
 
 // Including all HTTP handlers we support.
@@ -36,6 +37,7 @@
 #include "http_server/include/connection/handlers/meta/error_handler.hpp"
 #include "http_server/include/connection/handlers/meta/trace_handler.hpp"
 #include "http_server/include/connection/handlers/meta/redirect_handler.hpp"
+#include "http_server/include/connection/handlers/meta/unauthorized_handler.hpp"
 
 namespace rosetta {
 namespace http_server {
@@ -277,37 +279,39 @@ request_handler_ptr create_request_handler (class connection * connection, class
 
     // Some sort of error.
     return request_handler_ptr (new error_handler (connection, request, status_code));
+  }
 
-  } else if (should_upgrade_insecure_requests (connection, request)) {
+  // Authorizing request.
+  if (!connection->server()->authorization().authorize (request->envelope().ticket(), request->envelope().path(), request->envelope().method())) {
+
+    // Not authorized, checking if client is authenticated, and if not, we return 401 allowing authentication, otherwise we return plain 401.
+    return request_handler_ptr (new unauthorized_handler (connection, request, request->envelope().ticket().is_default()));
+  }
+
+  if (should_upgrade_insecure_requests (connection, request)) {
 
     // Both configuration, and client, prefers secure requests, and current connection is not secure, hence we upgrade.
     return upgrade_insecure_request (connection, request);
-
   } else if (request->envelope().method() == "TRACE") {
 
     // Returning a TRACE handler.
     return create_trace_handler (connection, request);
-
   } else if (request->envelope().method() == "HEAD") {
 
     // Returning a HEAD handler.
     return create_head_handler (connection, request);
-
   } else if (request->envelope().method() == "GET") {
 
     // Returning a GET file handler.
     return create_get_handler (connection, request);
-
   } else if (request->envelope().method() == "PUT") {
 
     // Returning a GET file handler.
     return create_put_handler (connection, request);
-
   } else if (request->envelope().method() == "DELETE") {
 
     // Returning a GET file handler.
     return create_delete_handler (connection, request);
-
   } else {
 
     // Unsupported method.

@@ -18,7 +18,7 @@
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
 #include "http_server/include/exceptions/server_exception.hpp"
-#include "http_server/include/connection/handlers/meta/error_handler.hpp"
+#include "http_server/include/connection/handlers/meta/unauthorized_handler.hpp"
 
 namespace rosetta {
 namespace http_server {
@@ -27,26 +27,33 @@ using std::string;
 using namespace rosetta::common;
 
 
-error_handler::error_handler (class connection * connection, class request * request, unsigned int status_code)
-  : request_file_handler (connection, request),
-    _status_code (status_code)
-{
-  // Verify that this actually is an error, and if not, throws an exception.
-  if (_status_code < 400)
-    throw server_exception ("Logical error in server. Tried to return a non-error status code as an error to client.");
-}
+unauthorized_handler::unauthorized_handler (class connection * connection, class request * request, bool allow_authentication)
+  : error_handler (connection, request, 401),
+    _allow_authentication (allow_authentication)
+{ }
 
 
-void error_handler::handle (exceptional_executor x, functor on_success)
+void unauthorized_handler::handle (exceptional_executor x, functor on_success)
 {
   // Figuring out which file to serve.
-  string error_file = "error-pages/" + boost::lexical_cast<string> (_status_code) + ".html";
+  string error_file = "error-pages/401.html";
 
-  // Using base class implementation for writing error file.
-  write_file (error_file, _status_code, false, x, [on_success] (auto x) {
+  // Checking if this is a 401 (Unauthorized), and if so, adding up the WWW-Authenticate header.
+  if (_allow_authentication) {
 
-    on_success (x);
-  });
+    // Making sure we signal to client that it needs to authenticate.
+    write_file (error_file, 401, {{"WWW-Authenticate", "Basic realm=\"User Visible Realm\""}}, x, [on_success] (auto x) {
+
+      on_success (x);
+    });
+  } else {
+
+    // Using base class implementation for writing error file.
+    write_file (error_file, 401, false, x, [on_success] (auto x) {
+
+      on_success (x);
+    });
+  }
 }
 
 

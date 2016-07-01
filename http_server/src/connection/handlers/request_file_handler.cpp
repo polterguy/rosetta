@@ -112,13 +112,48 @@ void request_file_handler::write_file (path filepath, unsigned int status_code, 
 }
 
 
-string request_file_handler::get_mime (path filename)
+void request_file_handler::write_file (path filepath, unsigned int status_code, collection headers, exceptional_executor x, functor on_success)
 {
-  // Then we do a lookup into the configuration for our server, to see if it has defined a MIME type for the given file's extension.
-  string mime_type = connection()->server()->configuration().get<string> ("mime" + filename.extension().string (), "");
+  // Making things slightly more tidy in here.
+  using namespace std;
 
-  // Returning MIME type to caller.
-  return mime_type;
+  // Retrieving MIME type, and verifying this is a type of file we actually serve.
+  string mime_type = get_mime (filepath);
+  if (mime_type == "") {
+
+    // File type is not served according to configuration of server.
+    request()->write_error_response (x, 403);
+    return;
+  }
+
+  // Writing status code.
+  write_status (status_code, x, [this, filepath, headers, on_success] (auto x) {
+
+    // Writing special file headers back to client.
+    write_file_headers (filepath, false, x, [this, filepath, headers, on_success] (auto x) {
+
+      // Writing extra headers.
+      write_headers (headers, x, [this, filepath, on_success] (auto x) {
+
+        // Writing standard headers to client.
+        write_standard_headers (x, [this, filepath, on_success] (auto x) {
+
+          // Make sure we close envelope.
+          ensure_envelope_finished (x, [this, filepath, on_success] (auto x) {
+
+            // Opening up file, as a shared_ptr, passing it into write_file(),
+            // such that file stays around, until all bytes have been written.
+            shared_ptr<std::ifstream> fs_ptr = make_shared<std::ifstream> (filepath.string (), ios::in | ios::binary);
+            if (!fs_ptr->good())
+              throw request_exception ("Couldn't open file; '" + filepath.string () + "' for reading.");
+
+            // Writing actual file.
+            write_file (fs_ptr, x, on_success);
+          });
+        });
+      });
+    });
+  });
 }
 
 

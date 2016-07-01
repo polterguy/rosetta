@@ -16,11 +16,15 @@
  */
 
 #include <string>
+#include <cstdlib>
 #include <iostream>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
+#include "common/include/sha1.hpp"
+#include "common/include/base64.hpp"
 #include "common/include/configuration.hpp"
 #include "http_server/include/server.hpp"
+#include "http_server/include/helpers/date.hpp"
 #include "http_server/include/exceptions/argument_exception.hpp"
 
 using std::endl;
@@ -49,11 +53,27 @@ int main (int argc, char * argv[])
     
     // Retrieving configuration object, and instantiating server.
     configuration config (config_file);
+
+    // Checking if "users.dat" file exists, and if not, create a default user with username "Aladdin" and password "OpenSesame".
+    if (!boost::filesystem::exists (".users.dat")) {
+
+      // Making sure we create our default user.
+      ofstream users_file (config.get<string> ("authentication-file"));
+      string username = "Aladdin";
+      string password = "OpenSesame";
+      string password_salt = password + config.get<string> ("server-salt");
+      auto sha1_password = sha1::compute ( {password_salt.begin(), password_salt.end()} );
+      string base64_sha1_encoded_password;
+      base64::encode ( {sha1_password.begin(), sha1_password.end()}, base64_sha1_encoded_password);
+      users_file << username + ":" + base64_sha1_encoded_password + ":root";
+    }
+
+    // Creating server object.
     server_ptr server (server::create (config));
 
     // Showing copyright and server info to std out.
     show_copyright_server_info (config);
-    
+
     // Starting server.
     // This method won't return before server is somehow stopped, or a severe exception,
     // that we do not know how to handle occurs.
@@ -162,7 +182,7 @@ void create_default_configuration_file()
   config.set ("user-agent-blacklist", "");
   config.set ("provide-server-info", false);
   config.set ("static-response-headers", "");
-  config.set ("authentication-file", "users.dat");
+  config.set ("authentication-file", ".users.dat");
 
   // Request settings.
   config.set ("max-uri-length", 4096);
@@ -202,7 +222,25 @@ void create_default_configuration_file()
   config.set ("mime.bz", "application/x-bzip");
   config.set ("mime.zip", "application/zip");
   config.set ("mime.xml", "application/rss+xml");
-
+  
+  // Creating a server salt. The salt doesn't need to be "cryptographically secure", only "pseudo random".
+  // Hence, we create it from a couple of random bytes from rand(), and append the "now date", before we sha1 hash it, and create a base64 encoded
+  // value from it, using this base64 encoded string as our "server salt".
+  srand (time (0));
+  string salt;
+  salt.push_back ((rand() % 26) + 'a');
+  salt.push_back ((rand() % 26) + 'a');
+  salt.push_back ((rand() % 26) + 'a');
+  salt.push_back ((rand() % 26) + 'a');
+  salt.push_back ((rand() % 26) + 'a');
+  salt.push_back ((rand() % 26) + 'a');
+  salt.push_back ((rand() % 26) + 'a');
+  salt += date::now().to_iso_string ();
+  auto sha1_value = sha1::compute ( {salt.begin(), salt.end()} );
+  string sha1_base64_encode_salt;
+  base64::encode ( {sha1_value.begin(), sha1_value.end()}, sha1_base64_encode_salt);
+  config.set ("server-salt", sha1_base64_encode_salt);
+  
   // Saving configuration to file
   config.save (DEFAULT_CONFIGURATION_FILE);
 }

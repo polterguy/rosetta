@@ -48,12 +48,13 @@ protected:
   /// Writing the given file's HTTP headers on socket back to client.
   void write_file_headers (path file_path, bool last_modified, exceptional_executor x, functor on_success);
 
-  /// Convenience method; Writes the given file on socket back to client, with a status code, default headers for a file,
-  /// standard headers for server, and basically everything.
+  /// Convenience method; Writes the given file on socket back to client, with a status code, using default headers for a file,
+  /// standard headers for server, and basically the lot.
+  /// If last_modified is true, it writes the last modification date of the file it is serving, otherwise it won't.
   void write_file (path file_path, unsigned int status_code, bool last_modified, exceptional_executor x, functor on_success);
 
-  /// Returns the MIME type according to file extension.
-  string get_mime (path filename);
+  /// Writes a file with the additional HTTP headers supplied, in addition to all the file standard headers, except "Last-Modified".
+  void write_file (path file_path, unsigned int status_code, collection headers, exceptional_executor x, functor on_success);
 
 private:
 

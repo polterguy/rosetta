@@ -15,11 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROSETTA_SERVER_ERROR_HANDLER_HPP
-#define ROSETTA_SERVER_ERROR_HANDLER_HPP
+#ifndef ROSETTA_SERVER_UNAUTHORIZED_HANDLER_HPP
+#define ROSETTA_SERVER_UNAUTHORIZED_HANDLER_HPP
 
 #include "common/include/exceptional_executor.hpp"
-#include "http_server/include/connection/handlers/request_file_handler.hpp"
+#include "http_server/include/connection/handlers/meta/error_handler.hpp"
 
 using namespace rosetta::common;
 
@@ -30,25 +30,25 @@ class request;
 class connection;
 
 
-/// Error handler.
-class error_handler : public request_file_handler
+/// Unauthorized handler.
+class unauthorized_handler final : public error_handler
 {
 public:
 
   /// Creates an error request handler.
-  error_handler (class connection * connection, class request * request, unsigned int status_code);
+  unauthorized_handler (class connection * connection, class request * request, bool allow_authentication);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, functor on_success) override;
 
 private:
 
-  /// Status code for error.
-  unsigned int _status_code;
+  /// Whether or not authorization of client should be allowed.
+  const bool _allow_authentication;
 };
 
 
 } // namespace http_server
 } // namespace rosetta
 
-#endif // ROSETTA_SERVER_ERROR_HANDLER_HPP
+#endif // ROSETTA_SERVER_UNAUTHORIZED_HANDLER_HPP

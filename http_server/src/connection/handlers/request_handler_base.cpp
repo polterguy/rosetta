@@ -210,5 +210,15 @@ void request_handler_base::ensure_envelope_finished (exceptional_executor x, fun
 }
 
 
+string request_handler_base::get_mime (path filename)
+{
+  // Then we do a lookup into the configuration for our server, to see if it has defined a MIME type for the given file's extension.
+  string mime_type = connection()->server()->configuration().get<string> ("mime" + filename.extension().string (), "");
+
+  // Returning MIME type to caller.
+  return mime_type;
+}
+
+
 } // namespace http_server
 } // namespace rosetta

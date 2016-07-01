@@ -24,6 +24,7 @@
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include "common/include/configuration.hpp"
+#include "http_server/include/auth/authorization.hpp"
 #include "http_server/include/auth/authentication.hpp"
 #include "http_server/include/connection/rosetta_socket.hpp"
 
@@ -64,6 +65,12 @@ public:
 
   /// Removes the specified connection.
   virtual void remove_connection (connection_ptr connection);
+
+  /// Returns the authorization object for server
+  const class authorization & authorization () const { return _authorization; }
+
+  /// Returns the authentication object for server
+  const class authentication & authentication () const { return _authentication; }
 
 protected:
 
@@ -110,7 +117,10 @@ private:
   std::set<connection_ptr> _connections;
 
   /// Authentication object for server.
-  authentication _authentication;
+  class authentication _authentication;
+
+  /// Authorization object for server.
+  class authorization _authorization;
 };
 
 

@@ -17,12 +17,14 @@
 
 #include <cctype>
 #include <boost/algorithm/string.hpp>
+#include "common/include/base64.hpp"
 #include "http_server/include/server.hpp"
 #include "http_server/include/helpers/match_condition.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
 #include "http_server/include/connection/request_envelope.hpp"
 #include "http_server/include/exceptions/request_exception.hpp"
+#include "http_server/include/exceptions/security_exception.hpp"
 
 namespace rosetta {
 namespace http_server {
@@ -142,6 +144,9 @@ void request_envelope::parse_uri (string uri)
     uri = decode_uri (uri);
   }
 
+  // Removing the last "/" if it was given.
+  trim_if (uri, boost::is_any_of ("/"));
+
   // Verify URI does not contain any characters besides the US ASCII characters.
   // Notice, we only allow for [a-z], [A-Z], [0-9] in addition to '.' and '-', to make URIs more robust and lessen the attack surface.
   // If anything besides these characters are found in the URI, we entirely refuse connection, by throwing an exception!
@@ -154,13 +159,18 @@ void request_envelope::parse_uri (string uri)
       throw request_exception ("Illegal characters found in path.");
   }
 
-  // Then, finally, we can set the URI and path.
+  // Then, finally, we can set the URI and path, but first sanity checking it.
   if (!sanity_check_uri (uri))
     throw request_exception ("Illegal characters found in path.");
 
-  _uri = uri;
-  _path = _connection->server()->configuration().get<string> ("www-root", "www-root");
-  _path += uri;
+  // And some security checking.
+  class path uri_path = uri;
+  if (uri_path.filename() == ".auth.dat")
+    throw security_exception ("Client tried to request '.auth.dat' file.");
+
+  _uri = uri_path;
+  _path = _connection->server()->configuration().get<string> ("www-root", "www-root") + "/";
+  _path += uri_path;
 }
 
 
@@ -231,10 +241,42 @@ void request_envelope::parse_http_header_line (const string & line)
       string name = capitalize_header_name (trim_copy (line.substr (0, equals_idx)));
       string value = trim_copy (line.substr (equals_idx + 1));
 
+      // Checking if this is an "Authorization" header, at which point we try to create an authentication::ticket for request.
+      if (name == "Authorization") {
+
+        // Authenticate user.
+        authenticate_client (value);
+      }
+
       // Now adding actual header into headers collection.
       _headers.push_back (collection_type (name, value));
     } // else; Ignore header completely.
   }
+}
+
+
+void request_envelope::authenticate_client (const string & header_value)
+{
+  // Splitting value up into its two parts.
+  std::vector<string> entities;
+  split (entities, header_value, boost::is_any_of (" "));
+  if (entities.size() != 2 || entities[0] != "Basic")
+    throw security_exception ("Unknown authorization type found in 'Authorization' HTTP header.");
+
+  // BASE64 decoding the username and password.
+  std::vector<unsigned char> result;
+  base64::decode (entities[1], result);
+
+  // Splitting Authorization value into username and password, and verifying syntax.
+  string username_password_string (result.begin(), result.end());
+  std::vector<string> username_password;
+  split (username_password, username_password_string, boost::is_any_of (":"));
+  if (username_password.size() != 2)
+    throw security_exception ("Syntax error in 'Authorization' HTTP header.");
+
+  // Authorizing request, passing in server's salt to hash function.
+  auto server_salt = _connection->server()->configuration().get<string> ("server-salt");
+  _ticket = _connection->server()->authentication().authenticate (username_password [0], username_password [1], server_salt);
 }
 
 

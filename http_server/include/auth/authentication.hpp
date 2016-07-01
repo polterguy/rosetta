@@ -37,15 +37,16 @@ public:
   /// Ticket class, wraps an authenticated user.
   struct ticket final
   {
-    const string username;
-    const string role;
+    inline bool is_default() const { return username.size() == 0; }
+    string username;
+    string role;
   };
 
   /// Creates an authentication instance.
-  authentication (path auth_file);
+  authentication (const path & auth_file);
 
   /// Authenticates a user, and returns a ticket.
-  const ticket authenticate (string username, string password) const;
+  ticket authenticate (const string & username, const string & password, const string & server_salt) const;
 
 private:
 

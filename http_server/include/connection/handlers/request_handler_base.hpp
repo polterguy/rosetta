@@ -20,13 +20,15 @@
 
 #include <tuple>
 #include <vector>
+#include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
-
-namespace rosetta {
-namespace http_server {
 
 using std::string;
 using namespace rosetta::common;
+using namespace boost::filesystem;
+
+namespace rosetta {
+namespace http_server {
 
 class request;
 class connection;
@@ -69,6 +71,9 @@ protected:
 
   /// Returns request for this instance.
   request * request() { return _request; }
+
+  /// Returns the MIME type according to file extension.
+  string get_mime (path filename);
 
 private:
 

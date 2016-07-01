@@ -93,11 +93,15 @@ void get_folder_handler::write_304_response (exceptional_executor x, functor on_
     // Writing standard HTTP headers to connection.
     write_standard_headers (x, [this, on_success] (auto x) {
 
-      // Making sure we close envelope.      
-      ensure_envelope_finished (x, [on_success] (auto x) {
+      // Making sure we add up a Vary header on "Authorization", such that if user is authorized, then folder content is reloaded.
+      write_headers ({{"Vary", "Authorization"}}, x, [this, on_success] (auto x) {
 
-        // invoking callback, since we're done writing the response.
-        on_success (x);
+        // Making sure we close envelope.      
+        ensure_envelope_finished (x, [on_success] (auto x) {
+
+          // invoking callback, since we're done writing the response.
+          on_success (x);
+        });
       });
     });
   });
@@ -109,26 +113,34 @@ void get_folder_handler::write_folder (path folderpath, exceptional_executor x, 
   // Using shared_ptr of vector to hold folder information.
   auto buffer_ptr = std::make_shared<std::vector<unsigned char>> ();
   buffer_ptr->push_back ('{');
-  string folder_content = "\"files\":";
+  string folder_content = "\"content\":";
   buffer_ptr->insert (buffer_ptr->end(), folder_content.begin(), folder_content.end());
   buffer_ptr->push_back ('[');
 
-  // Iterating over all objects in folder.  
+  // Iterating over all objects in folder.
   directory_iterator idx {folderpath};
   bool first = true;
   while (idx != directory_iterator{}) {
 
-    // Retrieving path, and making sure this is not an invisible file/folder for some reasons.
-    string path = idx->path().string();
-    path = path.substr (folderpath.size ());
+    // Making sure we only display files that are served.
+    if (is_regular_file (*idx) && (get_mime (idx->path().extension()) == "" || idx->path().filename().string().find_first_of (".") == 0)) {
 
-    // Checking if we should show this bugger.
-    if (path [0] == '.' || path [0] == '~') {
+      // Either file is not served, or it is an invisible file that starts with a "."
+      // Regardless, we do not show these files, neither do we list them!
+      ++idx;
+      continue; // Not served
+    }
 
-      // Invisible guy!
+    // Checking if currently iterated file object is a folder, and if so, making sure user is authorized to view its content.
+    if (is_directory (idx->path()) && !connection()->server()->authorization().authorize (request()->envelope().ticket(), idx->path(), "GET")) {
+
+      // Client is not authorized to GET folder content, hence we do not show folder!
       ++idx;
       continue;
     }
+
+    // Retrieving path, and making sure this is not an invisible file/folder for some reasons.
+    string path = idx->path().filename().string();
 
     // Making sure we get a "," between each entry.
     if (first)
@@ -180,6 +192,7 @@ void get_folder_handler::write_folder (path folderpath, exceptional_executor x, 
       // Building our standard response headers for a folder information transfer.
       collection headers {
         {"Content-Type", "application/json; charset=utf-8"},
+        {"Vary", "Authorization"},
         {"Content-Length", boost::lexical_cast<string> (size)},
         {"Last-Modified", date::from_path_change (folderpath).to_string ()}};
 

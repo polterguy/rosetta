@@ -24,6 +24,7 @@
 #include <vector>
 #include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
+#include "http_server/include/auth/authentication.hpp"
 
 namespace rosetta {
 namespace http_server {
@@ -73,6 +74,9 @@ public:
   /// Returns the parameters collection for the current request.
   const const_collection & parameters () const { return _parameters; }
 
+  /// Returns authenticity ticket of request.
+  const authentication::ticket & ticket() const { return _ticket; }
+
 private:
 
   /// Parses the HTTP-Request line.
@@ -89,6 +93,9 @@ private:
 
   /// Parses the HTTP GET parameters.
   void parse_parameters (const string & params);
+
+  /// Authenticates client according to "Authorization" HTTP header value.
+  void authenticate_client (const string & header_value);
 
 
   /// Connection this instance belongs to.
@@ -114,6 +121,9 @@ private:
 
   /// GET parameters.
   collection _parameters;
+
+  /// Authentication ticket for request, if any.
+  authentication::ticket _ticket;
 };
 
 
