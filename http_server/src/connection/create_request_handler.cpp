@@ -34,6 +34,7 @@
 #include "http_server/include/connection/handlers/put_file_handler.hpp"
 #include "http_server/include/connection/handlers/put_folder_handler.hpp"
 #include "http_server/include/connection/handlers/delete_handler.hpp"
+#include "http_server/include/connection/handlers/post_users_handler.hpp"
 #include "http_server/include/connection/handlers/meta/head_handler.hpp"
 #include "http_server/include/connection/handlers/meta/options_handler.hpp"
 #include "http_server/include/connection/handlers/meta/error_handler.hpp"
@@ -346,6 +347,24 @@ request_handler_ptr create_delete_handler (class connection * connection, class 
 }
 
 
+request_handler_ptr create_post_users_handler (class connection * connection, class request * request)
+{
+  // Making sure Content-Type of request is something we know how to handle.
+  if (request->envelope().header ("Content-Type") != "application/x-www-form-urlencoded")
+    throw request_exception ("Unsupported Content-Type in POST request");
+
+  // Checking if client is authorized to use the POST verb towards path.
+  if (!connection->server()->authorization().authorize (request->envelope().ticket(), request->envelope().path(), "POST"))
+    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+
+  // Only logged in clients are allowed to POST, regardless of what ".auth" file says!
+  if (!request->envelope().ticket().authenticated())
+    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+
+  // User tries to POST data to server
+  return request_handler_ptr (new post_users_handler (connection, request));
+}
+
 request_handler_ptr create_request_handler (class connection * connection, class request * request, int status_code)
 {
   // Checking if we can accept User-Agent according whitelist and blacklist definitions.
@@ -376,7 +395,7 @@ request_handler_ptr create_request_handler (class connection * connection, class
     return request_handler_ptr (new unauthorized_handler (connection, request, true));
   }
 
-  // Specific handlers for method
+  // Specific handlers for method.
   if (request->envelope().method() == "TRACE") {
 
     // Returning a TRACE handler.
@@ -401,6 +420,14 @@ request_handler_ptr create_request_handler (class connection * connection, class
 
     // Returning a DELETE file/folder handler.
     return create_delete_handler (connection, request);
+  } else if (request->envelope().method() == "POST") {
+
+    // Returning the correct POST data handler.
+    if (request->envelope().uri() == "/.users")
+      return create_post_users_handler (connection, request);
+
+    // URI does not support POST method.
+    return request_handler_ptr (new error_handler (connection, request, 403));
   } else {
 
     // Unsupported method.

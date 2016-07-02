@@ -192,7 +192,9 @@ void create_default_configuration_file()
   config.set ("max-header-length", 8192);
   config.set ("max-header-count", 25);
   config.set ("max-request-content-length", 4194304); // 4 MB
+  config.set ("max-post-request-content-length", 4096); // 4KB, post is only used for changing passwords and such
   config.set ("request-content-read-timeout", 300); // 5 minutes
+  config.set ("request-post-content-read-timeout", 30); // 30 seconds
   config.set ("upgrade-insecure-requests", true);
 
   // Connection settings.

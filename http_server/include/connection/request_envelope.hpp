@@ -22,6 +22,7 @@
 #include <tuple>
 #include <string>
 #include <vector>
+#include <functional>
 #include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/auth/authentication.hpp"
@@ -98,13 +99,13 @@ private:
   void read_headers (exceptional_executor x, functor on_success);
 
   /// Parses and verifies sanity of the given HTTP header line.
-  void parse_http_header_line (const string & line);
+  void parse_http_header_line (const string & line, std::function<void()> on_success);
 
   /// Parses the HTTP GET parameters.
   void parse_parameters (const string & params);
 
   /// Authenticates client according to "Authorization" HTTP header value.
-  void authenticate_client (const string & header_value);
+  void authenticate_client (const string & header_value, std::function<void()> on_success);
 
 
   /// Connection this instance belongs to.

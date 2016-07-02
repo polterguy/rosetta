@@ -71,6 +71,7 @@ public:
 
   /// Returns the authentication object for server
   const class authentication & authentication () const { return _authentication; }
+  class authentication & authentication () { return _authentication; }
 
 protected:
 

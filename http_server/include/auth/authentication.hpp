@@ -20,13 +20,18 @@
 
 #include <map>
 #include <tuple>
+#include <functional>
+#include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
 
 using std::string;
+using namespace boost::asio;
 using namespace boost::filesystem;
 
 namespace rosetta {
 namespace http_server {
+
+typedef std::function<void(bool)> success_handler;
 
 
 /// Responsible for authenticate a client.
@@ -43,10 +48,29 @@ public:
   };
 
   /// Creates an authentication instance.
-  authentication (const path & auth_file);
+  authentication (io_service & service, const path & auth_file);
+
+  /// Success handler type for authenticating client.
+  typedef std::function<void(ticket)> authenticated_success_handler;
 
   /// Authenticates a user, and returns a ticket.
-  ticket authenticate (const string & username, const string & password, const string & server_salt) const;
+  void authenticate (const string & username, const string & password, const string & server_salt, authenticated_success_handler on_success);
+
+  /// Changes password of specified account.
+  void change_password (const string & username, const string & password, const string & server_salt, success_handler on_success);
+
+  /// Changes role of specified account.
+  void change_role (const string & username, const string & role, success_handler on_success);
+
+  /// Creates a new user in system.
+  void create_user (const string & username,
+                    const string & password,
+                    const string & role,
+                    const string & server_salt,
+                    success_handler on_success);
+
+  /// Creates a new user in system.
+  void delete_user (const string & username, success_handler on_success);
 
 private:
 
@@ -61,12 +85,21 @@ private:
   /// Initializes the authentication object.
   void initialize ();
 
+  /// Saves authentication file.
+  void save ();
+
 
   /// Path to authentication file.
   path _auth_file;
 
   /// Users, with their usernames and roles.
   std::map<string, user> _users;
+
+  /// Strand, used to synchronize access to shared objects.
+  strand _strand;
+
+  /// Reference to io_service kept around, to be able to "post work".
+  io_service & _service;
 };
 
 

@@ -20,6 +20,7 @@
 #include <boost/algorithm/string.hpp>
 #include "common/include/base64.hpp"
 #include "http_server/include/server.hpp"
+#include "http_server/include/helpers/uri_encode.hpp"
 #include "http_server/include/helpers/match_condition.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
@@ -37,9 +38,6 @@ using namespace rosetta::common;
 /// Returns the next line from the given stream buffer.
 string get_line (streambuf & buffer);
 
-/// Decodes a URI, turning '+' into ' ' and %xx notation into actual characters.
-string decode_uri (const string & uri);
-
 /// Auto-Capitalize HTTP header names.
 string capitalize_header_name (const string & name);
 
@@ -49,7 +47,8 @@ bool sanity_check_path (path uri);
 
 request_envelope::request_envelope (connection * connection, request * request)
   : _connection (connection),
-    _request (request)
+    _request (request),
+    _folder_request (false)
 { }
 
 
@@ -145,14 +144,14 @@ void request_envelope::parse_uri (string uri)
   if (index_of_pars != string::npos) {
 
     // URI contains GET parameters.
-    parse_parameters (decode_uri (uri.substr (index_of_pars + 1)));
+    parse_parameters (uri_encode::decode (uri.substr (index_of_pars + 1)));
 
     // Decoding URI.
-    uri = decode_uri (uri.substr (0, index_of_pars));
+    uri = uri_encode::decode (uri.substr (0, index_of_pars));
   } else {
 
     // No parameters, decoding URI.
-    uri = decode_uri (uri);
+    uri = uri_encode::decode (uri);
   }
 
   // Verify URI does not contain any characters besides the US ASCII characters.
@@ -225,14 +224,17 @@ void request_envelope::read_headers (exceptional_executor x, functor on_success)
     } else {
 
       // Parsing HTTP header, before repeating the process, and invoking "self".
-      parse_http_header_line (line);
-      read_headers (x, on_success);
+      parse_http_header_line (line, [this, x, on_success] () {
+
+        // Reading next header.
+        read_headers (x, on_success);
+      });
     }
   });
 }
 
 
-void request_envelope::parse_http_header_line (const string & line)
+void request_envelope::parse_http_header_line (const string & line, std::function<void()> on_success)
 {
   // Making things slightly more tidy and comfortable in here ...
   using namespace std;
@@ -245,6 +247,9 @@ void request_envelope::parse_http_header_line (const string & line)
     // This is a continuation of the header value that was read in the previous line from client.
     // Appending content according to ruling of HTTP/1.1 standard.
     get<1> (_headers.back()) += " " + trim_copy_if (line, is_any_of (" \t"));
+
+    // Invoking callback.
+    on_success ();
   } else {
 
     // Splitting header into name and value.
@@ -261,17 +266,24 @@ void request_envelope::parse_http_header_line (const string & line)
       if (name == "Authorization") {
 
         // Authenticate user.
-        authenticate_client (value);
-      }
+        _headers.push_back (collection_type (name, value));
+        authenticate_client (value, on_success);
+      } else {
 
-      // Now adding actual header into headers collection.
-      _headers.push_back (collection_type (name, value));
-    } // else; Ignore header completely.
+        // Now adding actual header into headers collection, before invoking callback.
+        _headers.push_back (collection_type (name, value));
+        on_success();
+      }
+    } else {
+
+      // Invoking callback.
+      on_success();
+    }
   }
 }
 
 
-void request_envelope::authenticate_client (const string & header_value)
+void request_envelope::authenticate_client (const string & header_value, std::function<void()> on_success)
 {
   // Splitting value up into its two parts.
   std::vector<string> entities;
@@ -292,7 +304,15 @@ void request_envelope::authenticate_client (const string & header_value)
 
   // Authorizing request, passing in server's salt to hash function.
   auto server_salt = _connection->server()->configuration().get<string> ("server-salt");
-  _ticket = _connection->server()->authentication().authenticate (username_password [0], username_password [1], server_salt);
+  _connection->server()->authentication().authenticate (username_password [0],
+                                                        username_password [1],
+                                                        server_salt,
+                                                        [this, on_success] (auto ticket) {
+    
+    // Assigning ticket given by authentication process to current instance, and invoking success callback provided by caller.
+    _ticket = ticket;
+    on_success ();
+  });
 }
 
 
@@ -358,54 +378,6 @@ string get_line (streambuf & buffer)
 
   // Returning result to caller, by transforming vector to string, now without any CR or LF anywhere.
   return string (vec.begin (), vec.end ());
-}
-
-
-unsigned char from_hex (unsigned char ch) 
-{
-  if (ch >= '0' && ch <= '9')
-    return ch - '0';
-  else if (ch >= 'a' && ch <= 'f')
-    return ch - 'a' + 10;
-  else if (ch >= 'A' && ch <= 'F')
-    return ch - 'A' + 10;
-  else 
-    throw request_exception ("Unknown escape % HEX HEX character sequence value found in encoded URI.");
-}
-
-
-string decode_uri (const string & uri)
-{
-  // Will hold the decoded return URI value temporarily.
-  std::vector<unsigned char> return_value;
-  
-  // Iterating through entire string, looking for either '+' or '%', which is specially handled.
-  for (size_t idx = 0; idx < uri.length (); ++idx) {
-    
-    // Checking if this character should have special handling.
-    if (uri [idx] == '+') {
-
-      // '+' equals space " ".
-      return_value.push_back (' ');
-    } else if (uri [idx] == '%') {
-
-      // '%' notation of character, followed by two characters. Sanity checking input first.
-      if (idx + 2 >= uri.size ())
-        throw request_exception ("Syntax error in URI encoded string, no values after '%' notation.");
-
-      // The first character is bit shifted 4 places, and OR'ed with the value of the second character.
-      // Then we make sure we skip the next 2 characters, since they're already handled.
-      return_value.push_back ((from_hex (uri [idx + 1]) << 4) | from_hex (uri [idx + 2]));
-      idx += 2;
-    } else {
-
-      // Normal plain character.
-      return_value.push_back (uri [idx]);
-    }
-  }
-
-  // Returning decoded URI to caller as string.
-  return string (return_value.begin (), return_value.end ());
 }
 
 

@@ -50,7 +50,8 @@ public:
   void set_deadline_timer (int seconds = -1);
 
   /// Returns the server for the current instance.
-  const server * server() const { return _server; }
+  class server * server() { return _server; }
+  const class server * server() const { return _server; }
 
   /// Returns the socket for the current instance.
   rosetta_socket & socket() { return *_socket; }

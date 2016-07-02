@@ -49,7 +49,7 @@ void put_file_handler::save_request_content (path filename, exceptional_executor
   using namespace std;
 
   // Setting deadline timer for content read.
-  const int CONTENT_READ_TIMEOUT = connection()->server()->configuration().get<size_t> ("request-content-read-timeout", 300);
+  const int CONTENT_READ_TIMEOUT = connection()->server()->configuration().get<int> ("request-content-read-timeout", 300);
   connection()->set_deadline_timer (CONTENT_READ_TIMEOUT);
 
   // Retrieving Content-Length of request.
