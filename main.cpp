@@ -183,6 +183,9 @@ void create_default_configuration_file()
   config.set ("authentication-file", ".users");
   config.set ("authenticate-over-non-ssl", false);
   config.set ("default-document", "index.html");
+  config.set ("head-allowed", false);
+  config.set ("trace-allowed", false);
+  config.set ("options-allowed", true);
 
   // Request settings.
   config.set ("max-uri-length", 4096);

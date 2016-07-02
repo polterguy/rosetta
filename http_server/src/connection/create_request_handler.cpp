@@ -35,6 +35,7 @@
 #include "http_server/include/connection/handlers/put_folder_handler.hpp"
 #include "http_server/include/connection/handlers/delete_handler.hpp"
 #include "http_server/include/connection/handlers/meta/head_handler.hpp"
+#include "http_server/include/connection/handlers/meta/options_handler.hpp"
 #include "http_server/include/connection/handlers/meta/error_handler.hpp"
 #include "http_server/include/connection/handlers/meta/trace_handler.hpp"
 #include "http_server/include/connection/handlers/meta/redirect_handler.hpp"
@@ -209,8 +210,16 @@ request_handler_ptr create_trace_handler (class connection * connection, class r
   if (!authorize_request (connection, request))
     return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
 
-  // Creating a TRACE response handler, and returning to caller.
-  return request_handler_ptr (new trace_handler (connection, request));
+  // Checking if TRACE method is allowed according to configuration.
+  if (!connection->server()->configuration().get<bool> ("trace-allowed", false)) {
+
+    // Method not allowed.
+    return request_handler_ptr (new error_handler (connection, request, 405));
+  } else {
+
+    // Creating a TRACE response handler, and returning to caller.
+    return request_handler_ptr (new trace_handler (connection, request));
+  }
 }
 
 
@@ -233,6 +242,25 @@ request_handler_ptr create_head_handler (class connection * connection, class re
 
     // Creating a HEAD response handler.
     return request_handler_ptr (new head_handler (connection, request));
+  }
+}
+
+
+request_handler_ptr create_options_handler (class connection * connection, class request * request)
+{
+  // Authorizing request.
+  if (!authorize_request (connection, request))
+    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+
+  // Checking if HEAD method is allowed according to configuration.
+  if (!connection->server()->configuration().get<bool> ("options-allowed", false)) {
+
+    // Method not allowed.
+    return request_handler_ptr (new error_handler (connection, request, 405));
+  } else {
+
+    // Creating an OPTIONS response handler, and returning to caller.
+    return request_handler_ptr (new options_handler (connection, request));
   }
 }
 
@@ -275,10 +303,6 @@ request_handler_ptr create_get_handler (class connection * connection, class req
       return request_handler_ptr (new error_handler (connection, request, 404));
 
     // This is a request for a folder's content.
-    // Notice, if the client sends an "authorize" parameter, we force the "authorized" version of the folder view.
-    // Unless we do this, then there is no way to view the authorized content of a folder that itself does not have authorized access rights.
-    if (!request->envelope().ticket().authenticated() && request->envelope().has_parameter ("authorize"))
-      return request_handler_ptr (new unauthorized_handler (connection, request, true));
     return request_handler_ptr (new get_folder_handler (connection, request));
   }
 }
@@ -338,11 +362,22 @@ request_handler_ptr create_request_handler (class connection * connection, class
     return request_handler_ptr (new error_handler (connection, request, status_code));
   }
 
+  // Checking if we should upgrade an insecure request to a secure request.
   if (should_upgrade_insecure_requests (connection, request)) {
 
     // Both configuration, and client, prefers secure requests, and current connection is not secure, hence we upgrade.
     return upgrade_insecure_request (connection, request);
-  } else if (request->envelope().method() == "TRACE") {
+  }
+
+  // Checking if client wants to force an authorized request.
+  if (request->envelope().has_parameter ("authorize") && !request->envelope().ticket().authenticated()) {
+
+    // Returning an Unauthorized response, to force client to authenticate.
+    return request_handler_ptr (new unauthorized_handler (connection, request, true));
+  }
+
+  // Specific handlers for method
+  if (request->envelope().method() == "TRACE") {
 
     // Returning a TRACE handler.
     return create_trace_handler (connection, request);
@@ -350,17 +385,21 @@ request_handler_ptr create_request_handler (class connection * connection, class
 
     // Returning a HEAD handler.
     return create_head_handler (connection, request);
+  } else if (request->envelope().method() == "OPTIONS") {
+
+    // Returning a OPTIONS handler.
+    return create_options_handler (connection, request);
   } else if (request->envelope().method() == "GET") {
 
-    // Returning a GET file handler.
+    // Returning a GET file/folder handler.
     return create_get_handler (connection, request);
   } else if (request->envelope().method() == "PUT") {
 
-    // Returning a GET file handler.
+    // Returning a PUT file/folder handler.
     return create_put_handler (connection, request);
   } else if (request->envelope().method() == "DELETE") {
 
-    // Returning a GET file handler.
+    // Returning a DELETE file/folder handler.
     return create_delete_handler (connection, request);
   } else {
 

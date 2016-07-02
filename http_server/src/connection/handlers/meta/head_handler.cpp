@@ -40,37 +40,12 @@ head_handler::head_handler (class connection * connection, class request * reque
 
 void head_handler::handle (exceptional_executor x, functor on_success)
 {
-  // Retrieving URI from request, removing initial "/" from URI, before checking sanity of URI.
-  auto uri = request()->envelope().uri().string();
-  if (!sanity_check_uri (uri)) {
-
-    // URI is not "sane".
-    request()->write_error_response (x, 404);
-    return;
-  }
-
-  // Retrieving full path of document, and ensuring it exists.
-  path full_path = request()->envelope().path();
-  if (!boost::filesystem::exists (full_path)) {
-
-      // Writing error status response, and returning early.
-      request()->write_error_response (x, 404);
-      return;
-  }
-
-  // Returning file to client.
-  write_head (full_path, x, on_success);
-}
-
-
-void head_handler::write_head (path full_path, exceptional_executor x, functor on_success)
-{
   // First writing status 200.
-  write_status (200, x, [this, x, full_path, on_success] (auto x) {
+  write_status (200, x, [this, x, on_success] (auto x) {
 
     // Notice, we are NOT writing any content in a HEAD response.
     // But we write entire response, including "Content-Length", and "Last-Modified", except the content parts.
-    write_file_headers (full_path, true, x, on_success);
+    write_file_headers (request()->envelope().path(), true, x, on_success);
   });
 }
 

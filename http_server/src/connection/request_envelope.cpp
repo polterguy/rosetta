@@ -44,7 +44,7 @@ string decode_uri (const string & uri);
 string capitalize_header_name (const string & name);
 
 /// Makes sure URI is "sane", and does not contain "/../", etc.
-bool sanity_check_uri (path uri);
+bool sanity_check_path (path uri);
 
 
 request_envelope::request_envelope (connection * connection, request * request)
@@ -167,10 +167,6 @@ void request_envelope::parse_uri (string uri)
       throw request_exception ("Illegal characters found in path.");
   }
 
-  // Then, finally, we can set the URI and path, but first sanity checking it.
-  if (!sanity_check_uri (uri))
-    throw request_exception ("Illegal characters found in path.");
-
   // Then setting path, URI and folder/file-type of request.
   _uri = uri;
 
@@ -187,6 +183,10 @@ void request_envelope::parse_uri (string uri)
     // Removing last "/" to have a "normalized" and uniform way of accessing folders inside of the file system.
     _path = _path.parent_path();
   }
+
+  // Then, finally, we can sanity check the path.
+  if (!sanity_check_path (_path))
+    throw request_exception ("Illegal characters found in path.");
 }
 
 
@@ -441,13 +441,10 @@ string capitalize_header_name (const string & name)
 }
 
 
-bool sanity_check_uri (path uri)
+bool sanity_check_path (path uri)
 {
   // Breaking up URI into components, and sanity checking each component, to verify client is not requesting an illegal URI.
   for (auto & idx : uri) {
-    
-    if (idx.string() == ".") // If a folder is requested, then the iterator logic of boost filesystem will return the last "/" as a "." entity!
-      continue;
 
     if (idx.string().find ("..") != string::npos) // Request is probably trying to access files outside of the main "www-root" folder.
       return false;

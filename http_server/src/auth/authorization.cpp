@@ -121,7 +121,7 @@ bool authorization::authorize (const authentication::ticket & ticket, class path
       auto iter_role = iter_verb->second.find (ticket.role);
       if (iter_role != iter_verb->second.end())
         return true; // Role found for verb in folder; ACCESS GRANTED!
-      return iter_verb->second.find ("*") != iter_verb->second.end(); // NO ACCESS, unless everybody has access!
+      return iter_verb->second.find ("*") != iter_verb->second.end(); // NO ACCESS, unless everybody can exercise verb!
     } else {
 
       // No explicit rights for verb, recursively invoking self for parent folder, but only if this is not the "www-root" path.

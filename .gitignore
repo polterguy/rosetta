@@ -11,3 +11,7 @@ server.crt
 server.key
 
 *.dat
+
+.users
+
+www-root/.auth

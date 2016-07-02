@@ -15,14 +15,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROSETTA_SERVER_HEAD_HANDLER_HPP
-#define ROSETTA_SERVER_HEAD_HANDLER_HPP
+#ifndef ROSETTA_SERVER_OPTIONS_HANDLER_HPP
+#define ROSETTA_SERVER_OPTIONS_HANDLER_HPP
 
-#include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
-#include "http_server/include/connection/handlers/request_file_handler.hpp"
+#include "http_server/include/connection/handlers/request_handler_base.hpp"
 
-using namespace boost::filesystem;
 using namespace rosetta::common;
 
 namespace rosetta {
@@ -32,13 +30,13 @@ class request;
 class connection;
 
 
-/// HEAD handler.
-class head_handler final : public request_file_handler
+/// Returns the OPTIONS for a client to which rights he has to perform actions (verbs) on the specified resource.
+class options_handler final : public request_handler_base
 {
 public:
 
-  /// Creates a HEAD handler.
-  head_handler (class connection * connection, class request * request);
+  /// Creates an options handler.
+  options_handler (class connection * connection, class request * request);
 
   /// Handles the given request.
   virtual void handle (exceptional_executor x, functor on_success) override;
@@ -48,4 +46,4 @@ public:
 } // namespace http_server
 } // namespace rosetta
 
-#endif // ROSETTA_SERVER_HEAD_HANDLER_HPP
+#endif // ROSETTA_SERVER_OPTIONS_HANDLER_HPP
