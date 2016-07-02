@@ -55,10 +55,10 @@ int main (int argc, char * argv[])
     configuration config (config_file);
 
     // Checking if "users.dat" file exists, and if not, create a default user with username "Aladdin" and password "OpenSesame".
-    if (!boost::filesystem::exists (".users.dat")) {
+    if (!boost::filesystem::exists (".users")) {
 
       // Making sure we create our default user.
-      ofstream users_file (config.get<string> ("authentication-file"));
+      ofstream users_file (".users");
       string username = "Aladdin";
       string password = "OpenSesame";
       string password_salt = password + config.get<string> ("server-salt");
@@ -180,7 +180,6 @@ void create_default_configuration_file()
   config.set ("user-agent-blacklist", "");
   config.set ("provide-server-info", false);
   config.set ("static-response-headers", "");
-  config.set ("authentication-file", ".users");
   config.set ("authenticate-over-non-ssl", false);
   config.set ("default-document", "index.html");
   config.set ("head-allowed", false);

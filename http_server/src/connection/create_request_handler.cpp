@@ -35,6 +35,7 @@
 #include "http_server/include/connection/handlers/put_folder_handler.hpp"
 #include "http_server/include/connection/handlers/delete_handler.hpp"
 #include "http_server/include/connection/handlers/post_users_handler.hpp"
+#include "http_server/include/connection/handlers/post_authorization_handler.hpp"
 #include "http_server/include/connection/handlers/meta/head_handler.hpp"
 #include "http_server/include/connection/handlers/meta/options_handler.hpp"
 #include "http_server/include/connection/handlers/meta/error_handler.hpp"
@@ -353,17 +354,31 @@ request_handler_ptr create_post_users_handler (class connection * connection, cl
   if (request->envelope().header ("Content-Type") != "application/x-www-form-urlencoded")
     throw request_exception ("Unsupported Content-Type in POST request");
 
-  // Checking if client is authorized to use the POST verb towards path.
-  if (!connection->server()->authorization().authorize (request->envelope().ticket(), request->envelope().path(), "POST"))
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
-
-  // Only logged in clients are allowed to POST, regardless of what ".auth" file says!
+  // No need to authorize these types of request, since all authenticated clients are allowed to post to the ".users" file, though
+  // only root accounts are allowed to do anything but changing their own password.
+  // And we verify type of POST inside the post_users_handler
   if (!request->envelope().ticket().authenticated())
     return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
 
-  // User tries to POST data to server
+  // User tries to POST data to server's ".users" file.
   return request_handler_ptr (new post_users_handler (connection, request));
 }
+
+
+request_handler_ptr create_post_authorization_handler (class connection * connection, class request * request)
+{
+  // Making sure Content-Type of request is something we know how to handle.
+  if (request->envelope().header ("Content-Type") != "application/x-www-form-urlencoded")
+    throw request_exception ("Unsupported Content-Type in POST request");
+
+  // No need to authorize these types of request, since only "root" accounts are allowed to post to the ".auth" files.
+  if (request->envelope().ticket().role != "root")
+    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+
+  // User tries to POST data to a '.auth' file in some folder.
+  return request_handler_ptr (new post_authorization_handler (connection, request));
+}
+
 
 request_handler_ptr create_request_handler (class connection * connection, class request * request, int status_code)
 {
@@ -425,6 +440,8 @@ request_handler_ptr create_request_handler (class connection * connection, class
     // Returning the correct POST data handler.
     if (request->envelope().uri() == "/.users")
       return create_post_users_handler (connection, request);
+    if (request->envelope().uri().filename() == ".auth")
+      return create_post_authorization_handler (connection, request);
 
     // URI does not support POST method.
     return request_handler_ptr (new error_handler (connection, request, 403));

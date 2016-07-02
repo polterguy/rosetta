@@ -34,13 +34,34 @@ namespace rosetta {
 namespace http_server {
 
 
-authentication::authentication (io_service & service, const path & auth_file)
-  : _auth_file (auth_file),
-    _strand (service),
+authentication::authentication (io_service & service)
+  : _strand (service),
     _service (service)
 {
-  if (auth_file.size() != 0)
-    initialize();
+  // Opening authentication file given.
+  ifstream af (".users");
+  if (!af.good())
+    throw server_exception ("Couldn't open authentication file for server.");
+
+  // Reading all users from authentication file.
+  while (!af.eof()) {
+
+    // Fetching next user from authentication file.
+    string line;
+    getline (af, line);
+    trim (line);
+    if (line.size() == 0)
+      continue;
+    vector<string> entities;
+    split (entities, line, boost::is_any_of (":"));
+    if (entities.size() != 3)
+      throw server_exception ("Authentication file is corrupted.");
+    if (_users.find (entities[0]) != _users.end())
+      throw server_exception ("Authentication file is corrupted, same user is listed multiple times.");
+
+    // Inserting username as tuple with password and role user belongs to.
+    _users [entities[0]] = user {entities[0], entities[1], entities[2]};
+  }
 }
 
 
@@ -219,38 +240,9 @@ void authentication::delete_user (const string & username, success_handler on_su
 }
 
 
-void authentication::initialize ()
-{
-  // Opening authentication file given.
-  ifstream af (_auth_file);
-  if (!af.good())
-    throw server_exception ("Couldn't open authentication file for server.");
-
-  // Reading all users from authentication file.
-  while (!af.eof()) {
-
-    // Fetching next user from authentication file.
-    string line;
-    getline (af, line);
-    trim (line);
-    if (line.size() == 0)
-      continue;
-    vector<string> entities;
-    split (entities, line, boost::is_any_of (":"));
-    if (entities.size() != 3)
-      throw server_exception ("Authentication file is corrupted.");
-    if (_users.find (entities[0]) != _users.end())
-      throw server_exception ("Authentication file is corrupted, same user is listed multiple times.");
-
-    // Inserting username as tuple with password and role user belongs to.
-    _users [entities[0]] = user {entities[0], entities[1], entities[2]};
-  }
-}
-
-
 void authentication::save ()
 {
-  ofstream fs (_auth_file, std::ios::trunc | std::ios::out);
+  ofstream fs (".users", std::ios::trunc | std::ios::out);
   if (!fs.good ())
     throw server_exception ("Couldn't open authentication file for writing.");
   for (auto & idx : _users) {

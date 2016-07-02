@@ -66,7 +66,7 @@ server::server (const class configuration & configuration)
     _acceptor (_service),
     _acceptor_ssl (_service),
     _context (ssl::context::sslv23),
-    _authentication (_service, configuration.get<string> ("authentication-file", ".users.dat")),
+    _authentication (_service),
     _authorization (configuration.get<path> ("www-root", "www-root"))
 {
   // Register quit signals.

@@ -48,7 +48,7 @@ public:
   };
 
   /// Creates an authentication instance.
-  authentication (io_service & service, const path & auth_file);
+  authentication (io_service & service);
 
   /// Success handler type for authenticating client.
   typedef std::function<void(ticket)> authenticated_success_handler;
@@ -82,15 +82,9 @@ private:
     string role;
   };
 
-  /// Initializes the authentication object.
-  void initialize ();
-
   /// Saves authentication file.
   void save ();
 
-
-  /// Path to authentication file.
-  path _auth_file;
 
   /// Users, with their usernames and roles.
   std::map<string, user> _users;

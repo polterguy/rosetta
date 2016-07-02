@@ -144,7 +144,7 @@ void request_envelope::parse_uri (string uri)
   if (index_of_pars != string::npos) {
 
     // URI contains GET parameters.
-    parse_parameters (uri_encode::decode (uri.substr (index_of_pars + 1)));
+    parse_parameters (uri.substr (index_of_pars + 1));
 
     // Decoding URI.
     uri = uri_encode::decode (uri.substr (0, index_of_pars));
@@ -154,15 +154,9 @@ void request_envelope::parse_uri (string uri)
     uri = uri_encode::decode (uri);
   }
 
-  // Verify URI does not contain any characters besides the US ASCII characters.
-  // Notice, we only allow for [a-z], [A-Z], [0-9] in addition to '.' and '-', to make URIs more robust and lessen the attack surface.
-  // If anything besides these characters are found in the URI, we entirely refuse connection, by throwing an exception!
+  // Verify URI does not contain any characters besides the non-control US ASCII characters.
   for (auto & idx : uri) {
-    if (idx < 45 || idx > 122)
-      throw request_exception ("Illegal characters found in path.");
-    if (idx > 57 && idx < 65)
-      throw request_exception ("Illegal characters found in path.");
-    if (idx > 90 && idx < 97)
+    if (idx < 32 || idx > 126)
       throw request_exception ("Illegal characters found in path.");
   }
 
@@ -345,8 +339,19 @@ void request_envelope::parse_parameters (const string & params)
     
     // Splitting up name/value of parameter, making sure we allow for parameters without value.
     size_t index_of_equal = idx.find ("=");
-    string name  = index_of_equal == string::npos ? idx : idx.substr (0, index_of_equal);
-    string value = index_of_equal == string::npos ? "" : idx.substr (index_of_equal + 1);
+    string name  = uri_encode::decode (index_of_equal == string::npos ? idx : idx.substr (0, index_of_equal));
+    string value = uri_encode::decode (index_of_equal == string::npos ? "" : idx.substr (index_of_equal + 1));
+
+    // Making sure neither name nor value contains any control characters.
+    for (auto & idx : name) {
+      if (idx < 32 || idx > 126)
+        throw request_exception ("Illegal characters found in parameter.");
+    }
+    for (auto & idx : value) {
+      if (idx < 32 || idx > 126)
+        throw request_exception ("Illegal characters found in parameter.");
+    }
+
     _parameters.push_back (collection_type (name, value));
   }
 }

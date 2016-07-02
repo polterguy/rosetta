@@ -21,7 +21,7 @@
 #include <tuple>
 #include <vector>
 #include "common/include/exceptional_executor.hpp"
-#include "http_server/include/connection/handlers/request_handler_base.hpp"
+#include "http_server/include/connection/handlers/post_handler_base.hpp"
 
 namespace rosetta {
 namespace http_server {
@@ -36,7 +36,7 @@ class connection;
 
 
 /// POST user data handler.
-class post_users_handler final : public request_handler_base
+class post_users_handler final : public post_handler_base
 {
 public:
 
@@ -71,16 +71,6 @@ private:
 
   /// Changes the password of the given user.
   void change_password (const string & username, const string & password, exceptional_executor x, functor on_success);
-
-  /// Writes success return to client.
-  void write_success_envelope (exceptional_executor x, functor on_success);
-
-  /// Validates and returns the length of the request.
-  size_t get_content_length ();
-
-
-  /// POST parameters key/value.
-  vector<tuple<string, string>> _parameters;
 };
 
 
