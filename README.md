@@ -184,6 +184,48 @@ then Rosetta will still not provide any version information back to the client.
 This makes Rosetta harder to hack, since it provides less information back to a malicious
 hacker, about which type of server he or she is encountering.
 
+### Toxic header and envelope injection protection
+
+Rosetta will not accept an HTTP request that tries to inject malicious code through the
+HTTP headers or envelope in general. This is implemented by making sure Rosetta only
+accepts a sub-range of the plain ASCII set as legal characters in the HTTP envelope.
+
+This helps protect against an adversary that tries to inject malicious code through the
+request envelope, by for instance create an HTTP header that contains executable code,
+as its name and/or value.
+
+### Buffer and stack overflow protection
+
+Rosetta will not accept more than 25 HTTP headers from a client by default, and each
+header cannot be larger than 8192 bytes in total. This helps protect against *"buffer
+and stack overflow attacks"*, which would otherwise allow a malicious client to inject
+malicious code into the server, by overflowing the stack and/or buffers for reading
+the HTTP envelope.
+
+As an additional protection measure in this regard, Rosetta will also reject a request
+that has more than 4096 bytes in its initial HTTP-Request line.
+
+### No negotiation with malicious clients
+
+If Rosetta discovers what it thinks is a *"malicious request"*, then it will immediately
+close the TCP connection, and not return anything at all to the client.
+
+This helps protect against a malicious client acquiring meta data information about your
+server, such as a 404 instead of a 401 response, verifying the existence of a path, etc.
+
+### No meta data retrieval for restricted content
+
+If a client tries to access a resource, then Rosetta will first check if client is
+authorized to access the resource, before it checks for its existence. This makes
+it impossible for a client to gain knowledge about a document's existence, and such
+gather meta data information about your server, by creating a huge number of requests,
+trying to traverse your server, for *"random document/folder names"*, to see if it
+returns a 404 (Not-Found) or a 401 (Not-Authorized)
+
+For instance, if you have a folder in your system that requires that the client belongs
+to the *"root"* role, then regardless of what the client tries to access within this folder,
+Rosetta will return a 401 (Not-Authorized) response, and never a 404 (Not-Found) response.
+
 ### Built for ultra-secure platforms
 
 Rosetta is built in C++, using boost ASIO, and is ultra-portable. This means you can run

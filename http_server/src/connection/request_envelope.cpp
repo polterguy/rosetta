@@ -172,11 +172,19 @@ void request_envelope::parse_uri (string uri)
     throw request_exception ("Illegal characters found in path.");
 
   // Then setting path, URI and folder/file-type of request.
-  _folder_request = uri.back() == '/';
   _uri = uri;
+
+  // Checking if this is a folder request, or a GET request for a folder's default document.
+  if (has_parameter ("list"))
+    _folder_request = true;
+  else if (uri.back() == '/' && _method == "GET")
+    uri += _connection->server()->configuration().get<string> ("default-document", "index.html");
+
   _path = _connection->server()->configuration().get<string> ("www-root", "www-root");
   _path += uri;
-  if (_folder_request)
+  if (_folder_request) {
+
+    // Removing last "/" to have a "normalized" and uniform way of accessing folders inside of the file system.
     _path = _path.parent_path();
 }
 

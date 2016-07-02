@@ -95,7 +95,7 @@ void show_copyright_server_info (const configuration & config)
     // Serializing information about how to view website, making sure we've accommodated for 80 characters per line.
     string s = "# Go to; 'http://localhost:"
              + config.get<string>("port")
-             + "/index.html' to see your website.";
+             + "' to see your website.";
       
     // Making sure we've got 80 characters in string, padded by "#", before we serialize it to stream.
     while (s.size() < 79) { s += " "; }
@@ -182,6 +182,7 @@ void create_default_configuration_file()
   config.set ("static-response-headers", "");
   config.set ("authentication-file", ".users.dat");
   config.set ("authenticate-over-non-ssl", false);
+  config.set ("default-document", "index.html");
 
   // Request settings.
   config.set ("max-uri-length", 4096);
@@ -198,6 +199,7 @@ void create_default_configuration_file()
 
   // Request Handlers, according to file extensions.
   config.set ("handler.html", "get-file-handler");
+  config.set ("handler", "get-file-handler");
   config.set ("handler.js", "get-file-handler");
   config.set ("handler.css", "get-file-handler");
   config.set ("handler.png", "get-file-handler");
@@ -211,6 +213,7 @@ void create_default_configuration_file()
 
   // Common MIME types.
   config.set ("mime.html", "text/html; charset=utf-8");
+  config.set ("mime", "text/html; charset=utf-8");
   config.set ("mime.css", "text/css; charset=utf-8");
   config.set ("mime.js", "application/javascript; charset=utf-8");
   config.set ("mime.json", "application/json; charset=utf-8");

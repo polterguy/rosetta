@@ -184,6 +184,21 @@ bool authorize_request (connection * connection, request * request)
   auto ticket = request->envelope().ticket();
   auto path = request->envelope().path();
   auto method = request->envelope().method();
+
+  if (method == "PUT") {
+
+    // A PUT operation, for something that exists from before, is actually also a DELETE operation, since it overwrites existing content.
+    if (exists (path)) {
+
+      // Client is not allowed to PUT an existing directory.
+      if (is_directory (path))
+        return false;
+
+      // If the file exists, then a PUT verb is effectively also a DELETE verb, since it destroys the content of the existing file.
+      if (!connection->server()->authorization().authorize (ticket, path, "DELETE"))
+        return false;
+    }
+  }
   return connection->server()->authorization().authorize (ticket, path, method);
 }
 
@@ -201,9 +216,9 @@ request_handler_ptr create_trace_handler (class connection * connection, class r
 
 request_handler_ptr create_head_handler (class connection * connection, class request * request)
 {
-  // Checking that path actually exists.
-  if (!exists (request->envelope().path()))
-    return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
+  // Authorizing request.
+  if (!authorize_request (connection, request))
+    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
 
   // Checking if HEAD method is allowed according to configuration.
   if (!connection->server()->configuration().get<bool> ("head-allowed", false)) {
@@ -212,9 +227,9 @@ request_handler_ptr create_head_handler (class connection * connection, class re
     return request_handler_ptr (new error_handler (connection, request, 405));
   } else {
 
-    // Authorizing request.
-    if (!authorize_request (connection, request))
-      return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+    // Checking that path actually exists.
+    if (!exists (request->envelope().path()))
+      return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
 
     // Creating a HEAD response handler.
     return request_handler_ptr (new head_handler (connection, request));
@@ -224,13 +239,13 @@ request_handler_ptr create_head_handler (class connection * connection, class re
 
 request_handler_ptr create_get_handler (class connection * connection, class request * request)
 {
-  // Checking that path actually exists.
-  if (!exists (request->envelope().path()))
-    return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
-
   // Authorizing request.
   if (!authorize_request (connection, request))
     return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+
+  // Checking that path actually exists.
+  if (!exists (request->envelope().path()))
+    return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
 
   // Figuring out if user requested a file or a folder.
   if (is_regular_file (request->envelope().path())) {
@@ -251,8 +266,9 @@ request_handler_ptr create_get_handler (class connection * connection, class req
     }
   } else {
 
-    // This is a request for a "folder".
+    // This is a request for a folder's content.
     // Notice, if the client sends an "authorize" parameter, we force the "authorized" version of the folder view.
+    // Unless we do this, then there is no way to view the authorized content of a folder that itself does not have authorized access rights.
     if (!request->envelope().ticket().authenticated() && request->envelope().has_parameter ("authorize"))
       return request_handler_ptr (new unauthorized_handler (connection, request, true));
     return request_handler_ptr (new get_folder_handler (connection, request));
@@ -262,31 +278,22 @@ request_handler_ptr create_get_handler (class connection * connection, class req
 
 request_handler_ptr create_put_handler (class connection * connection, class request * request)
 {
-  // Checking that folder where user tries to put file/folder actually exists.
-  if (!exists (request->envelope().path().parent_path()))
-    return request_handler_ptr (new error_handler (connection, request, 404)); // No such folder.
-
   // Authorizing request.
   if (!authorize_request (connection, request))
     return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+
+  // Checking that parent folder of file/folder actually exists.
+  if (!exists (request->envelope().path().parent_path()))
+    return request_handler_ptr (new error_handler (connection, request, 404)); // No such folder.
 
   // Figuring out if client wants to PUT a file or a folder.
   if (request->envelope().file_request()) {
 
     // User tries to PUT a file.
-    // Figuring out if file exists from before, and if it does, verify that user is authorized to DELETE file,
-    // since this effectively is a "DELETE" operation, due to overwriting an existing file, deletes its old content.
-    if (exists (request->envelope().path()))
-      if (!connection->server()->authorization().authorize (request->envelope().ticket(), request->envelope().path(), "DELETE"))
-        return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
-
     return request_handler_ptr (new put_file_handler (connection, request));
   } else {
 
     // User tries to put a folder.
-    // Figuring out if folder exists from before, and if it does, we deny client to PUT the folder.
-    if (exists (request->envelope().path()))
-      return request_handler_ptr (new unauthorized_handler (connection, request, false));
     return request_handler_ptr (new put_folder_handler (connection, request));
   }
 }
@@ -294,13 +301,13 @@ request_handler_ptr create_put_handler (class connection * connection, class req
 
 request_handler_ptr create_delete_handler (class connection * connection, class request * request)
 {
+  // Checking if client is authorized to use the DELETE verb towards path.
+  if (!connection->server()->authorization().authorize (request->envelope().ticket(), request->envelope().path(), "DELETE"))
+    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+
   // Checking that path actually exists.
   if (!exists (request->envelope().path()))
     return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
-
-  // Checking if client is authorized to using DELETE verb towards path.
-  if (!connection->server()->authorization().authorize (request->envelope().ticket(), request->envelope().path(), "DELETE"))
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
 
   // User tries to DELETE a file or a folder.
   return request_handler_ptr (new delete_handler (connection, request));
