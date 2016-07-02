@@ -37,7 +37,7 @@ public:
   /// Ticket class, wraps an authenticated user.
   struct ticket final
   {
-    inline bool is_default() const { return username.size() == 0; }
+    inline bool authenticated() const { return username.size() > 0; }
     string username;
     string role;
   };

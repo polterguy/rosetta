@@ -174,8 +174,6 @@ void create_default_configuration_file()
   config.set ("thread-model", "thread-pool");
   config.set ("threads", 128);
   config.set ("www-root", "www-root");
-  config.set ("trace-allowed", false);
-  config.set ("head-allowed", false);
   config.set ("ssl-certificate", "server.crt");
   config.set ("ssl-private-key", "server.key");
   config.set ("user-agent-whitelist", "*");

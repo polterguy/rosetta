@@ -52,7 +52,7 @@ authentication::ticket authentication::authenticate (const string & username, co
 
   auto user_iter = _users.find (username);
   if (user_iter == _users.end() || user_iter->second.password != base64_password)
-    throw security_exception ("Username/password mismatch.");
+    return ticket ();
 
   return ticket {user_iter->second.username, user_iter->second.role};
 }

@@ -105,17 +105,9 @@ void authorization::initialize (const path current)
 
 bool authorization::authorize (const authentication::ticket & ticket, class path path, const string & verb) const
 {
-  // Making sure path exists.
-  if (!exists (path))
-    return false; // NO ACCESS!
-
   // Root is allowed to do everything!
   if (ticket.role == "root")
     return true;
-
-  // Removing directory, such that we can use only directory name for lookup into _access.
-  if (!is_directory (path))
-    path.remove_filename();
 
   // Checking if directory exists in "explicit user access folders".
   auto iter_folder = _access.find (path.string ());
@@ -133,14 +125,14 @@ bool authorization::authorize (const authentication::ticket & ticket, class path
 
       // No explicit rights for verb, recursively invoking self for parent folder, but only if this is not the "www-root" path.
       if (path == _www_root)
-        return true; // Defaulting to ACCESS GRANTED!
+        return false; // Defaulting to ACCESS DENIED!
       return authorize (ticket, path.parent_path(), verb);
     }
   } else {
 
     // No explicit rights for folder, recursively invoking self for parent folder, but only if this is not the "www-root" path.
     if (path == _www_root)
-      return true; // Defaulting to ACCESS GRANTED!
+      return false; // Defaulting to ACCESS DENIED!
     return authorize (ticket, path.parent_path(), verb);
   }
 

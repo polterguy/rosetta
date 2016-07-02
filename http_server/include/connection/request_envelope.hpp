@@ -59,6 +59,12 @@ public:
   /// Returns the server side path of the document/folder the uri is referring to.
   inline class path path() const { return _path; }
 
+  /// If true, then this is a request for a folder.
+  inline bool folder_request () const { return _folder_request; }
+
+  /// If true, then this is a request for a file.
+  inline bool file_request () const { return !_folder_request; }
+
   /// Returns the type of the request.
   inline const string & method() const { return _method; }
 
@@ -112,6 +118,9 @@ private:
 
   /// Internal path to resource request is referring to.
   class path _path;
+
+  /// If true, then this is a request for a folder.
+  bool _folder_request;
 
   /// URI of request.
   class path _uri;

@@ -159,23 +159,43 @@ request_handler_ptr upgrade_insecure_request (class connection * connection, cla
   const string ssl_port       = connection->server()->configuration().get <string> ("ssl-port", "443");
   string new_uri              = "https://" + server_address + (ssl_port == "443" ? "" : ":" + ssl_port) + request_uri.string ();
 
+  // Looping through all parameters, adding these to the Location URI.
+  bool first = true;
+  for (auto & idx : request->envelope().parameters()) {
+    if (first) {
+      first = false;
+      new_uri += "?";
+    } else {
+      new_uri += "&";
+    }
+    new_uri += std::get<0> (idx);
+    auto val = std::get<1> (idx);
+    if (val.size() > 0)
+      new_uri += "=" + val;
+  }
+
   // Returning Redirect Temporarily, with a "no-store" value for the "Cache-Control" header.
   return request_handler_ptr (new redirect_handler (connection, request, 307, new_uri, true));
 }
 
 
+bool authorize_request (connection * connection, request * request)
+{
+  auto ticket = request->envelope().ticket();
+  auto path = request->envelope().path();
+  auto method = request->envelope().method();
+  return connection->server()->authorization().authorize (ticket, path, method);
+}
+
+
 request_handler_ptr create_trace_handler (class connection * connection, class request * request)
 {
-  // Checking if TRACE method is allowed according to configuration.
-  if (!connection->server()->configuration().get<bool> ("trace-allowed", false)) {
+  // Authorizing request.
+  if (!authorize_request (connection, request))
+    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
 
-    // Method not allowed.
-    return request_handler_ptr (new error_handler (connection, request, 405));
-  } else {
-
-    // Creating a TRACE response handler, and returning to caller.
-    return request_handler_ptr (new trace_handler (connection, request));
-  }
+  // Creating a TRACE response handler, and returning to caller.
+  return request_handler_ptr (new trace_handler (connection, request));
 }
 
 
@@ -192,6 +212,10 @@ request_handler_ptr create_head_handler (class connection * connection, class re
     return request_handler_ptr (new error_handler (connection, request, 405));
   } else {
 
+    // Authorizing request.
+    if (!authorize_request (connection, request))
+      return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+
     // Creating a HEAD response handler.
     return request_handler_ptr (new head_handler (connection, request));
   }
@@ -203,6 +227,10 @@ request_handler_ptr create_get_handler (class connection * connection, class req
   // Checking that path actually exists.
   if (!exists (request->envelope().path()))
     return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
+
+  // Authorizing request.
+  if (!authorize_request (connection, request))
+    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
 
   // Figuring out if user requested a file or a folder.
   if (is_regular_file (request->envelope().path())) {
@@ -224,17 +252,8 @@ request_handler_ptr create_get_handler (class connection * connection, class req
   } else {
 
     // This is a request for a "folder".
-    // Notice, that if a folder is requested without an "authorize" GET parameter, then the client will not send the "Authorization" header,
-    // even if the client actually is authorized. This creates a problem, since an authorized client will hence retrieve the "public content"
-    // of that folder, and not show any sub-folders the client has been authorized to view, since the client will not send any "Authorization" header.
-    // To fix this, such that a non-authorized client can still retrieve the content of a folder that is "public", while not showing the sub-folders
-    // that requires authorization to view, we show only the public folders for a folder GET request, unless an additional GET parameter is supplied,
-    // through "?authorize" in the URI of the request.
-    // If "?authorize" is added to the URI, then we return a 401 to the client, if it is not authorized, which forces the browser to retry the request,
-    // with the "Authorization" header, supplying the username and password to the server, making it possible to have two different types of content
-    // returned for a folder GET request; One "public version", unless folder itself requires authorization that is, and another "authorized" version,
-    // showing also sub-folders the client is authorized to view.
-    if (request->envelope().ticket().is_default() && request->envelope().has_parameter ("authorize"))
+    // Notice, if the client sends an "authorize" parameter, we force the "authorized" version of the folder view.
+    if (!request->envelope().ticket().authenticated() && request->envelope().has_parameter ("authorize"))
       return request_handler_ptr (new unauthorized_handler (connection, request, true));
     return request_handler_ptr (new get_folder_handler (connection, request));
   }
@@ -247,14 +266,27 @@ request_handler_ptr create_put_handler (class connection * connection, class req
   if (!exists (request->envelope().path().parent_path()))
     return request_handler_ptr (new error_handler (connection, request, 404)); // No such folder.
 
-  // Figuring out if user requested a file or a folder.
-  if (request->envelope().path().extension() != "") {
+  // Authorizing request.
+  if (!authorize_request (connection, request))
+    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+
+  // Figuring out if client wants to PUT a file or a folder.
+  if (request->envelope().file_request()) {
 
     // User tries to PUT a file.
+    // Figuring out if file exists from before, and if it does, verify that user is authorized to DELETE file,
+    // since this effectively is a "DELETE" operation, due to overwriting an existing file, deletes its old content.
+    if (exists (request->envelope().path()))
+      if (!connection->server()->authorization().authorize (request->envelope().ticket(), request->envelope().path(), "DELETE"))
+        return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+
     return request_handler_ptr (new put_file_handler (connection, request));
   } else {
 
-    // Oops, no such PUT handler. (yet)
+    // User tries to put a folder.
+    // Figuring out if folder exists from before, and if it does, we deny client to PUT the folder.
+    if (exists (request->envelope().path()))
+      return request_handler_ptr (new unauthorized_handler (connection, request, false));
     return request_handler_ptr (new put_folder_handler (connection, request));
   }
 }
@@ -266,16 +298,12 @@ request_handler_ptr create_delete_handler (class connection * connection, class 
   if (!exists (request->envelope().path()))
     return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
 
-  // Figuring out if user requested a file or a folder.
-  if (is_regular_file (request->envelope().path ())) {
+  // Checking if client is authorized to using DELETE verb towards path.
+  if (!connection->server()->authorization().authorize (request->envelope().ticket(), request->envelope().path(), "DELETE"))
+    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
 
-    // User tries to DELETE a file.
-    return request_handler_ptr (new delete_handler (connection, request));
-  } else {
-
-    // Oops, no such DELETE handler. (yet)
-    return request_handler_ptr (new error_handler (connection, request, 403));
-  }
+  // User tries to DELETE a file or a folder.
+  return request_handler_ptr (new delete_handler (connection, request));
 }
 
 
@@ -293,26 +321,6 @@ request_handler_ptr create_request_handler (class connection * connection, class
 
     // Some sort of error.
     return request_handler_ptr (new error_handler (connection, request, status_code));
-  }
-
-  // Making sure requested resource exists.
-  if (request->envelope().path().string().back() == '/') {
-
-    // Client tries to access a folder, making sure it exists.
-    if (!exists (request->envelope().path()) || !is_directory (request->envelope().path()))
-      return request_handler_ptr (new error_handler (connection, request, 404));
-  } else {
-
-    // Client tries to access a file, making sure it exists.
-    if (!exists (request->envelope().path()) || !is_regular_file (request->envelope().path()))
-      return request_handler_ptr (new error_handler (connection, request, 404));
-  }
-
-  // Authorizing request.
-  if (!connection->server()->authorization().authorize (request->envelope().ticket(), request->envelope().path(), request->envelope().method())) {
-
-    // Not authorized, checking if client is authenticated, and if not, we return 401 allowing authentication, otherwise we return plain 401.
-    return request_handler_ptr (new unauthorized_handler (connection, request, request->envelope().ticket().is_default()));
   }
 
   if (should_upgrade_insecure_requests (connection, request)) {

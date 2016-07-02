@@ -101,6 +101,10 @@ Requesting a file inside a folder, which has restricted GET access, is not possi
 the client authenticates itself, with a username/password combination, by using the
 "Authorization" HTTP header, to pass in its basic Authentication username/password combination.
 
+Authorization access rights are inherited on folders. This means that if you do not explicitly
+override a folder's authorization rights, then the rights of the parent folder will be
+inherited to its child folders.
+
 ### Authentication turned OFF on non-SSL traffic by default
 
 The WWW-Authenticate header is never transmitted from the server unless the connection is

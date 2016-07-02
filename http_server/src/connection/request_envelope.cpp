@@ -171,11 +171,13 @@ void request_envelope::parse_uri (string uri)
   if (!sanity_check_uri (uri))
     throw request_exception ("Illegal characters found in path.");
 
-
-  // Then setting path and URI of request.
+  // Then setting path, URI and folder/file-type of request.
+  _folder_request = uri.back() == '/';
   _uri = uri;
   _path = _connection->server()->configuration().get<string> ("www-root", "www-root");
   _path += uri;
+  if (_folder_request)
+    _path = _path.parent_path();
 }
 
 
