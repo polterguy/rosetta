@@ -180,7 +180,7 @@ void create_default_configuration_file()
   config.set ("user-agent-blacklist", "");
   config.set ("provide-server-info", false);
   config.set ("static-response-headers", "");
-  config.set ("authentication-file", ".users.dat");
+  config.set ("authentication-file", ".users");
   config.set ("authenticate-over-non-ssl", false);
   config.set ("default-document", "index.html");
 

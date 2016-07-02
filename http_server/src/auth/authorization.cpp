@@ -45,11 +45,11 @@ void authorization::initialize (const path current)
 {
   // Checking if there exists an "auth" file for currently iterated folder.
   path idx = current;
-  idx += "/.auth.dat";
+  idx += "/.auth";
   if (exists (idx)) {
     if (!is_regular_file (idx))
-      throw security_exception ("A folder with the name '.auth.dat' exists in your system.");
-    std::ifstream auth_file (idx.string ());
+      throw security_exception ("A folder with the name '.auth' exists in your system.");
+    std::ifstream auth_file (idx.string (), std::ios::in);
     if (!auth_file.good())
       throw security_exception ("Couldn't open auth file; '" + idx.string() + "'.");
 
@@ -119,25 +119,23 @@ bool authorization::authorize (const authentication::ticket & ticket, class path
 
       // Verb is explicitly mentioned, now checking if ticket's role is mentioned in verb.
       auto iter_role = iter_verb->second.find (ticket.role);
-      if (iter_role == iter_verb->second.end())
-        return iter_verb->second.find ("*") != iter_verb->second.end(); // NO ACCESS, unless everybody has access!
+      if (iter_role != iter_verb->second.end())
+        return true; // Role found for verb in folder; ACCESS GRANTED!
+      return iter_verb->second.find ("*") != iter_verb->second.end(); // NO ACCESS, unless everybody has access!
     } else {
 
       // No explicit rights for verb, recursively invoking self for parent folder, but only if this is not the "www-root" path.
       if (path == _www_root)
-        return false; // Defaulting to ACCESS DENIED!
+        return verb == "GET"; // Defaulting to ACCESS DENIED for everything except "GET" method!
       return authorize (ticket, path.parent_path(), verb);
     }
   } else {
 
     // No explicit rights for folder, recursively invoking self for parent folder, but only if this is not the "www-root" path.
     if (path == _www_root)
-      return false; // Defaulting to ACCESS DENIED!
+      return verb == "GET"; // Defaulting to ACCESS DENIED for everything except "GET" method!
     return authorize (ticket, path.parent_path(), verb);
   }
-
-  // Defaulting to ACCESS GRANTED!
-  return true;
 }
 
 

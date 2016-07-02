@@ -250,6 +250,10 @@ request_handler_ptr create_get_handler (class connection * connection, class req
   // Figuring out if user requested a file or a folder.
   if (is_regular_file (request->envelope().path())) {
 
+    // Making sure request is for a file.
+    if (request->envelope().folder_request())
+      return request_handler_ptr (new error_handler (connection, request, 404));
+
     // Figuring out handler to use according to request extension, and if document type is served/handled.
     string extension = request->envelope().path().extension().string ();
     string handler   = connection->server()->configuration().get<string> ("handler" + extension, "error");
@@ -265,6 +269,10 @@ request_handler_ptr create_get_handler (class connection * connection, class req
       return request_handler_ptr (new error_handler (connection, request, 404));
     }
   } else {
+
+    // Making sure request is for a folder.
+    if (!request->envelope().folder_request())
+      return request_handler_ptr (new error_handler (connection, request, 404));
 
     // This is a request for a folder's content.
     // Notice, if the client sends an "authorize" parameter, we force the "authorized" version of the folder view.

@@ -175,7 +175,7 @@ void request_envelope::parse_uri (string uri)
   _uri = uri;
 
   // Checking if this is a folder request, or a GET request for a folder's default document.
-  if (has_parameter ("list"))
+  if (has_parameter ("list") && uri.back() == '/')
     _folder_request = true;
   else if (uri.back() == '/' && _method == "GET")
     uri += _connection->server()->configuration().get<string> ("default-document", "index.html");
@@ -186,6 +186,7 @@ void request_envelope::parse_uri (string uri)
 
     // Removing last "/" to have a "normalized" and uniform way of accessing folders inside of the file system.
     _path = _path.parent_path();
+  }
 }
 
 
