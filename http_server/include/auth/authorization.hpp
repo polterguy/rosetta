@@ -35,6 +35,8 @@ typedef map<string, verb_roles> access_right;
 namespace rosetta {
 namespace http_server {
 
+typedef std::function<void(bool)> success_handler;
+
 
 /// Responsible for authorizing a client.
 class authorization final : boost::noncopyable
@@ -45,9 +47,15 @@ public:
   authorization (const path & www_root);
 
   /// Authorize a client's ticket.
-  bool authorize (const authentication::ticket & ticket, class path path, const string & verb) const;
+  void authorize (const authentication::ticket & ticket, class path path, const string & verb, success_handler on_success) const;
+
+  /// Updating a specific folder's authorization access rights.
+  void update (class path path, const string & verb, const string & new_value, success_handler on_success);
 
 private:
+
+  /// Implementation of authorizing a client's ticket.
+  void authorize_implementation (const authentication::ticket & ticket, class path path, const string & verb, success_handler on_success) const;
 
   /// Initializes authorization object.
   void initialize (const path current);

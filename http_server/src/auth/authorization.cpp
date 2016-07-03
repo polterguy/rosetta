@@ -36,7 +36,6 @@ authorization::authorization (const path & www_root)
   : _www_root (www_root)
 {
   // Recursively traverse all folders of web server, to initialize authorization.
-  _www_root.normalize();
   initialize (_www_root);
 }
 
@@ -47,8 +46,6 @@ void authorization::initialize (const path current)
   path idx = current;
   idx += "/.auth";
   if (exists (idx)) {
-    if (!is_regular_file (idx))
-      throw security_exception ("A folder with the name '.auth' exists in your system.");
     std::ifstream auth_file (idx.string (), std::ios::in);
     if (!auth_file.good())
       throw security_exception ("Couldn't open auth file; '" + idx.string() + "'.");
@@ -103,12 +100,25 @@ void authorization::initialize (const path current)
 }
 
 
-bool authorization::authorize (const authentication::ticket & ticket, class path path, const string & verb) const
+void authorization::authorize (const authentication::ticket & ticket, class path path, const string & verb, success_handler on_success) const
 {
-  // Root is allowed to do everything!
-  if (ticket.role == "root")
-    return true;
+  if (ticket.role == "root") {
 
+    // Root is allowed to do everything!
+    on_success (true);
+  } else {
+
+    // Invoking implementation of authorization logic.
+    authorize_implementation (ticket, path, verb, on_success);
+  }
+}
+
+
+void authorization::authorize_implementation (const authentication::ticket & ticket,
+                                              class path path,
+                                              const string & verb,
+                                              success_handler on_success) const
+{
   // Checking if directory exists in "explicit user access folders".
   auto iter_folder = _access.find (path.string ());
   if (iter_folder != _access.end ()) {
@@ -119,23 +129,46 @@ bool authorization::authorize (const authentication::ticket & ticket, class path
 
       // Verb is explicitly mentioned, now checking if ticket's role is mentioned in verb.
       auto iter_role = iter_verb->second.find (ticket.role);
-      if (iter_role != iter_verb->second.end())
-        return true; // Role found for verb in folder; ACCESS GRANTED!
-      return iter_verb->second.find ("*") != iter_verb->second.end(); // NO ACCESS, unless everybody can exercise verb!
+      if (iter_role != iter_verb->second.end()) {
+
+        // Role found for verb in folder; ACCESS GRANTED!
+        on_success (true);
+      } else {
+
+        // NO ACCESS, unless everybody can exercise verb!
+        on_success (iter_verb->second.find ("*") != iter_verb->second.end());
+      }
     } else {
 
       // No explicit rights for verb, recursively invoking self for parent folder, but only if this is not the "www-root" path.
-      if (path == _www_root)
-        return verb == "GET"; // Defaulting to ACCESS DENIED for everything except "GET" method!
-      return authorize (ticket, path.parent_path(), verb);
+      if (path == _www_root) {
+
+        // Defaulting to ACCESS DENIED for everything except "GET" method!
+        on_success (verb == "GET");
+      } else {
+
+        // Recursively invoking self with parent's path.
+        authorize_implementation (ticket, path.parent_path(), verb, on_success);
+      }
     }
   } else {
 
     // No explicit rights for folder, recursively invoking self for parent folder, but only if this is not the "www-root" path.
-    if (path == _www_root)
-      return verb == "GET"; // Defaulting to ACCESS DENIED for everything except "GET" method!
-    return authorize (ticket, path.parent_path(), verb);
+    if (path == _www_root) {
+
+      // Defaulting to ACCESS DENIED for everything except "GET" method!
+      on_success (verb == "GET");
+    } else {
+
+      // Recursively invoking self with parent's path.
+      authorize_implementation (ticket, path.parent_path(), verb, on_success);
+    }
   }
+}
+
+
+void authorization::update (class path path, const string & verb, const string & new_value, success_handler on_success)
+{
 }
 
 

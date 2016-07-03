@@ -18,18 +18,12 @@
 #ifndef ROSETTA_SERVER_POST_AUTHORIZATION_HANDLER_HPP
 #define ROSETTA_SERVER_POST_AUTHORIZATION_HANDLER_HPP
 
-#include <tuple>
-#include <string>
-#include <vector>
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/post_handler_base.hpp"
 
 namespace rosetta {
 namespace http_server {
 
-using std::tuple;
-using std::vector;
-using std::string;
 using namespace rosetta::common;
 
 class request;

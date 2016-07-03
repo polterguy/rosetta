@@ -15,10 +15,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <memory>
-#include <vector>
-#include <istream>
-#include <boost/algorithm/string.hpp>
 #include "http_server/include/server.hpp"
 #include "http_server/include/helpers/uri_encode.hpp"
 #include "http_server/include/connection/request.hpp"
@@ -34,8 +30,6 @@ using std::vector;
 using std::istream;
 using std::shared_ptr;
 using std::default_delete;
-using namespace boost::algorithm;
-using namespace boost::asio::detail;
 using namespace rosetta::common;
 
 

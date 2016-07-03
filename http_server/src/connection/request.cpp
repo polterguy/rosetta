@@ -59,19 +59,25 @@ void request::handle (exceptional_executor x, functor on_success)
     _connection->set_deadline_timer (-1);
 
     // Now reading is done, and we can let our request_handler take care of the rest.
-    _request_handler = create_request_handler (_connection, this);
-    if (_request_handler == nullptr)
-      return; // No handler for this request, returning without releasing "x", to close connection.
+    create_request_handler (_connection, this, [this, x, on_success] (request_handler_ptr handler) {
 
-    // Letting request_handler take over from here.
-    _request_handler->handle (x, [this, on_success] (auto x) {
+      // Making sure we actually got something back.
+      if (handler == nullptr)
+        return; // No handler for this request, returning without releasing "x", to close connection.
 
-      // Request is now finished handled, and we need to determine if we should keep connection alive or not.
-      if (_envelope.header ("Connection") != "close") {
+      // Making sure we store request handler smart pointer.
+      _request_handler = handler;
 
-        // Invoking on_success callback.
-        on_success (x);
-      } // else - x goes out of scope, and releases connection, and all resources associated with it ...
+      // Letting request_handler take over from here.
+      _request_handler->handle (x, [this, on_success] (auto x) {
+
+        // Request is now finished handled, and we need to determine if we should keep connection alive or not.
+        if (_envelope.header ("Connection") != "close") {
+
+          // Invoking on_success callback.
+          on_success (x);
+        } // else - x goes out of scope, and releases connection, and all resources associated with it ...
+      });
     });
   });
 }
@@ -80,12 +86,20 @@ void request::handle (exceptional_executor x, functor on_success)
 void request::write_error_response (exceptional_executor x, int status_code)
 {
   // Creating an error handler.
-  _request_handler = create_request_handler (_connection, this, status_code);
-  _request_handler->handle (x, [this] (auto x) {
+  create_request_handler (_connection, this, [this, x] (request_handler_ptr handler) {
 
-    // Simply letting x go out of scope, to close down connection, and clean things up.
-    // For security reasons, we do not let connection stay alive, if client creates an error response.
-  });
+    // Making sure we actually got something back.
+    if (handler == nullptr)
+      return; // Letting x go out of scope.
+
+    // Storing request handler smart pointer
+    _request_handler = handler;
+    _request_handler->handle (x, [this] (auto x) {
+
+      // Simply letting x go out of scope, to close down connection, and clean things up.
+      // For security reasons, we do not let connection stay alive, if client creates an error response.
+    });
+  }, status_code);
 }
 
 

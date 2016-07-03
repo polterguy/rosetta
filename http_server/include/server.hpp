@@ -68,6 +68,7 @@ public:
 
   /// Returns the authorization object for server
   const class authorization & authorization () const { return _authorization; }
+  class authorization & authorization () { return _authorization; }
 
   /// Returns the authentication object for server
   const class authentication & authentication () const { return _authentication; }

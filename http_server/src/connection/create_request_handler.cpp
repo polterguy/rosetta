@@ -182,7 +182,11 @@ request_handler_ptr upgrade_insecure_request (class connection * connection, cla
 }
 
 
-bool authorize_request (connection * connection, request * request)
+/// Success callback function for authorizing a request.
+typedef std::function<void(bool)> authorize_success;
+
+
+void authorize_request (connection * connection, request * request, authorize_success on_success)
 {
   auto ticket = request->envelope().ticket();
   auto path = request->envelope().path();
@@ -193,162 +197,236 @@ bool authorize_request (connection * connection, request * request)
     // A PUT operation, for something that exists from before, is actually also a DELETE operation, since it overwrites existing content.
     if (exists (path)) {
 
-      // Client is not allowed to PUT an existing directory.
-      if (is_directory (path))
-        return false;
+      if (is_directory (path)) {
 
-      // If the file exists, then a PUT verb is effectively also a DELETE verb, since it destroys the content of the existing file.
-      if (!connection->server()->authorization().authorize (ticket, path, "DELETE"))
-        return false;
-    }
-  }
-  return connection->server()->authorization().authorize (ticket, path, method);
-}
+        // Client is not allowed to PUT an existing directory.
+        on_success (false);
+      } else {
+        
+        connection->server()->authorization().authorize (ticket, path, "DELETE", [on_success, connection, ticket, path, method] (bool success) {
 
-
-request_handler_ptr create_trace_handler (class connection * connection, class request * request)
-{
-  // Authorizing request.
-  if (!authorize_request (connection, request))
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
-
-  // Checking if TRACE method is allowed according to configuration.
-  if (!connection->server()->configuration().get<bool> ("trace-allowed", false)) {
-
-    // Method not allowed.
-    return request_handler_ptr (new error_handler (connection, request, 405));
-  } else {
-
-    // Creating a TRACE response handler, and returning to caller.
-    return request_handler_ptr (new trace_handler (connection, request));
-  }
-}
-
-
-request_handler_ptr create_head_handler (class connection * connection, class request * request)
-{
-  // Authorizing request.
-  if (!authorize_request (connection, request))
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
-
-  // Checking if HEAD method is allowed according to configuration.
-  if (!connection->server()->configuration().get<bool> ("head-allowed", false)) {
-
-    // Method not allowed.
-    return request_handler_ptr (new error_handler (connection, request, 405));
-  } else {
-
-    // Checking that path actually exists.
-    if (!exists (request->envelope().path()))
-      return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
-
-    // Creating a HEAD response handler.
-    return request_handler_ptr (new head_handler (connection, request));
-  }
-}
-
-
-request_handler_ptr create_options_handler (class connection * connection, class request * request)
-{
-  // Authorizing request.
-  if (!authorize_request (connection, request))
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
-
-  // Checking if HEAD method is allowed according to configuration.
-  if (!connection->server()->configuration().get<bool> ("options-allowed", false)) {
-
-    // Method not allowed.
-    return request_handler_ptr (new error_handler (connection, request, 405));
-  } else {
-
-    // Creating an OPTIONS response handler, and returning to caller.
-    return request_handler_ptr (new options_handler (connection, request));
-  }
-}
-
-
-request_handler_ptr create_get_handler (class connection * connection, class request * request)
-{
-  // Authorizing request.
-  if (!authorize_request (connection, request))
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
-
-  // Checking that path actually exists.
-  if (!exists (request->envelope().path()))
-    return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
-
-  // Figuring out if user requested a file or a folder.
-  if (is_regular_file (request->envelope().path())) {
-
-    // Making sure request is for a file.
-    if (request->envelope().folder_request())
-      return request_handler_ptr (new error_handler (connection, request, 404));
-
-    // Figuring out handler to use according to request extension, and if document type is served/handled.
-    string extension = request->envelope().path().extension().string ();
-    string handler   = connection->server()->configuration().get<string> ("handler" + extension, "error");
-
-    // Returning the correct handler to caller.
-    if (handler == "get-file-handler") {
-
-      // Static file GET handler.
-      return request_handler_ptr (new get_file_handler (connection, request));
+          // If the file exists, then a PUT verb is effectively also a DELETE verb, since it destroys the content of the existing file.
+          if (!success)
+            on_success (false);
+          else
+            connection->server()->authorization().authorize (ticket, path, method, on_success);
+        });
+      }
     } else {
 
-      // Oops, these types of files are not served or handled.
-      return request_handler_ptr (new error_handler (connection, request, 404));
+      // Path does not exist.
+      connection->server()->authorization().authorize (ticket, path, method, on_success);
     }
   } else {
 
-    // Making sure request is for a folder.
-    if (!request->envelope().folder_request())
-      return request_handler_ptr (new error_handler (connection, request, 404));
-
-    // This is a request for a folder's content.
-    return request_handler_ptr (new get_folder_handler (connection, request));
+    // Not a PUT request.
+    connection->server()->authorization().authorize (ticket, path, method, on_success);
   }
 }
 
 
-request_handler_ptr create_put_handler (class connection * connection, class request * request)
+void create_trace_handler (class connection * connection, class request * request, request_created created)
 {
   // Authorizing request.
-  if (!authorize_request (connection, request))
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+  authorize_request (connection, request, [created, connection, request] (bool success) {
+    if (!success) {
 
-  // Checking that parent folder of file/folder actually exists.
-  if (!exists (request->envelope().path().parent_path()))
-    return request_handler_ptr (new error_handler (connection, request, 404)); // No such folder.
+      // Not authenticated.
+      created (request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated())));
+    } else {
 
-  // Figuring out if client wants to PUT a file or a folder.
-  if (request->envelope().file_request()) {
+      // Checking if TRACE method is allowed according to configuration.
+      if (!connection->server()->configuration().get<bool> ("trace-allowed", false)) {
 
-    // User tries to PUT a file.
-    return request_handler_ptr (new put_file_handler (connection, request));
-  } else {
+        // Method not allowed.
+        created (request_handler_ptr (new error_handler (connection, request, 405)));
+      } else {
 
-    // User tries to put a folder.
-    return request_handler_ptr (new put_folder_handler (connection, request));
-  }
+        // Creating a TRACE response handler, and returning to caller.
+        created (request_handler_ptr (new trace_handler (connection, request)));
+      }
+    }
+  });
 }
 
 
-request_handler_ptr create_delete_handler (class connection * connection, class request * request)
+void create_head_handler (class connection * connection, class request * request, request_created created)
+{
+  // Authorizing request.
+  authorize_request (connection, request, [connection, request, created] (bool success) {
+    if (!success) {
+
+      // Not authenticated.
+      created (request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated())));
+    } else {
+
+      // Checking if HEAD method is allowed according to configuration.
+      if (!connection->server()->configuration().get<bool> ("head-allowed", false)) {
+
+        // Method not allowed.
+        created (request_handler_ptr (new error_handler (connection, request, 405)));
+      } else {
+
+        // Checking that path actually exists.
+        if (!exists (request->envelope().path()))
+          created (request_handler_ptr (new error_handler (connection, request, 404))); // No such path.
+        else
+          created (request_handler_ptr (new head_handler (connection, request)));
+      }
+    }
+  });
+}
+
+
+void create_options_handler (class connection * connection, class request * request, request_created created)
+{
+  // Authorizing request.
+  authorize_request (connection, request, [connection, request, created] (bool success) {
+    if (!success) {
+
+      // Not authenticated.
+      created (request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated())));
+    } else {
+
+      // Checking if HEAD method is allowed according to configuration.
+      if (!connection->server()->configuration().get<bool> ("options-allowed", false)) {
+
+        // Method not allowed.
+        created (request_handler_ptr (new error_handler (connection, request, 405)));
+      } else {
+
+        // Creating an OPTIONS response handler, and returning to caller.
+        created (request_handler_ptr (new options_handler (connection, request)));
+      }
+    }
+  });
+}
+
+
+void create_get_handler (class connection * connection, class request * request, request_created created)
+{
+  // Authorizing request.
+  authorize_request (connection, request, [connection, request, created] (bool success) {
+    if (!success) {
+
+      // Not authenticated.
+      created (request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated())));
+    } else {
+
+      // Checking that path actually exists.
+      if (!exists (request->envelope().path())) {
+
+        // No such path.
+        created (request_handler_ptr (new error_handler (connection, request, 404)));
+      } else {
+
+        // Figuring out if user requested a file or a folder.
+        if (is_regular_file (request->envelope().path())) {
+
+          // Making sure request is for a file.
+          if (request->envelope().folder_request()) {
+
+            // User requested a folder, but found a file!
+            created (request_handler_ptr (new error_handler (connection, request, 404)));
+          } else {
+
+            // Figuring out handler to use according to request extension, and if document type is served/handled.
+            string extension = request->envelope().path().extension().string ();
+            string handler   = connection->server()->configuration().get<string> ("handler" + extension, "error");
+
+            // Returning the correct handler to caller.
+            if (handler == "get-file-handler") {
+
+              // Static file GET handler.
+              created (request_handler_ptr (new get_file_handler (connection, request)));
+            } else {
+
+              // Oops, these types of files are not served or handled.
+              created (request_handler_ptr (new error_handler (connection, request, 404)));
+            }
+          }
+        } else {
+
+          // Making sure request is for a folder.
+          if (!request->envelope().folder_request()) {
+
+            // User requested a file, but found "something else"
+            created (request_handler_ptr (new error_handler (connection, request, 404)));
+          } else {
+
+            // This is a request for a folder's content.
+            created (request_handler_ptr (new get_folder_handler (connection, request)));
+          }
+        }
+      }
+    }
+  });
+}
+
+
+void create_put_handler (class connection * connection, class request * request, request_created created)
+{
+  // Authorizing request.
+  authorize_request (connection, request, [connection, request, created] (bool success) {
+    if (!success) {
+
+      // Not authenticated.
+      created (request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated())));
+    } else {
+
+      // Checking that parent folder of file/folder actually exists.
+      if (!exists (request->envelope().path().parent_path())) {
+
+        // No such folder.
+        created (request_handler_ptr (new error_handler (connection, request, 404)));
+      } else {
+
+        // Figuring out if client wants to PUT a file or a folder.
+        if (request->envelope().file_request()) {
+
+          // User tries to PUT a file.
+          created (request_handler_ptr (new put_file_handler (connection, request)));
+        } else {
+
+          // User tries to put a folder.
+          created (request_handler_ptr (new put_folder_handler (connection, request)));
+        }
+      }
+    }
+  });
+
+}
+
+
+void create_delete_handler (class connection * connection, class request * request, request_created created)
 {
   // Checking if client is authorized to use the DELETE verb towards path.
-  if (!connection->server()->authorization().authorize (request->envelope().ticket(), request->envelope().path(), "DELETE"))
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+  connection->server()->authorization().authorize (request->envelope().ticket(),
+                                                   request->envelope().path(),
+                                                   "DELETE",
+                                                   [connection, request, created] (bool success) {
+    if (!success) {
 
-  // Checking that path actually exists.
-  if (!exists (request->envelope().path()))
-    return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
+      // Not authenticated.
+      created (request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated())));
+    } else {
 
-  // User tries to DELETE a file or a folder.
-  return request_handler_ptr (new delete_handler (connection, request));
+      // Checking that path actually exists.
+      if (!exists (request->envelope().path())) {
+
+        // No such path.
+        created (request_handler_ptr (new error_handler (connection, request, 404)));
+      } else {
+
+        // User tries to DELETE a file or a folder.
+        created (request_handler_ptr (new delete_handler (connection, request)));
+      }
+    }
+  });
 }
 
 
-request_handler_ptr create_post_users_handler (class connection * connection, class request * request)
+void create_post_users_handler (class connection * connection, class request * request, request_created created)
 {
   // Making sure Content-Type of request is something we know how to handle.
   if (request->envelope().header ("Content-Type") != "application/x-www-form-urlencoded")
@@ -357,98 +435,116 @@ request_handler_ptr create_post_users_handler (class connection * connection, cl
   // No need to authorize these types of request, since all authenticated clients are allowed to post to the ".users" file, though
   // only root accounts are allowed to do anything but changing their own password.
   // And we verify type of POST inside the post_users_handler
-  if (!request->envelope().ticket().authenticated())
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+  if (!request->envelope().ticket().authenticated()) {
 
-  // User tries to POST data to server's ".users" file.
-  return request_handler_ptr (new post_users_handler (connection, request));
+    // Not authorized.
+    created (request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated())));
+  } else {
+
+    // User tries to POST data to server's ".users" file.
+    created (request_handler_ptr (new post_users_handler (connection, request)));
+  }
 }
 
 
-request_handler_ptr create_post_authorization_handler (class connection * connection, class request * request)
+void create_post_authorization_handler (class connection * connection, class request * request, request_created created)
 {
   // Making sure Content-Type of request is something we know how to handle.
   if (request->envelope().header ("Content-Type") != "application/x-www-form-urlencoded")
     throw request_exception ("Unsupported Content-Type in POST request");
 
   // No need to authorize these types of request, since only "root" accounts are allowed to post to the ".auth" files.
-  if (request->envelope().ticket().role != "root")
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+  if (request->envelope().ticket().role != "root") {
 
-  // User tries to POST data to a '.auth' file in some folder.
-  return request_handler_ptr (new post_authorization_handler (connection, request));
+    // Not authenticated.
+    created (request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated())));
+  } else {
+
+    // User tries to POST data to a '.auth' file in some folder.
+    created (request_handler_ptr (new post_authorization_handler (connection, request)));
+  }
 }
 
 
-request_handler_ptr create_request_handler (class connection * connection, class request * request, int status_code)
+void create_request_handler (class connection * connection, class request * request, request_created created, int status_code)
 {
   // Checking if we can accept User-Agent according whitelist and blacklist definitions.
   if (!in_whitelist (connection, request) || in_blacklist (connection, request)) {
 
     // User-Agent not accepted!
-    return request_handler_ptr (new error_handler (connection, request, 403));
+    created (request_handler_ptr (new error_handler (connection, request, 403)));
+    return;
   }
 
   // Checking request type, and other parameters, deciding which type of request handler we should create.
   if (status_code >= 400) {
 
     // Some sort of error.
-    return request_handler_ptr (new error_handler (connection, request, status_code));
+    created (request_handler_ptr (new error_handler (connection, request, status_code)));
+    return;
   }
 
   // Checking if we should upgrade an insecure request to a secure request.
   if (should_upgrade_insecure_requests (connection, request)) {
 
     // Both configuration, and client, prefers secure requests, and current connection is not secure, hence we upgrade.
-    return upgrade_insecure_request (connection, request);
+    created (upgrade_insecure_request (connection, request));
+    return;
   }
 
   // Checking if client wants to force an authorized request.
   if (request->envelope().has_parameter ("authorize") && !request->envelope().ticket().authenticated()) {
 
     // Returning an Unauthorized response, to force client to authenticate.
-    return request_handler_ptr (new unauthorized_handler (connection, request, true));
+    created (request_handler_ptr (new unauthorized_handler (connection, request, true)));
+    return;
   }
 
   // Specific handlers for method.
   if (request->envelope().method() == "TRACE") {
 
     // Returning a TRACE handler.
-    return create_trace_handler (connection, request);
+    create_trace_handler (connection, request, created);
   } else if (request->envelope().method() == "HEAD") {
 
     // Returning a HEAD handler.
-    return create_head_handler (connection, request);
+    create_head_handler (connection, request, created);
   } else if (request->envelope().method() == "OPTIONS") {
 
     // Returning a OPTIONS handler.
-    return create_options_handler (connection, request);
+    create_options_handler (connection, request, created);
   } else if (request->envelope().method() == "GET") {
 
     // Returning a GET file/folder handler.
-    return create_get_handler (connection, request);
+    create_get_handler (connection, request, created);
   } else if (request->envelope().method() == "PUT") {
 
     // Returning a PUT file/folder handler.
-    return create_put_handler (connection, request);
+    create_put_handler (connection, request, created);
   } else if (request->envelope().method() == "DELETE") {
 
     // Returning a DELETE file/folder handler.
-    return create_delete_handler (connection, request);
+    create_delete_handler (connection, request, created);
   } else if (request->envelope().method() == "POST") {
 
     // Returning the correct POST data handler.
-    if (request->envelope().uri() == "/.users")
-      return create_post_users_handler (connection, request);
-    if (request->envelope().uri().filename() == ".auth")
-      return create_post_authorization_handler (connection, request);
+    if (request->envelope().uri() == "/.users") {
 
-    // URI does not support POST method.
-    return request_handler_ptr (new error_handler (connection, request, 403));
+      // Posting to authentication file.
+      create_post_users_handler (connection, request, created);
+    } else if (request->envelope().uri().filename() == ".auth") {
+
+      // Posting to authorization file.
+      create_post_authorization_handler (connection, request, created);
+    } else {
+
+      // URI does not support POST method.
+      created (request_handler_ptr (new error_handler (connection, request, 403)));
+    }
   } else {
 
     // Unsupported method.
-    return request_handler_ptr (new error_handler (connection, request, 405));
+    created (request_handler_ptr (new error_handler (connection, request, 405)));
   }
 }
 

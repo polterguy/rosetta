@@ -15,9 +15,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <memory>
-#include <istream>
-#include <boost/algorithm/string.hpp>
 #include "http_server/include/server.hpp"
 #include "http_server/include/helpers/uri_encode.hpp"
 #include "http_server/include/connection/request.hpp"
@@ -29,12 +26,6 @@ namespace rosetta {
 namespace http_server {
 
 using std::string;
-using std::vector;
-using std::istream;
-using std::shared_ptr;
-using std::default_delete;
-using namespace boost::algorithm;
-using namespace boost::asio::detail;
 using namespace rosetta::common;
 
 
@@ -56,25 +47,30 @@ void post_authorization_handler::handle (exceptional_executor x, functor on_succ
 
 void post_authorization_handler::evaluate (exceptional_executor x, functor on_success)
 {
-  // Finding out which action this request wants to perform.
-  auto action_iter = std::find_if (_parameters.begin(), _parameters.end(), [] (auto & idx) {
-    return std::get<0> (idx) == "action";
+  // Finding out which verb this request wants to change the value of.
+  auto verb_iter = std::find_if (_parameters.begin(), _parameters.end(), [] (auto & idx) {
+    return std::get<0> (idx) == "verb";
+  });
+  if (verb_iter == _parameters.end ())
+    throw request_exception ("Unrecognized HTTP POST request, missing 'verb' parameter."); // Not recognized, hence a "bug".
+  string verb = std::get<1> (*verb_iter);
+
+  // Finding out the new value of the verb.
+  auto value_iter = std::find_if (_parameters.begin(), _parameters.end(), [] (auto & idx) {
+    return std::get<0> (idx) == "value";
   });
 
   // Retrieving the action client wants to perform.
-  if (action_iter == _parameters.end ())
-    throw request_exception ("Unrecognized HTTP POST request, missing 'action' parameter."); // Not recognized, hence a "bug".
-  string action = std::get<1> (*action_iter);
+  if (value_iter == _parameters.end ())
+    throw request_exception ("Unrecognized HTTP POST request, missing 'value' parameter."); // Not recognized, hence a "bug".
+  string value = std::get<1> (*value_iter);
 
-  // Checking if client is authenticated as root, which has extended privileges.
-  if (request()->envelope().ticket().role == "root") {
+  // Updating authorization file for current path.
+  connection()->server()->authorization().update (request()->envelope().path(), verb, value, [x, on_success] (bool success) {
 
-    // We're fine!
-  } else {
-
-    // Only authenticated clients are allowed to do anything here!
-    throw request_exception ("Non-authenticated client tried to POST.");
-  }
+    // Invoking callback.
+    on_success (x);
+  });
 }
 
 

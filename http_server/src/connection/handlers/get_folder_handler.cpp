@@ -131,14 +131,6 @@ void get_folder_handler::write_folder (path folderpath, exceptional_executor x, 
       continue; // Not served
     }
 
-    // Checking if currently iterated file object is a folder, and if so, making sure user is authorized to view its content.
-    if (is_directory (idx->path()) && !connection()->server()->authorization().authorize (request()->envelope().ticket(), idx->path(), "GET")) {
-
-      // Client is not authorized to GET folder content, hence we do not show folder!
-      ++idx;
-      continue;
-    }
-
     // Retrieving path, and making sure this is not an invisible file/folder for some reasons.
     string path = idx->path().filename().string();
 
