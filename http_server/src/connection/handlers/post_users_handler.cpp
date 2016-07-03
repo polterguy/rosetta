@@ -44,12 +44,15 @@ void post_users_handler::handle (exceptional_executor x, functor on_success)
   post_handler_base::handle (x, [this, on_success] (auto x) {
 
     // Evaluates request, now that we have the data supplied by client.
-    evaluate (x, on_success);
+    evaluate ();
+
+    // Unless evaluate() throws an exception, we can safely return success back to client.
+    write_success_envelope (x, on_success);
   });
 }
 
 
-void post_users_handler::evaluate (exceptional_executor x, functor on_success)
+void post_users_handler::evaluate ()
 {
   // Finding out which action this request wants to perform.
   auto action_iter = std::find_if (_parameters.begin(), _parameters.end(), [] (auto & idx) {
@@ -65,11 +68,11 @@ void post_users_handler::evaluate (exceptional_executor x, functor on_success)
   if (request()->envelope().ticket().role == "root") {
 
     // Some root account is trying to perform an action.
-    root_action (action, x, on_success);
+    root_action (action);
   } else if (request()->envelope().ticket().authenticated()) {
 
     // Some authenticated, but non-root account, is trying to perform an action
-    non_root_action (action, x, on_success);
+    non_root_action (action);
   } else {
 
     // Only authenticated clients are allowed to do anything here!
@@ -78,7 +81,7 @@ void post_users_handler::evaluate (exceptional_executor x, functor on_success)
 }
 
 
-void post_users_handler::root_action (const string & action, exceptional_executor x, functor on_success)
+void post_users_handler::root_action (const string & action)
 {
   // Root is allowed to;
   // * Change password of his own account
@@ -89,24 +92,24 @@ void post_users_handler::root_action (const string & action, exceptional_executo
   if (action == "change-password") {
     
     // Some root user is trying to change password of some user.
-    root_change_password (x, on_success);
+    root_change_password ();
   } else if (action == "change-role") {
 
     // Some root user is trying to change the role of (hopefully) some other user.
-    root_change_role (x, on_success);
+    root_change_role ();
   } else if (action == "create-user") {
 
     // Some root user is trying to create a new user.
-    root_create_user (x, on_success);
+    root_create_user ();
   } else if (action == "delete-user") {
 
     // Some root account is trying to delete a user.
-    root_delete_user (x, on_success);
+    root_delete_user ();
   }
 }
 
 
-void post_users_handler::root_change_password (exceptional_executor x, functor on_success)
+void post_users_handler::root_change_password ()
 {
   // Root account tries to change password, now we need to figure out if it's his password, or another user's password.
   // We default to authenticated user (root account performing action)
@@ -130,11 +133,11 @@ void post_users_handler::root_change_password (exceptional_executor x, functor o
   string new_password = std::get<1> (*password_iter);
 
   // Now we have all the data necessary to change password of some user account.
-  change_password (username, new_password, x, on_success);
+  change_password (username, new_password);
 }
 
 
-void post_users_handler::root_change_role (exceptional_executor x, functor on_success)
+void post_users_handler::root_change_role ()
 {
   // Root account tries to change the role of another user.
   // First we retrieve the username of the account root is trying to change the role of.
@@ -158,18 +161,11 @@ void post_users_handler::root_change_role (exceptional_executor x, functor on_su
   string role = std::get<1> (*role_iter);
 
   // Now we have all the necessary data to change the role of some account in system.
-  connection()->server()->authentication().change_role (username, role, [this, x, on_success] (bool success) {
-
-    // Returning success back to client, if user existed, and operation was successful.
-    if (success)
-      write_success_envelope (x, on_success);
-    else
-      throw request_exception ("No such user.");
-  });
+  connection()->server()->authentication().change_role (username, role);
 }
 
 
-void post_users_handler::root_create_user (exceptional_executor x, functor on_success)
+void post_users_handler::root_create_user ()
 {
   // Root account tries to create a new user.
   // First we retrieve the username of the account root is trying to create.
@@ -200,19 +196,11 @@ void post_users_handler::root_create_user (exceptional_executor x, functor on_su
   connection()->server()->authentication().create_user (username,
                                                         password,
                                                         role,
-                                                        connection()->server()->configuration().get<string> ("server-salt"),
-                                                        [this, x, on_success] (bool success) {
-
-    // Returning success back to client, if user was successfully created.
-    if (success)
-      write_success_envelope (x, on_success);
-    else
-      throw request_exception ("There is an existing user with the same username.");
-  });
+                                                        connection()->server()->configuration().get<string> ("server-salt"));
 }
 
 
-void post_users_handler::root_delete_user (exceptional_executor x, functor on_success)
+void post_users_handler::root_delete_user ()
 {
   // Root account tries to delete an existing (hopefully) user.
   // First we retrieve the username of the account root is trying to delete.
@@ -224,18 +212,11 @@ void post_users_handler::root_delete_user (exceptional_executor x, functor on_su
   string username = std::get<1> (*username_iter);
 
   // Now we have all the necessary data to create a new user in system.
-  connection()->server()->authentication().delete_user (username, [this, x, on_success] (bool success) {
-
-    // Returning success back to client, if user was successfully created.
-    if (success)
-      write_success_envelope (x, on_success);
-    else
-      throw request_exception ("There is an existing user with the same username.");
-  });
+  connection()->server()->authentication().delete_user (username);
 }
 
 
-void post_users_handler::non_root_action (const string & action, exceptional_executor x, functor on_success)
+void post_users_handler::non_root_action (const string & action)
 {
   // Non-root accounts are only able to change passwords of their own account.
   // A "change my password" action, requires exactly two parameters.
@@ -253,23 +234,15 @@ void post_users_handler::non_root_action (const string & action, exceptional_exe
   string new_password = std::get<1> (*password_iter);
 
   // Now we have all the data necessary to change password of currently authenticated client's account.
-  change_password (request()->envelope().ticket().username, new_password, x, on_success);
+  change_password (request()->envelope().ticket().username, new_password);
 }
 
 
-void post_users_handler::change_password (const string & username, const string & new_password, exceptional_executor x, functor on_success)
+void post_users_handler::change_password (const string & username, const string & new_password)
 {
   connection()->server()->authentication().change_password (request()->envelope().ticket().username,
                                                             new_password,
-                                                            connection()->server()->configuration().get <string> ("server-salt"),
-                                                            [this, x, on_success] (bool success) {
-
-    // Returning success back to client, if user existed.
-    if (success)
-      write_success_envelope (x, on_success);
-    else
-      throw request_exception ("No such user.");
-  });
+                                                            connection()->server()->configuration().get <string> ("server-salt"));
 }
 
 

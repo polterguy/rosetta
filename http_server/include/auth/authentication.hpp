@@ -23,6 +23,7 @@
 #include <functional>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/thread/thread.hpp>
 
 using std::string;
 using namespace boost::asio;
@@ -30,6 +31,8 @@ using namespace boost::filesystem;
 
 namespace rosetta {
 namespace http_server {
+
+class server;
 
 typedef std::function<void(bool)> success_handler;
 
@@ -47,32 +50,28 @@ public:
     string role;
   };
 
-  /// Creates an authentication instance.
-  authentication (io_service & service);
-
-  /// Success handler type for authenticating client.
-  typedef std::function<void(ticket)> authenticated_success_handler;
-
   /// Authenticates a user, and returns a ticket.
-  void authenticate (const string & username, const string & password, const string & server_salt, authenticated_success_handler on_success);
+  ticket authenticate (const string & username, const string & password, const string & server_salt) const;
 
   /// Changes password of specified account.
-  void change_password (const string & username, const string & password, const string & server_salt, success_handler on_success);
+  void change_password (const string & username, const string & password, const string & server_salt);
 
   /// Changes role of specified account.
-  void change_role (const string & username, const string & role, success_handler on_success);
+  void change_role (const string & username, const string & role);
 
   /// Creates a new user in system.
-  void create_user (const string & username,
-                    const string & password,
-                    const string & role,
-                    const string & server_salt,
-                    success_handler on_success);
+  void create_user (const string & username, const string & password, const string & role, const string & server_salt);
 
   /// Creates a new user in system.
-  void delete_user (const string & username, success_handler on_success);
+  void delete_user (const string & username);
 
 private:
+
+  /// Making sure only server class can created instances.
+  friend class server;
+
+  /// Creates an authentication instance.
+  authentication (io_service & service);
 
   /// Wraps a single user in system
   struct user final
@@ -89,11 +88,14 @@ private:
   /// Users, with their usernames and roles.
   std::map<string, user> _users;
 
-  /// Strand, used to synchronize access to shared objects.
-  strand _strand;
+  /// Synchronization object for making sure write operations are atomic.
+  mutable boost::shared_mutex _lock;
 
-  /// Reference to io_service kept around, to be able to "post work".
+  /// io_service this instance belongs to.
   io_service & _service;
+
+  /// True if authentication file is already on its way to being saved.
+  bool _file_save_in_progress;
 };
 
 

@@ -27,6 +27,9 @@ using std::vector;
 using std::getline;
 using boost::trim;
 using boost::split;
+using boost::shared_lock;
+using boost::unique_lock;
+using boost::shared_mutex;
 
 namespace rosetta {
 namespace http_server {
@@ -35,89 +38,105 @@ namespace http_server {
 authorization::authorization (const path & www_root)
   : _www_root (www_root)
 {
-  // Recursively traverse all folders of web server, to initialize authorization.
+  // Recursively traverse all folders in www-root of web server, to initialize authorization.
   initialize (_www_root);
 }
 
 
-void authorization::initialize (const path current)
+void authorization::initialize (const path folder)
 {
   // Checking if there exists an "auth" file for currently iterated folder.
-  path idx = current;
-  idx += "/.auth";
-  if (exists (idx)) {
-    std::ifstream auth_file (idx.string (), std::ios::in);
+  path auth_file_path = folder;
+  auth_file_path += "/.auth";
+  if (exists (auth_file_path)) {
+
+    // There exists an authorization file for currently iterated folder.
+    std::ifstream auth_file (auth_file_path.string (), std::ios::in);
     if (!auth_file.good())
-      throw security_exception ("Couldn't open auth file; '" + idx.string() + "'.");
+      throw security_exception ("Couldn't open auth file; '" + auth_file_path.string() + "'.");
 
     // Creating an access object for currently iterated path.
-    verb_roles & folder_rights = _access [current.string ()];
+    // Notice, we retrieve currently iterated folder by reference, such that changes to it, propagates back into _access member.
+    verb_roles & verbs_for_folder = _access [folder.string ()];
 
     // Reading authorization file.
     while (!auth_file.eof ()) {
+
+      // Reading next verb definition from currently iterated authorization file.
       string line;
       getline (auth_file, line);
       trim (line);
       if (line.size() == 0)
-        continue;
+        continue; // Empty line, ignoring.
 
-      // Chopping up line into entities.
-      vector<string> entities;
-      split (entities, line, boost::is_any_of (":"));
-      if (entities.size() != 2)
-        security_exception ("Syntax error in authorization file; '" + idx.string() + "'.");
+      // Chopping up line into VERB:role(s)
+      vector<string> verb_roles;
+      split (verb_roles, line, boost::is_any_of (":"));
+      if (verb_roles.size() != 2)
+        security_exception ("Syntax error in authorization file; '" + auth_file_path.string() + "'.");
+
+      // Sanity checking line in authorization file.
+      if (verb_roles[0] != "GET" && verb_roles[0] != "DELETE" && verb_roles[0] != "PUT" && verb_roles[0] != "HEAD" && verb_roles[0] != "TRACE")
+        throw security_exception ("Malformed authorization file; '" + auth_file_path.string () + "'.");
 
       // Retrieving all roles associated with verb.
       vector<string> roles;
-      split (roles, entities[1], boost::is_any_of ("|"));
+      split (roles, verb_roles[1], boost::is_any_of ("|"));
       if (roles.size() == 1 && roles[0] == "*") {
 
         // All roles are allowed to exercise this verb.
-        folder_rights [entities[0]].insert ("*");
+        verbs_for_folder [verb_roles[0]].insert ("*");
       } else {
 
         // Looping through all roles explicitly mentioned.
         for (auto & idxRole : roles) {
           trim (idxRole);
-          if (idxRole == "*" || idxRole.size() == 0)
-            throw security_exception ("Malformed authorization file; '" + idx.string () + "'.");
-          folder_rights [entities[0]].insert (idxRole);
+
+          // Adding currently iterated role to currently iterated verb for currently iterated folder.
+          verbs_for_folder [verb_roles[0]].insert (idxRole);
         }
       }
     }
 
     // Then recursively iterate all child folders.
-    directory_iterator iter_folders {current};
-    while (iter_folders != directory_iterator{}) {
+    directory_iterator iter_folders {folder};
+    while (iter_folders != directory_iterator {}) {
+
+      // Making sure we skip invisible folders.
+      if (*iter_folders->path().filename().string().begin() == '.') {
+        ++iter_folders;
+        continue;
+      }
 
       // Checking if this is a folder, and if so, recursively invoke self
       if (is_directory (*iter_folders)) {
         initialize (*iter_folders);
       }
+
+      // Incrementing iterator to find next sub-folder of currently iterated folder.
       ++iter_folders;
     }
   }
 }
 
 
-void authorization::authorize (const authentication::ticket & ticket, class path path, const string & verb, success_handler on_success) const
+bool authorization::authorize (const authentication::ticket & ticket, class path path, const string & verb) const
 {
   if (ticket.role == "root") {
 
     // Root is allowed to do everything!
-    on_success (true);
+    return true;
   } else {
 
-    // Invoking implementation of authorization logic.
-    authorize_implementation (ticket, path, verb, on_success);
+    // Invoking implementation of authorization logic, making sure we do this in a shared lock, partially synchronized, to prevent
+    // write operations from accessing object while we read.
+    shared_lock<shared_mutex> lock (_lock);
+    return authorize_implementation (ticket, path, verb);
   }
 }
 
 
-void authorization::authorize_implementation (const authentication::ticket & ticket,
-                                              class path path,
-                                              const string & verb,
-                                              success_handler on_success) const
+bool authorization::authorize_implementation (const authentication::ticket & ticket, class path path, const string & verb) const
 {
   // Checking if directory exists in "explicit user access folders".
   auto iter_folder = _access.find (path.string ());
@@ -131,12 +150,12 @@ void authorization::authorize_implementation (const authentication::ticket & tic
       auto iter_role = iter_verb->second.find (ticket.role);
       if (iter_role != iter_verb->second.end()) {
 
-        // Role found for verb in folder; ACCESS GRANTED!
-        on_success (true);
+        // Role from ticket found for verb in folder; ACCESS GRANTED!
+        return true;
       } else {
 
         // NO ACCESS, unless everybody can exercise verb!
-        on_success (iter_verb->second.find ("*") != iter_verb->second.end());
+        return iter_verb->second.find ("*") != iter_verb->second.end();
       }
     } else {
 
@@ -144,11 +163,11 @@ void authorization::authorize_implementation (const authentication::ticket & tic
       if (path == _www_root) {
 
         // Defaulting to ACCESS DENIED for everything except "GET" method!
-        on_success (verb == "GET");
+        return verb == "GET";
       } else {
 
         // Recursively invoking self with parent's path.
-        authorize_implementation (ticket, path.parent_path(), verb, on_success);
+        return authorize_implementation (ticket, path.parent_path(), verb);
       }
     }
   } else {
@@ -156,18 +175,37 @@ void authorization::authorize_implementation (const authentication::ticket & tic
     // No explicit rights for folder, recursively invoking self for parent folder, but only if this is not the "www-root" path.
     if (path == _www_root) {
 
-      // Defaulting to ACCESS DENIED for everything except "GET" method!
-      on_success (verb == "GET");
+      // Defaulting to ACCESS DENIED for everything except "GET" verb!
+      return verb == "GET";
     } else {
 
       // Recursively invoking self with parent's path.
-      authorize_implementation (ticket, path.parent_path(), verb, on_success);
+      return authorize_implementation (ticket, path.parent_path(), verb);
     }
   }
 }
 
 
-void authorization::update (class path path, const string & verb, const string & new_value, success_handler on_success)
+void authorization::update (class path path, const string & verb, const string & new_value)
+{
+  // Sanity checking new value for verb.
+  for (auto idx : new_value) {
+    if (idx < 32 || idx > 126)
+      throw security_exception ("Illegal value for verb.");
+  }
+
+  // Sanity checking name of verb.
+  if (verb != "GET" && verb != "PUT" && verb != "DELETE" && verb != "TRACE" && verb != "HEAD")
+    throw security_exception ("Illegal verb."); // Notice, POST cannot have its access rights changed.
+
+  // Doing actual update, making sure we do this in a unique_lock, to synchronize access to object, such that no read operations
+  // can be executed concurrently.
+  unique_lock<shared_mutex> lock (_lock);
+  update_implementation (path, verb, new_value);
+}
+
+
+void authorization::update_implementation (class path path, const string & verb, const string & new_value)
 {
 }
 

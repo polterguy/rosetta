@@ -99,13 +99,13 @@ private:
   void read_headers (exceptional_executor x, functor on_success);
 
   /// Parses and verifies sanity of the given HTTP header line.
-  void parse_http_header_line (const string & line, std::function<void()> on_success);
+  void parse_http_header_line (const string & line);
 
   /// Parses the HTTP GET parameters.
   void parse_parameters (const string & params);
 
   /// Authenticates client according to "Authorization" HTTP header value.
-  void authenticate_client (const string & header_value, std::function<void()> on_success);
+  void authenticate_client (const string & header_value);
 
 
   /// Connection this instance belongs to.

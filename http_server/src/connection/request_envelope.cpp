@@ -218,17 +218,14 @@ void request_envelope::read_headers (exceptional_executor x, functor on_success)
     } else {
 
       // Parsing HTTP header, before repeating the process, and invoking "self".
-      parse_http_header_line (line, [this, x, on_success] () {
-
-        // Reading next header.
-        read_headers (x, on_success);
-      });
+      parse_http_header_line (line);
+      read_headers (x, on_success);
     }
   });
 }
 
 
-void request_envelope::parse_http_header_line (const string & line, std::function<void()> on_success)
+void request_envelope::parse_http_header_line (const string & line)
 {
   // Making things slightly more tidy and comfortable in here ...
   using namespace std;
@@ -241,9 +238,6 @@ void request_envelope::parse_http_header_line (const string & line, std::functio
     // This is a continuation of the header value that was read in the previous line from client.
     // Appending content according to ruling of HTTP/1.1 standard.
     get<1> (_headers.back()) += " " + trim_copy_if (line, is_any_of (" \t"));
-
-    // Invoking callback.
-    on_success ();
   } else {
 
     // Splitting header into name and value.
@@ -261,23 +255,18 @@ void request_envelope::parse_http_header_line (const string & line, std::functio
 
         // Authenticate user.
         _headers.push_back (collection_type (name, value));
-        authenticate_client (value, on_success);
+        authenticate_client (value);
       } else {
 
         // Now adding actual header into headers collection, before invoking callback.
         _headers.push_back (collection_type (name, value));
-        on_success();
       }
-    } else {
-
-      // Invoking callback.
-      on_success();
-    }
+    } // else; Simply ignoring HTTP headers without any value.
   }
 }
 
 
-void request_envelope::authenticate_client (const string & header_value, std::function<void()> on_success)
+void request_envelope::authenticate_client (const string & header_value)
 {
   // Splitting value up into its two parts.
   std::vector<string> entities;
@@ -298,15 +287,7 @@ void request_envelope::authenticate_client (const string & header_value, std::fu
 
   // Authorizing request, passing in server's salt to hash function.
   auto server_salt = _connection->server()->configuration().get<string> ("server-salt");
-  _connection->server()->authentication().authenticate (username_password [0],
-                                                        username_password [1],
-                                                        server_salt,
-                                                        [this, on_success] (auto ticket) {
-    
-    // Assigning ticket given by authentication process to current instance, and invoking success callback provided by caller.
-    _ticket = ticket;
-    on_success ();
-  });
+  _ticket = _connection->server()->authentication().authenticate (username_password [0], username_password [1], server_salt);
 }
 
 
@@ -429,7 +410,7 @@ bool sanity_check_path (path uri)
     if (idx.string().find ("~") == 0) // Linux backup file or folder.
       return false;
 
-    if (idx.string().find (".") == 0) // Linux hidden file or folder, or a file without a name, and only extension.
+    if (idx.string() == ".") // Two consecutive // after each other, or "." as full name of folder/file
       return false;
   }
   return true; // URI is sane.

@@ -30,12 +30,8 @@ class request_handler_base;
 typedef std::shared_ptr<request_handler_base> request_handler_ptr;
 
 
-/// Callback type invoked when request is created.
-typedef std::function<void(request_handler_ptr)> request_created;
-
-
 /// Creates the specified type of handler, according to file extension given, and configuration of server.
-void create_request_handler (class connection * connection, class request * request, request_created created, int status_code = -1);
+request_handler_ptr create_request_handler (class connection * connection, class request * request, int status_code = -1);
 
 
 } // namespace http_server

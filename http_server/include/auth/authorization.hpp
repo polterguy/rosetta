@@ -22,6 +22,7 @@
 #include <map>
 #include <boost/filesystem.hpp>
 #include <boost/noncopyable.hpp>
+#include <boost/thread/thread.hpp>
 #include "http_server/include/auth/authentication.hpp"
 
 using std::set;
@@ -35,6 +36,8 @@ typedef map<string, verb_roles> access_right;
 namespace rosetta {
 namespace http_server {
 
+class server;
+
 typedef std::function<void(bool)> success_handler;
 
 
@@ -43,22 +46,28 @@ class authorization final : boost::noncopyable
 {
 public:
 
-  /// Creates a new authorization object.
-  authorization (const path & www_root);
-
   /// Authorize a client's ticket.
-  void authorize (const authentication::ticket & ticket, class path path, const string & verb, success_handler on_success) const;
+  bool authorize (const authentication::ticket & ticket, class path path, const string & verb) const;
 
   /// Updating a specific folder's authorization access rights.
-  void update (class path path, const string & verb, const string & new_value, success_handler on_success);
+  void update (class path path, const string & verb, const string & new_value);
 
 private:
 
+  /// Making sure only server class can create instances.
+  friend class server;
+
+  /// Creates a new authorization object.
+  authorization (const path & www_root);
+
   /// Implementation of authorizing a client's ticket.
-  void authorize_implementation (const authentication::ticket & ticket, class path path, const string & verb, success_handler on_success) const;
+  bool authorize_implementation (const authentication::ticket & ticket, class path path, const string & verb) const;
+
+  /// Implementation of update.
+  void update_implementation (class path path, const string & verb, const string & new_value);
 
   /// Initializes authorization object.
-  void initialize (const path current);
+  void initialize (const path folder);
 
 
   /// Root path for server's "www-root" folder.
@@ -66,6 +75,9 @@ private:
 
   /// Folders with explicit access rights.
   access_right _access;
+
+  /// Synchronization object for making sure write operations are atomic.
+  mutable boost::shared_mutex _lock;
 };
 
 

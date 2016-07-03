@@ -66,11 +66,7 @@ void post_authorization_handler::evaluate (exceptional_executor x, functor on_su
   string value = std::get<1> (*value_iter);
 
   // Updating authorization file for current path.
-  connection()->server()->authorization().update (request()->envelope().path(), verb, value, [x, on_success] (bool success) {
-
-    // Invoking callback.
-    on_success (x);
-  });
+  connection()->server()->authorization().update (request()->envelope().path(), verb, value);
 }
 
 

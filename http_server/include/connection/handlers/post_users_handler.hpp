@@ -46,28 +46,28 @@ public:
 private:
 
   /// Evaluates the request.
-  void evaluate (exceptional_executor x, functor on_success);
+  void evaluate ();
 
   /// Takes care of actions submitted by root account(s).
-  void root_action (const string & action, exceptional_executor x, functor on_success);
+  void root_action (const string & action);
 
   /// Root is allowed to change password of other accounts.
-  void root_change_password (exceptional_executor x, functor on_success);
+  void root_change_password ();
 
   /// Some root account is trying to change the role of some user.
-  void root_change_role (exceptional_executor x, functor on_success);
+  void root_change_role ();
 
   /// Some root account is trying to create a new user.
-  void root_create_user (exceptional_executor x, functor on_success);
+  void root_create_user ();
 
   /// Some root account is trying to delete a user.
-  void root_delete_user (exceptional_executor x, functor on_success);
+  void root_delete_user ();
 
   /// Takes care of actions submitted by non-root accounts.
-  void non_root_action (const string & action, exceptional_executor x, functor on_success);
+  void non_root_action (const string & action);
 
   /// Changes the password of the given user.
-  void change_password (const string & username, const string & password, exceptional_executor x, functor on_success);
+  void change_password (const string & username, const string & password);
 };
 
 
