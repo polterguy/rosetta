@@ -19,6 +19,7 @@
 #define ROSETTA_SERVER_SERVER_HPP
 
 #include <set>
+#include <map>
 #include <memory>
 #include <functional>
 #include <boost/asio.hpp>
@@ -116,7 +117,7 @@ private:
   ssl::context _context;
 
   /// All live connections to our server.
-  std::set<connection_ptr> _connections;
+  std::map<ip::address, std::set<connection_ptr>> _connections;
 
   /// Authentication object for server.
   class authentication _authentication;

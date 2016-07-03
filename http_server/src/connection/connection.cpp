@@ -95,16 +95,17 @@ void connection::set_deadline_timer (int seconds)
 void connection::ensure_close()
 {
   // Checking if connection is already on its way into the garbage.
-  // This is necessary since in theory, multiple methods can attempt to destroy the connection simultaneously, due to our
-  // logic with the exceptional_handler ensuring destruction of connection.
   if (_being_killed)
     return;
 
-  // Signaling to future callers that this has already happened.
+  // Signaling to potential future callers that this has already happened.
   _being_killed = true;
 
   // Killing deadline timer.
   _timer.cancel ();
+
+  // Making sure we delete connection from server's list of connections.
+  _server->remove_connection (shared_from_this());
 
   // Closing socket gracefully, if it is open.
   if (_socket->is_open ()) {
@@ -114,11 +115,6 @@ void connection::ensure_close()
     _socket->shutdown (ip::tcp::socket::shutdown_both, ec);
     _socket->close();
   }
-
-  // Making sure we delete connection from server's list of connections.
-  // This will ensure that the last reference to the connection becomes invalidated, after all existing handlers,
-  // keeping a reference to the shared_ptr have been invoked.
-  _server->remove_connection (shared_from_this());
 }
 
 

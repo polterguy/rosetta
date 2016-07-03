@@ -121,22 +121,19 @@ void server::run ()
 
 void server::create_connection (socket_ptr socket, std::function<void(connection_ptr c)> on_success)
 {
+  // Figuring out IP address for current connection.
+  ip::address client_address = socket->remote_endpoint().address();
+
+  // Retrieving a reference to the existing set of connections for client's IP address.
+  // If no set exists, a new will be created.
+  auto & client_connections = _connections [client_address];
+
   // Checking if server is configured to only allow a maximum number of connections per client.
   const int max_connections_per_client = configuration().get<int> ("max-connections-per-client", 8);
   if (max_connections_per_client != -1) {
 
-    // Figuring out IP address for current connection.
-    ip::address client_address = socket->remote_endpoint().address();
-
-    // Counting existing connections from the same IP address.
-    int no_connections_for_ip = 0;
-    for (auto & idx : _connections) {
-      if (idx->socket().remote_endpoint().address() == client_address)
-        ++no_connections_for_ip;
-    }
-
     // Checking if the number of connections for IP address exceeds our max value, and if so, we refuse the connection.
-    if (no_connections_for_ip >= max_connections_per_client) {
+    if (client_connections.size() >= static_cast<size_t> (max_connections_per_client)) {
 
       // We refuse this connection.
       throw request_exception ("Client has too many connections.");
@@ -145,7 +142,7 @@ void server::create_connection (socket_ptr socket, std::function<void(connection
 
   // Creating a new connection as a shared pointer, and putting it into our list of connections.
   connection_ptr connection = connection::create (this, socket);
-  _connections.insert (connection);
+  client_connections.insert (connection);
   on_success (connection);
 }
 
@@ -153,7 +150,13 @@ void server::create_connection (socket_ptr socket, std::function<void(connection
 void server::remove_connection (connection_ptr connection)
 {
   // Erasing connection from our list of connections.
-  _connections.erase (connection);
+  ip::address client_address = connection->socket().remote_endpoint().address();
+  auto & client_connections = _connections [client_address];
+  client_connections.erase (connection);
+
+  // Checking if this is the last connection from the client, and if so, entirely erasing client's connections from set
+  if (client_connections.size() == 0)
+    _connections.erase (client_address);
 }
 
 
@@ -306,11 +309,13 @@ void server::on_stop (int signal_number)
   _acceptor.close ();
 
   // Closing all open connections.
-  for (auto idx = _connections.begin(); idx != _connections.end(); idx++) {
+  for (auto idxClient : _connections) {
 
-    // Stopping connection first, then removing from list of open connections.
-    (*idx)->ensure_close ();
-    remove_connection (*idx);
+    // Stopping all connections for client first, then removing client entirely from list of IP addresses.
+    for (auto idxConnection : idxClient.second) {
+      idxConnection->ensure_close ();
+    }
+    _connections.erase (idxClient.first);
   }
 }
 
