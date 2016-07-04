@@ -83,11 +83,6 @@ private:
 
   /// Request for connection.
   request_ptr _request;
-
-  /// True if connection is on its way to be killed.
-  /// Necessary to avoid multiple destroy invocations to fizzle, which might occur due to deadline_timer killing connection,
-  /// while another piece of logic is attempting to also kill it.
-  bool _being_killed = false;
 };
 
 

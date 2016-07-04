@@ -125,7 +125,7 @@ void server::create_connection (socket_ptr socket, std::function<void(connection
   ip::address client_address = socket->remote_endpoint().address();
 
   // Retrieving a reference to the existing set of connections for client's IP address.
-  // If no set exists, a new will be created.
+  // If there are no existing connection, then a new set will be created.
   auto & client_connections = _connections [client_address];
 
   // Checking if server is configured to only allow a maximum number of connections per client.

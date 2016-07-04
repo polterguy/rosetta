@@ -54,6 +54,7 @@ public:
   /// Reads the request envelope from the connection, and invokes given callback afterwards.
   void read (exceptional_executor x, functor on_success);
 
+
   /// Returns the URI of the request.
   inline class path uri() const { return _uri; }
 
