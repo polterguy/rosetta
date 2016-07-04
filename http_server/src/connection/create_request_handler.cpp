@@ -52,69 +52,52 @@ using namespace boost::filesystem;
 using namespace rosetta::common;
 
 
-bool in_whitelist (const class connection * connection, const class request * request)
+bool in_user_agent_list (const class connection * connection, const class request * request, const string & list)
 {
   // Making things more tidy in here.
   using namespace std;
   using namespace boost::algorithm;
 
-  // Retrieve the User-Agent whitelist, and see if it has something besides "*" ("accept all") as value.
-  const string user_agent_whitelist = connection->server()->configuration().get <string> ("user-agent-whitelist", "*");
-  if (user_agent_whitelist != "*") {
+  // Retrieve the specified list from our configuration file.
+  const string configuration_list = connection->server()->configuration().get <string> ("user-agent-" + list, "*");
+  if (configuration_list == "*") {
+
+    // List matches everything.
+    return true;
+  } else if (configuration_list == "") {
+
+    // List matches nothing.
+    return false;
+  } else {
 
     // Retrieving User-Agent header from request envelope.
-    const string user_agent = request->envelope().header ("User-Agent");
+    const string & user_agent = request->envelope().header ("User-Agent");
     if (user_agent.size() == 0)
-      return false; // No User-Agent string, and whitelist was defined. Refusing request.
+      return false;
 
-    // Whitelist defined, checking if User-Agent string from request contains at least one of its entries.
-    vector<string> whitelist_entities;
-    split (whitelist_entities, user_agent_whitelist, boost::is_any_of ("|"));
-    for (const auto & idx : whitelist_entities) {
+    // Checking if User-Agent string from client's request contains at least one of our list entries.
+    vector<string> list_entries;
+    split (list_entries, configuration_list, boost::is_any_of ("|"));
+    for (const auto & idx : list_entries) {
       if (user_agent.find (idx) != string::npos)
-        return true; // Match in User-Agent for currently iterated whitelist entity.
+        return true; // Match in User-Agent for currently iterated list entity.
     }
 
     // Did not find a match in User-Agent.
     return false;
-  } else {
-
-    // No whitelist defined, accepting everything.
-    return true;
   }
 }
 
 
-bool in_blacklist (const class connection * connection, const class request * request)
+bool in_user_agent_whitelist (const class connection * connection, const class request * request)
 {
-  // Making things more tidy in here.
-  using namespace std;
-  using namespace boost::algorithm;
+  return in_user_agent_list (connection, request, "whitelist");
+}
 
-  // Retrieve the User-Agent blacklist, and see if it has something besides "" (empty) as value.
-  const string user_agent_blacklist = connection->server()->configuration().get <string> ("user-agent-blacklist", "");
-  if (user_agent_blacklist != "") {
 
-    // Retrieving User-Agent header from request envelope.
-    const string user_agent = request->envelope().header ("User-Agent");
-    if (user_agent.size() == 0)
-      return false; // No User-Agent string, and blacklist was defined. Accepting request.
-
-    // Blacklist defined, checking if User-Agent string from request contains at least one of its entries.
-    vector<string> blacklist_entities;
-    split (blacklist_entities, user_agent_blacklist, boost::is_any_of ("|"));
-    for (const auto & idx : blacklist_entities) {
-      if (user_agent.find (idx) != string::npos)
-        return true; // Match in User-Agent for currently iterated blacklist entity.
-    }
-
-    // Did not find a match in User-Agent.
-    return false;
-  } else {
-
-    // No blacklist defined, accepting everything.
-    return false;
-  }
+bool in_user_agent_blacklist (const class connection * connection, const class request * request)
+{
+  return in_user_agent_list (connection, request, "blacklist");
 }
 
 
@@ -124,14 +107,14 @@ bool should_upgrade_insecure_requests (const class connection * connection, cons
   if (!connection->is_secure()) {
 
     // Checking if server is configured to allow for automatic upgrading of insecure requests.
-    if (connection->server()->configuration().get <bool> ("upgrade-insecure-requests", false)) {
+    if (connection->server()->configuration().get <bool> ("upgrade-insecure-requests", true)) {
 
       // Checking if client prefers SSL sockets.
       if (request->envelope().header ("Upgrade-Insecure-Requests") == "1") {
 
-        // Checking if server is configure with, and has a root certificate and a private key.
-        const string & certificate = connection->server()->configuration().get<string> ("ssl-certificate", "");
-        const string & key = connection->server()->configuration().get<string> ("ssl-private-key", "");
+        // Checking if server is configured with key/certificate, and that certificate/private-key exists.
+        const string & certificate = connection->server()->configuration().get<string> ("ssl-certificate", "server.crt");
+        const string & key = connection->server()->configuration().get<string> ("ssl-private-key", "server.key");
 
         // Checking if neither of the above values are empty.
         if (certificate.size() > 0 && key.size() > 0) {
@@ -154,12 +137,12 @@ bool should_upgrade_insecure_requests (const class connection * connection, cons
 
 request_handler_ptr upgrade_insecure_request (class connection * connection, class request * request)
 {
-  // Redirecting client to SSL version of same resource.
+  // Redirecting client to SSL version of the same resource.
   auto request_uri = request->envelope().uri();
 
   // Retrieving server address and SSL port, for our "Location" response header.
   const string server_address = connection->server()->configuration().get <string> ("address", "localhost");
-  const string ssl_port       = connection->server()->configuration().get <string> ("ssl-port", "443");
+  const string ssl_port       = connection->server()->configuration().get <string> ("ssl-port", "8081");
   string new_uri              = "https://" + server_address + (ssl_port == "443" ? "" : ":" + ssl_port) + request_uri.string ();
 
   // Looping through all parameters, adding these to the Location URI.
@@ -195,7 +178,7 @@ bool authorize_request (connection * connection, request * request)
 
       if (is_directory (path)) {
 
-        // Client is not allowed to PUT an existing directory.
+        // Client is not "overwrite" an existing directory.
         return false;
       } else {
         
@@ -217,6 +200,12 @@ bool authorize_request (connection * connection, request * request)
 }
 
 
+request_handler_ptr create_authorize_handler (class connection * connection, class request * request)
+{
+  return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+}
+
+
 request_handler_ptr create_trace_handler (class connection * connection, class request * request)
 {
   // Authorizing request.
@@ -235,7 +224,7 @@ request_handler_ptr create_trace_handler (class connection * connection, class r
   } else {
 
     // Not authorized.
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+    return create_authorize_handler (connection, request);
   }
 }
 
@@ -261,7 +250,7 @@ request_handler_ptr create_head_handler (class connection * connection, class re
   } else {
 
     // Not authorized.
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+    return create_authorize_handler (connection, request);
   }
 }
 
@@ -284,7 +273,26 @@ request_handler_ptr create_options_handler (class connection * connection, class
   } else {
 
     // Not authorized.
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+    return create_authorize_handler (connection, request);
+  }
+}
+
+
+request_handler_ptr create_get_file_handler (class connection * connection, class request * request)
+{
+  // Figuring out handler to use according to request extension, and if document type is served/handled.
+  string extension = request->envelope().path().extension().string ();
+  string handler   = connection->server()->configuration().get<string> ("handler" + extension, "error");
+
+  // Returning the correct handler to caller.
+  if (handler == "get-file-handler") {
+
+    // Static file GET handler.
+    return request_handler_ptr (new get_file_handler (connection, request));
+  } else {
+
+    // Oops, these types of files are not served or handled.
+    return request_handler_ptr (new error_handler (connection, request, 404));
   }
 }
 
@@ -302,52 +310,25 @@ request_handler_ptr create_get_handler (class connection * connection, class req
     } else {
 
       // Figuring out if user requested a file or a folder.
-      if (is_regular_file (request->envelope().path())) {
+      if (is_regular_file (request->envelope().path()) && request->envelope().file_request()) {
 
-        // Making sure request is for a file.
-        if (request->envelope().folder_request()) {
+        // Returning the correct file handler according to configuration
+        return create_get_file_handler (connection, request);
+      } else if (is_directory (request->envelope().path()) && request->envelope().folder_request()) {
 
-          // User requested a folder, but found a file!
-          return request_handler_ptr (new error_handler (connection, request, 404));
-        } else {
+        // This is a request for a folder's content.
+        return request_handler_ptr (new get_folder_handler (connection, request));
+      } else {
 
-          // Figuring out handler to use according to request extension, and if document type is served/handled.
-          string extension = request->envelope().path().extension().string ();
-          string handler   = connection->server()->configuration().get<string> ("handler" + extension, "error");
-
-          // Returning the correct handler to caller.
-          if (handler == "get-file-handler") {
-
-            // Static file GET handler.
-            return request_handler_ptr (new get_file_handler (connection, request));
-          } else {
-
-            // Oops, these types of files are not served or handled.
-            return request_handler_ptr (new error_handler (connection, request, 404));
-          }
-        }
-      } else if (is_directory (request->envelope().path())) {
-
-        // Making sure request is for a folder.
-        if (!request->envelope().folder_request()) {
-
-          // User requested a file, but found a folder.
-          return request_handler_ptr (new error_handler (connection, request, 404));
-        } else {
-
-          // This is a request for a folder's content.
-          return request_handler_ptr (new get_folder_handler (connection, request));
-        }
+        // User tries to GET something that's neither a folder, nor a file, or a file/folder, as something it is not.
+        return request_handler_ptr (new error_handler (connection, request, 404));
       }
     }
   } else {
 
     // Not authorized.
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+    return create_authorize_handler (connection, request);
   }
-
-  // To remove compiler warnings.
-  return nullptr;
 }
 
 
@@ -359,7 +340,7 @@ request_handler_ptr create_put_handler (class connection * connection, class req
     // Checking that parent folder of file/folder actually exists.
     if (!exists (request->envelope().path().parent_path())) {
 
-      // No such folder.
+      // Client tries to POST something to a location that does not exist.
       return request_handler_ptr (new error_handler (connection, request, 404));
     } else {
 
@@ -377,7 +358,7 @@ request_handler_ptr create_put_handler (class connection * connection, class req
   } else {
 
     // Not authorized.
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+    return create_authorize_handler (connection, request);
   }
 }
 
@@ -400,83 +381,72 @@ request_handler_ptr create_delete_handler (class connection * connection, class 
   } else {
 
     // Not authorized.
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+    return create_authorize_handler (connection, request);
   }
 }
 
 
 request_handler_ptr create_post_users_handler (class connection * connection, class request * request)
 {
-  // Making sure Content-Type of request is something we know how to handle.
-  if (request->envelope().header ("Content-Type") != "application/x-www-form-urlencoded")
-    throw request_exception ("Unsupported Content-Type in POST request");
-
   // No need to authorize these types of request, since all authenticated clients are allowed to post to the ".users" file, though
   // only root accounts are allowed to do anything but changing their own password.
   // Therefor we simply check if client is authenticated at all, before creating our POST users handler.
-  // Then we verify type of POST inside of the post_users_handler.
-  if (!request->envelope().ticket().authenticated()) {
-
-    // Not authorized.
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
-  } else {
+  // Then we verify type of POST action inside our post_users_handler.
+  if (request->envelope().ticket().authenticated()) {
 
     // User tries to POST data to server's ".users" file.
     return request_handler_ptr (new post_users_handler (connection, request));
+  } else {
+
+    // Not authorized.
+    return create_authorize_handler (connection, request);
   }
 }
 
 
 request_handler_ptr create_post_authorization_handler (class connection * connection, class request * request)
 {
-  // Making sure Content-Type of request is something we know how to handle.
-  if (request->envelope().header ("Content-Type") != "application/x-www-form-urlencoded")
-    throw request_exception ("Unsupported Content-Type in POST request");
-
   // No need to authorize these types of request, since only "root" accounts are allowed to post to the ".auth" files at all.
-  if (request->envelope().ticket().role != "root") {
-
-    // Not authenticated.
-    return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
-  } else {
+  if (request->envelope().ticket().role == "root") {
 
     // User tries to POST data to a '.auth' file in some folder.
     return request_handler_ptr (new post_authorization_handler (connection, request));
+  } else {
+
+    // Not authenticated.
+    return create_authorize_handler (connection, request);
   }
 }
 
 
-request_handler_ptr create_request_handler (class connection * connection, class request * request, int status_code)
+request_handler_ptr create_post_handler (class connection * connection, class request * request)
 {
-  // Checking if we can accept User-Agent according whitelist and blacklist definitions.
-  if (!in_whitelist (connection, request) || in_blacklist (connection, request)) {
+  // Making sure Content-Type of request is something we know how to handle.
+  if (request->envelope().header ("Content-Type") != "application/x-www-form-urlencoded")
+    throw request_exception ("Unsupported Content-Type in POST request");
 
-    // User-Agent not accepted!
+  // Making sure there is any content in post request.
+  if (request->envelope().header ("Content-Length") == "")
+    throw request_exception ("A POST request must have content.");
+
+  if (request->envelope().uri() == "/.users") {
+
+    // Posting to authentication file.
+    return create_post_users_handler (connection, request);
+  } else if (request->envelope().uri().filename() == ".auth") {
+
+    // Posting to authorization file.
+    return create_post_authorization_handler (connection, request);
+  } else {
+
+    // URI does not support POST method.
     return request_handler_ptr (new error_handler (connection, request, 403));
   }
+}
 
-  // Checking request type, and other parameters, deciding which type of request handler we should create.
-  if (status_code >= 400) {
 
-    // Some sort of error.
-    return request_handler_ptr (new error_handler (connection, request, status_code));
-  }
-
-  // Checking if we should upgrade an insecure request to a secure request.
-  if (should_upgrade_insecure_requests (connection, request)) {
-
-    // Both configuration, and client, prefers secure requests, and current connection is not secure, hence we upgrade.
-    return upgrade_insecure_request (connection, request);
-  }
-
-  // Checking if client wants to force an authorized request.
-  if (request->envelope().has_parameter ("authorize") && !request->envelope().ticket().authenticated()) {
-
-    // Returning an Unauthorized response, to force client to authenticate.
-    return request_handler_ptr (new unauthorized_handler (connection, request, true));
-  }
-
-  // Specific handlers for method.
+request_handler_ptr create_verb_handler (class connection * connection, class request * request)
+{
   if (request->envelope().method() == "TRACE") {
 
     // Returning a TRACE handler.
@@ -504,24 +474,47 @@ request_handler_ptr create_request_handler (class connection * connection, class
   } else if (request->envelope().method() == "POST") {
 
     // Returning the correct POST data handler.
-    if (request->envelope().uri() == "/.users") {
-
-      // Posting to authentication file.
-      return create_post_users_handler (connection, request);
-    } else if (request->envelope().uri().filename() == ".auth") {
-
-      // Posting to authorization file.
-      return create_post_authorization_handler (connection, request);
-    } else {
-
-      // URI does not support POST method.
-      return request_handler_ptr (new error_handler (connection, request, 403));
-    }
+    return create_post_handler (connection, request);
   } else {
 
     // Unsupported method.
     return request_handler_ptr (new error_handler (connection, request, 405));
   }
+}
+
+
+request_handler_ptr create_request_handler (class connection * connection, class request * request, int status_code)
+{
+  // Checking if we can accept User-Agent according whitelist and blacklist definitions.
+  if (!in_user_agent_whitelist (connection, request) || in_user_agent_blacklist (connection, request)) {
+
+    // User-Agent not accepted!
+    return request_handler_ptr (new error_handler (connection, request, 403));
+  }
+
+  // Checking request type, and other parameters, deciding which type of request handler we should create.
+  if (status_code >= 400) {
+
+    // Some sort of error.
+    return request_handler_ptr (new error_handler (connection, request, status_code));
+  }
+
+  // Checking if we should upgrade an insecure request to a secure request.
+  if (should_upgrade_insecure_requests (connection, request)) {
+
+    // Both configuration, and client, prefers secure requests, and current connection is not secure, hence we upgrade.
+    return upgrade_insecure_request (connection, request);
+  }
+
+  // Checking if client wants to force an authorized request.
+  if (request->envelope().has_parameter ("authorize") && !request->envelope().ticket().authenticated()) {
+
+    // Returning an Unauthorized response, to force client to authenticate.
+    return create_authorize_handler (connection, request);
+  }
+
+  // Letting our verb parser take care of this.
+  return create_verb_handler (connection, request);
 }
 
 

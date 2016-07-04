@@ -59,14 +59,7 @@ void request::handle (exceptional_executor x, functor on_success)
     _connection->set_deadline_timer (-1);
 
     // Now reading of envelope is done, and we can let our request_handler take care of the rest from here.
-    auto handler = create_request_handler (_connection, this);
-
-    // Making sure we actually got something back.
-    if (handler == nullptr)
-      return; // No handler for this request, returning without releasing "x", to close connection.
-
-    // Making sure we store request handler smart pointer to avoid deletion of handler before main request instance is deleted.
-    _request_handler = handler;
+    _request_handler = create_request_handler (_connection, this);
 
     // Letting request_handler take over from here.
     _request_handler->handle (x, [this, on_success] (auto x) {
