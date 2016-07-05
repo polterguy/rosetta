@@ -20,6 +20,7 @@
 #include <boost/algorithm/string.hpp>
 #include "http_server/include/server.hpp"
 #include "http_server/include/helpers/date.hpp"
+#include "http_server/include/helpers/uri_encode.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
 #include "http_server/include/exceptions/request_exception.hpp"
@@ -138,12 +139,12 @@ bool should_upgrade_insecure_requests (const class connection * connection, cons
 request_handler_ptr upgrade_insecure_request (class connection * connection, class request * request)
 {
   // Redirecting client to SSL version of the same resource.
-  auto request_uri = request->envelope().uri();
+  auto request_uri = request->envelope().uri().string ();
 
   // Retrieving server address and SSL port, for our "Location" response header.
   const string server_address = connection->server()->configuration().get <string> ("address", "localhost");
   const string ssl_port       = connection->server()->configuration().get <string> ("ssl-port", "8081");
-  string new_uri              = "https://" + server_address + (ssl_port == "443" ? "" : ":" + ssl_port) + request_uri.string ();
+  string new_uri              = "https://" + server_address + (ssl_port == "443" ? "" : ":" + ssl_port) + request_uri;
 
   // Looping through all parameters, adding these to the Location URI.
   bool first = true;
@@ -154,8 +155,8 @@ request_handler_ptr upgrade_insecure_request (class connection * connection, cla
     } else {
       new_uri += "&";
     }
-    new_uri += std::get<0> (idx);
-    auto val = std::get<1> (idx);
+    new_uri += uri_encode::encode (std::get<0> (idx));
+    auto val = uri_encode::encode (std::get<1> (idx));
     if (val.size() > 0)
       new_uri += "=" + val;
   }

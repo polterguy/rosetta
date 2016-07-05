@@ -27,7 +27,12 @@ namespace http_server {
 namespace uri_encode {
 
 
+/// Decodes a URI encoded string.
 string decode (const string & uri);
+
+
+/// URI Encodes a string.
+string encode (const string & val);
 
 
 } // namespace uri_encode

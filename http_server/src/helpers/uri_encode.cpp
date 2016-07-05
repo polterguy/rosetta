@@ -43,7 +43,7 @@ unsigned char from_hex (unsigned char ch)
 string decode (const string & uri)
 {
   // Will hold the decoded return URI value temporarily.
-  std::vector<unsigned char> return_value;
+  vector<unsigned char> return_value;
   
   // Iterating through entire string, looking for either '+' or '%', which is specially handled.
   for (size_t idx = 0; idx < uri.length (); ++idx) {
@@ -72,6 +72,50 @@ string decode (const string & uri)
 
   // Returning decoded URI to caller as string.
   return string (return_value.begin (), return_value.end ());
+}
+
+
+string encode (const string & val)
+{
+  // Hex characters buffer.
+  const static string HEX_CHARACTERS = "0123456789abcdef";
+
+  // Using vector as buffer.
+  vector<unsigned char> buffer;
+
+  // Looping through each character in input string, and decoding it if necessary.
+  for (auto idxChar : val) {
+    switch (idxChar) {
+    case ' ':
+
+      // SP becomes '+'.
+      buffer.push_back ('+');
+      break;
+    case '-':
+    case '.':
+    case '_':
+    case '~':
+
+      // Not escaping.
+      buffer.push_back (idxChar);
+      break;
+    default:
+      if ((idxChar >= 'a' && idxChar <= 'z') || (idxChar >= 'A' && idxChar <= 'Z') || (idxChar >= '0' && idxChar <= '9')) {
+
+        // Not escaping.
+        buffer.push_back (idxChar);
+      } else {
+
+        // Escaping these guys.
+        buffer.push_back ('%');
+        buffer.push_back (HEX_CHARACTERS [idxChar >> 4]);
+        buffer.push_back (HEX_CHARACTERS [idxChar & 0x0f]);
+      }
+    }
+  }
+
+  // Returning vector as string.
+  return string (buffer.begin(), buffer.end());
 }
 
 
