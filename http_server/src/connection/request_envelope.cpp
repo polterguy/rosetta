@@ -45,38 +45,37 @@ string capitalize_header_name (const string & name);
 bool sanity_check_path (path uri);
 
 
-request_envelope::request_envelope (connection_ptr connection, request * request)
-  : _connection (connection),
-    _request (request),
+request_envelope::request_envelope (request * request)
+  : _request (request),
     _folder_request (false)
 { }
 
 
-void request_envelope::read (std::function<void()> on_success)
+void request_envelope::read (connection_ptr connection, std::function<void()> on_success)
 {
   // Figuring out max length of URI.
-  const size_t MAX_URI_LENGTH = _connection->server()->configuration().get<size_t> ("max-uri-length", 4096);
+  const size_t MAX_URI_LENGTH = connection->server()->configuration().get<size_t> ("max-uri-length", 4096);
   match_condition match (MAX_URI_LENGTH);
 
   // Reading until "max_length" or CR/LF has been found.
-  _connection->socket().async_read_until (_connection->buffer(), match, [this, match, on_success] (auto error, auto bytes_read) {
+  connection->socket().async_read_until (connection->buffer(), match, [this, connection, match, on_success] (auto error, auto bytes_read) {
 
     // Checking if socket has an error, or HTTP-Request line was too long.
     if (error) {
 
       // Something went wrong while reading from socket.
-      _connection->close();
+      connection->close();
     } else if (match.has_error()) {
 
       // Too long URI.
-      _request->write_error_response (414);
+      _request->write_error_response (connection, 414);
     } else {
 
       // Parsing request line, and verifying it's OK.
-      parse_request_line (get_line (_connection->buffer()));
+      parse_request_line (connection, get_line (connection->buffer()));
 
       // Reading headers.
-      read_headers (on_success);
+      read_headers (connection, on_success);
     }
   });
 }
@@ -92,7 +91,7 @@ bool request_envelope::has_parameter (const string & name) const
 }
 
 
-void request_envelope::parse_request_line (const string & request_line)
+void request_envelope::parse_request_line (connection_ptr connection, const string & request_line)
 {
   // Making things slightly more tidy and comfortable in here ...
   using namespace std;
@@ -120,11 +119,11 @@ void request_envelope::parse_request_line (const string & request_line)
   _http_version     = no_parts > 2 ? to_upper_copy (parts [2]) : "HTTP/1.1";
 
   // Then, at last, we parse the URI.
-  parse_uri (parts [1]);
+  parse_uri (connection, parts [1]);
 }
 
 
-void request_envelope::parse_uri (string uri)
+void request_envelope::parse_uri (connection_ptr connection, string uri)
 {
   if (uri [0] != '/') {
 
@@ -160,9 +159,9 @@ void request_envelope::parse_uri (string uri)
   if (has_parameter ("list") && uri.back() == '/')
     _folder_request = true;
   else if (uri.back() == '/' && _method == "GET")
-    uri += _connection->server()->configuration().get<string> ("default-document", "index.html");
+    uri += connection->server()->configuration().get<string> ("default-document", "index.html");
 
-  _path = _connection->server()->configuration().get<string> ("www-root", "www-root");
+  _path = connection->server()->configuration().get<string> ("www-root", "www-root");
   _path += uri;
   if (_folder_request) {
 
@@ -176,28 +175,28 @@ void request_envelope::parse_uri (string uri)
 }
 
 
-void request_envelope::read_headers (std::function<void()> on_success)
+void request_envelope::read_headers (connection_ptr connection, std::function<void()> on_success)
 {
   // Retrieving max header size.
-  const size_t max_header_length = _connection->server()->configuration().get<size_t> ("max-header-length", 8192);
+  const size_t max_header_length = connection->server()->configuration().get<size_t> ("max-header-length", 8192);
   match_condition match (max_header_length);
 
   // Reading first header.
-  _connection->socket().async_read_until (_connection->buffer(), match, [this, match, on_success] (auto error, auto bytes_read) {
+  connection->socket().async_read_until (connection->buffer(), match, [this, connection, match, on_success] (auto error, auto bytes_read) {
 
     // Checking if socket has an error, or header exceeded maximum length.
     if (error) {
 
       // Something went wrong when reading from socket.
-      _connection->close();
+      connection->close();
     } else if (match.has_error()) {
 
       // HTTP header was too much for us to handle.
-      _request->write_error_response (413);
+      _request->write_error_response (connection, 413);
     } else {
 
       // Now we can start parsing HTTP headers.
-      string line = get_line (_connection->buffer());
+      string line = get_line (connection->buffer());
 
       // Checking if there are any more headers being sent from client.
       // When we are done reading headers, and there are no more headers, then there should be an additional empty string sent from client.
@@ -206,22 +205,22 @@ void request_envelope::read_headers (std::function<void()> on_success)
         // No more headers, the previous header was the last.
         // Invoking given on_success() handler function.
         on_success ();
-      } else if (_headers.size() >= _connection->server()->configuration().get<size_t> ("max-header-count", 25)) {
+      } else if (_headers.size() >= connection->server()->configuration().get<size_t> ("max-header-count", 25)) {
 
         // Too many HTTP headers in request.
-        _request->write_error_response (413);
+        _request->write_error_response (connection, 413);
       } else {
 
         // Parsing HTTP header, before repeating the process, and invoking "self".
-        parse_http_header_line (line);
-        read_headers (on_success);
+        parse_http_header_line (connection, line);
+        read_headers (connection, on_success);
       }
     }
   });
 }
 
 
-void request_envelope::parse_http_header_line (const string & line)
+void request_envelope::parse_http_header_line (connection_ptr connection, const string & line)
 {
   // Making things slightly more tidy and comfortable in here ...
   using namespace std;
@@ -251,7 +250,7 @@ void request_envelope::parse_http_header_line (const string & line)
 
         // Authenticate user.
         _headers.push_back (collection_type (name, value));
-        authenticate_client (value);
+        authenticate_client (connection, value);
       } else {
 
         // Now adding actual header into headers collection, before invoking callback.
@@ -262,7 +261,7 @@ void request_envelope::parse_http_header_line (const string & line)
 }
 
 
-void request_envelope::authenticate_client (const string & header_value)
+void request_envelope::authenticate_client (connection_ptr connection, const string & header_value)
 {
   // Splitting value up into its two parts.
   std::vector<string> entities;
@@ -282,8 +281,8 @@ void request_envelope::authenticate_client (const string & header_value)
     throw security_exception ("Syntax error in 'Authorization' HTTP header.");
 
   // Authorizing request, passing in server's salt to hash function.
-  auto server_salt = _connection->server()->configuration().get<string> ("server-salt");
-  _ticket = _connection->server()->authentication().authenticate (username_password [0], username_password [1], server_salt);
+  auto server_salt = connection->server()->configuration().get<string> ("server-salt");
+  _ticket = connection->server()->authentication().authenticate (username_password [0], username_password [1], server_salt);
 }
 
 

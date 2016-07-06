@@ -38,36 +38,36 @@ class post_users_handler final : public post_handler_base
 public:
 
   /// Creates a POST handler for user data.
-  post_users_handler (connection_ptr connection, class request * request);
+  post_users_handler (class request * request);
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) override;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
 
 private:
 
   /// Evaluates the request.
-  void evaluate ();
+  void evaluate (connection_ptr connection);
 
   /// Takes care of actions submitted by root account(s).
-  void root_action (const string & action);
+  void root_action (connection_ptr connection, const string & action);
 
   /// Root is allowed to change password of other accounts.
-  void root_change_password ();
+  void root_change_password (connection_ptr connection);
 
   /// Some root account is trying to change the role of some user.
-  void root_change_role ();
+  void root_change_role (connection_ptr connection);
 
   /// Some root account is trying to create a new user.
-  void root_create_user ();
+  void root_create_user (connection_ptr connection);
 
   /// Some root account is trying to delete a user.
-  void root_delete_user ();
+  void root_delete_user (connection_ptr connection);
 
   /// Takes care of actions submitted by non-root accounts.
-  void non_root_action (const string & action);
+  void non_root_action (connection_ptr connection, const string & action);
 
   /// Changes the password of the given user.
-  void change_password (const string & username, const string & password);
+  void change_password (connection_ptr connection, const string & username, const string & password);
 };
 
 

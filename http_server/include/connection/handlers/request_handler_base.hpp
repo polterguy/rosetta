@@ -46,41 +46,35 @@ class request_handler_base : public boost::noncopyable
 public:
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) = 0;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) = 0;
 
 protected:
 
   /// Protected constructor.
-  request_handler_base (connection_ptr connection, class request * request);
+  request_handler_base (class request * request);
 
   /// Writing given HTTP headetr with given value back to client.
-  void write_status (unsigned int status_code, std::function<void()> on_success);
+  void write_status (connection_ptr connection, unsigned int status_code, std::function<void()> on_success);
 
   /// Writes a single HTTP header, with the given name/value combination back to client.
-  void write_header (const string & key, const string & value, std::function<void()> on_success);
+  void write_header (connection_ptr connection, const string & key, const string & value, std::function<void()> on_success);
 
   /// Writing given HTTP header collection back to client.
-  void write_headers (collection headers, std::function<void()> on_success);
+  void write_headers (connection_ptr connection, collection headers, std::function<void()> on_success);
 
   /// Writes back the standard HTTP headers back to client, that the server is configured to pass back on every response.
-  void write_standard_headers (std::function<void()> on_success);
+  void write_standard_headers (connection_ptr connection, std::function<void()> on_success);
 
   /// Ensures that the envelope of the response is flushed, and one empty line with CR/LF is written back to the client.
-  void ensure_envelope_finished (std::function<void()> on_success);
-
-  /// Returns connection for this instance.
-  connection_ptr connection() { return _connection; }
+  void ensure_envelope_finished (connection_ptr connection, std::function<void()> on_success);
 
   /// Returns request for this instance.
   request * request() { return _request; }
 
   /// Returns the MIME type according to file extension.
-  string get_mime (path filename);
+  string get_mime (connection_ptr connection, path filename);
 
 private:
-
-  /// The connection this instance belongs to.
-  connection_ptr _connection;
 
   /// The request that owns this instance.
   class request * _request;

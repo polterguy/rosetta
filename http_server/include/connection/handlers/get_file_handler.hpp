@@ -39,10 +39,10 @@ class get_file_handler final : public request_file_handler
 public:
 
   /// Creates a static file handler.
-  get_file_handler (connection_ptr connection, class request * request);
+  get_file_handler (class request * request);
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) override;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
 
 private:
 
@@ -50,7 +50,7 @@ private:
   bool should_write_file (path full_path);
 
   /// Writes 304 response back to client.
-  void write_304_response (std::function<void()> on_success);
+  void write_304_response (connection_ptr connection, std::function<void()> on_success);
 };
 
 

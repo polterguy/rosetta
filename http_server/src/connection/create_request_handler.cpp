@@ -162,7 +162,7 @@ request_handler_ptr upgrade_insecure_request (connection_ptr connection, class r
   }
 
   // Returning Redirect Temporarily, with a "no-store" value for the "Cache-Control" header.
-  return request_handler_ptr (new redirect_handler (connection, request, 307, new_uri, true));
+  return request_handler_ptr (new redirect_handler (request, 307, new_uri, true));
 }
 
 
@@ -203,7 +203,7 @@ bool authorize_request (connection_ptr connection, request * request)
 
 request_handler_ptr create_authorize_handler (connection_ptr connection, class request * request)
 {
-  return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
+  return request_handler_ptr (new unauthorized_handler (request, !request->envelope().ticket().authenticated()));
 }
 
 
@@ -216,11 +216,11 @@ request_handler_ptr create_trace_handler (connection_ptr connection, class reque
     if (!connection->server()->configuration().get<bool> ("trace-allowed", false)) {
 
       // Method not allowed.
-      return request_handler_ptr (new error_handler (connection, request, 405));
+      return request_handler_ptr (new error_handler (request, 405));
     } else {
 
       // Creating a TRACE response handler, and returning to caller.
-      return request_handler_ptr (new trace_handler (connection, request));
+      return request_handler_ptr (new trace_handler (request));
     }
   } else {
 
@@ -239,14 +239,14 @@ request_handler_ptr create_head_handler (connection_ptr connection, class reques
     if (!connection->server()->configuration().get<bool> ("head-allowed", false)) {
 
       // Method not allowed.
-      return request_handler_ptr (new error_handler (connection, request, 405));
+      return request_handler_ptr (new error_handler (request, 405));
     } else {
 
       // Checking that path actually exists.
       if (!exists (request->envelope().path()))
-        return request_handler_ptr (new error_handler (connection, request, 404)); // No such path.
+        return request_handler_ptr (new error_handler (request, 404)); // No such path.
       else
-        return request_handler_ptr (new head_handler (connection, request));
+        return request_handler_ptr (new head_handler (request));
     }
   } else {
 
@@ -265,11 +265,11 @@ request_handler_ptr create_options_handler (connection_ptr connection, class req
     if (!connection->server()->configuration().get<bool> ("options-allowed", false)) {
 
       // Method not allowed.
-      return request_handler_ptr (new error_handler (connection, request, 405));
+      return request_handler_ptr (new error_handler (request, 405));
     } else {
 
       // Creating an OPTIONS response handler, and returning to caller.
-      return request_handler_ptr (new options_handler (connection, request));
+      return request_handler_ptr (new options_handler (request));
     }
   } else {
 
@@ -289,11 +289,11 @@ request_handler_ptr create_get_file_handler (connection_ptr connection, class re
   if (handler == "get-file-handler") {
 
     // Static file GET handler.
-    return request_handler_ptr (new get_file_handler (connection, request));
+    return request_handler_ptr (new get_file_handler (request));
   } else {
 
     // Oops, these types of files are not served or handled.
-    return request_handler_ptr (new error_handler (connection, request, 404));
+    return request_handler_ptr (new error_handler (request, 404));
   }
 }
 
@@ -307,7 +307,7 @@ request_handler_ptr create_get_handler (connection_ptr connection, class request
     if (!exists (request->envelope().path())) {
 
       // No such path.
-      return request_handler_ptr (new error_handler (connection, request, 404));
+      return request_handler_ptr (new error_handler (request, 404));
     } else {
 
       // Figuring out if user requested a file or a folder.
@@ -318,11 +318,11 @@ request_handler_ptr create_get_handler (connection_ptr connection, class request
       } else if (is_directory (request->envelope().path()) && request->envelope().folder_request()) {
 
         // This is a request for a folder's content.
-        return request_handler_ptr (new get_folder_handler (connection, request));
+        return request_handler_ptr (new get_folder_handler (request));
       } else {
 
         // User tries to GET something that's neither a folder, nor a file, or a file/folder, as something it is not.
-        return request_handler_ptr (new error_handler (connection, request, 404));
+        return request_handler_ptr (new error_handler (request, 404));
       }
     }
   } else {
@@ -342,18 +342,18 @@ request_handler_ptr create_put_handler (connection_ptr connection, class request
     if (!exists (request->envelope().path().parent_path())) {
 
       // Client tries to POST something to a location that does not exist.
-      return request_handler_ptr (new error_handler (connection, request, 404));
+      return request_handler_ptr (new error_handler (request, 404));
     } else {
 
       // Figuring out if client wants to PUT a file or a folder.
       if (request->envelope().file_request()) {
 
         // User tries to PUT a file.
-        return request_handler_ptr (new put_file_handler (connection, request));
+        return request_handler_ptr (new put_file_handler (request));
       } else {
 
         // User tries to put a folder.
-        return request_handler_ptr (new put_folder_handler (connection, request));
+        return request_handler_ptr (new put_folder_handler (request));
       }
     }
   } else {
@@ -373,11 +373,11 @@ request_handler_ptr create_delete_handler (connection_ptr connection, class requ
     if (!exists (request->envelope().path())) {
     
       // No such path.
-      return request_handler_ptr (new error_handler (connection, request, 404));
+      return request_handler_ptr (new error_handler (request, 404));
     } else {
     
       // User tries to DELETE a file or a folder.
-      return request_handler_ptr (new delete_handler (connection, request));
+      return request_handler_ptr (new delete_handler (request));
     }
   } else {
 
@@ -396,7 +396,7 @@ request_handler_ptr create_post_users_handler (connection_ptr connection, class 
   if (request->envelope().ticket().authenticated()) {
 
     // User tries to POST data to server's ".users" file.
-    return request_handler_ptr (new post_users_handler (connection, request));
+    return request_handler_ptr (new post_users_handler (request));
   } else {
 
     // Not authorized.
@@ -411,7 +411,7 @@ request_handler_ptr create_post_authorization_handler (connection_ptr connection
   if (request->envelope().ticket().role == "root") {
 
     // User tries to POST data to a '.auth' file in some folder.
-    return request_handler_ptr (new post_authorization_handler (connection, request));
+    return request_handler_ptr (new post_authorization_handler (request));
   } else {
 
     // Not authenticated.
@@ -441,7 +441,7 @@ request_handler_ptr create_post_handler (connection_ptr connection, class reques
   } else {
 
     // URI does not support POST method.
-    return request_handler_ptr (new error_handler (connection, request, 403));
+    return request_handler_ptr (new error_handler (request, 403));
   }
 }
 
@@ -479,7 +479,7 @@ request_handler_ptr create_verb_handler (connection_ptr connection, class reques
   } else {
 
     // Unsupported method.
-    return request_handler_ptr (new error_handler (connection, request, 405));
+    return request_handler_ptr (new error_handler (request, 405));
   }
 }
 
@@ -490,14 +490,14 @@ request_handler_ptr create_request_handler (connection_ptr connection, class req
   if (!in_user_agent_whitelist (connection, request) || in_user_agent_blacklist (connection, request)) {
 
     // User-Agent not accepted!
-    return request_handler_ptr (new error_handler (connection, request, 403));
+    return request_handler_ptr (new error_handler (request, 403));
   }
 
   // Checking request type, and other parameters, deciding which type of request handler we should create.
   if (status_code >= 400) {
 
     // Some sort of error.
-    return request_handler_ptr (new error_handler (connection, request, status_code));
+    return request_handler_ptr (new error_handler (request, status_code));
   }
 
   // Checking if we should upgrade an insecure request to a secure request.

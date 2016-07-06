@@ -37,15 +37,15 @@ class delete_handler final : public request_handler_base
 public:
 
   /// Creates a static file handler.
-  delete_handler (connection_ptr connection, class request * request);
+  delete_handler (class request * request);
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) override;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
 
 private:
 
   /// Writes success return to client.
-  void write_success_envelope (std::function<void()> on_success);
+  void write_success_envelope (connection_ptr connection, std::function<void()> on_success);
 };
 
 

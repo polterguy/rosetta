@@ -42,15 +42,15 @@ class post_handler_base : public request_handler_base
 public:
 
   /// Creates a POST handler for user data.
-  post_handler_base (connection_ptr connection, class request * request);
+  post_handler_base (class request * request);
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) override;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
 
 protected:
 
   /// Writes success return to client.
-  void write_success_envelope (std::function<void()> on_success);
+  void write_success_envelope (connection_ptr connection, std::function<void()> on_success);
 
   /// POST parameters key/value.
   vector<tuple<string, string>> _parameters;
@@ -58,7 +58,7 @@ protected:
 private:
 
   /// Validates and returns the length of the request.
-  size_t get_content_length ();
+  size_t get_content_length (connection_ptr connection);
 };
 
 

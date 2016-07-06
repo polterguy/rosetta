@@ -38,10 +38,10 @@ class head_handler final : public request_file_handler
 public:
 
   /// Creates a HEAD handler.
-  head_handler (connection_ptr connection, class request * request);
+  head_handler (class request * request);
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) override;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
 };
 
 

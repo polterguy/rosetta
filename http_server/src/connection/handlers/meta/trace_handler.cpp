@@ -32,15 +32,15 @@ using namespace rosetta::common;
 string uri_encode (const string & entity);
 
 
-trace_handler::trace_handler (connection_ptr connection, class request * request)
-  : request_handler_base (connection, request)
+trace_handler::trace_handler (class request * request)
+  : request_handler_base (request)
 { }
 
 
-void trace_handler::handle (std::function<void()> on_success)
+void trace_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // Writing status code.
-  write_status (200, [this, on_success] () {
+  write_status (connection, 200, [this, connection, on_success] () {
 
     // Figuring out what we're sending, before we send the headers, to see the size of our request.
     auto buffer_ptr = build_content ();
@@ -52,16 +52,16 @@ void trace_handler::handle (std::function<void()> on_success)
       {"Content-Length", boost::lexical_cast<string> (buffer_ptr->size ())}};
 
     // Writing HTTP headers to connection.
-    write_headers (headers, [this, on_success, buffer_ptr] () {
+    write_headers (connection, headers, [this, connection, on_success, buffer_ptr] () {
 
       // Writing standard headers.
-      write_standard_headers ([this, on_success, buffer_ptr] () {
+      write_standard_headers (connection, [this, connection, on_success, buffer_ptr] () {
 
         // Making sure we close envelope.
-        ensure_envelope_finished ([this, on_success, buffer_ptr] () {
+        ensure_envelope_finished (connection, [this, connection, on_success, buffer_ptr] () {
 
           // Writing entire request, HTTP-Request line, and HTTP headers, back to client, as content.
-          connection()->socket().async_write (buffer (*buffer_ptr), [buffer_ptr, on_success] (auto error, auto bytes_written) {
+          connection->socket().async_write (buffer (*buffer_ptr), [buffer_ptr, on_success] (auto error, auto bytes_written) {
 
             // Invoking callback, signaling we're done.
             on_success ();

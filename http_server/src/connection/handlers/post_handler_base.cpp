@@ -38,39 +38,39 @@ using namespace boost::asio::detail;
 using namespace rosetta::common;
 
 
-post_handler_base::post_handler_base (connection_ptr connection, class request * request)
-  : request_handler_base (connection, request)
+post_handler_base::post_handler_base (class request * request)
+  : request_handler_base (request)
 { }
 
 
-void post_handler_base::handle (std::function<void()> on_success)
+void post_handler_base::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // Setting deadline timer for content read.
-  const int POST_CONTENT_READ_TIMEOUT = connection()->server()->configuration().get<int> ("request-post-content-read-timeout", 30);
-  connection()->set_deadline_timer (POST_CONTENT_READ_TIMEOUT);
+  const int POST_CONTENT_READ_TIMEOUT = connection->server()->configuration().get<int> ("request-post-content-read-timeout", 30);
+  connection->set_deadline_timer (POST_CONTENT_READ_TIMEOUT);
 
   // Reading content of request.
-  auto content_length = get_content_length();
+  auto content_length = get_content_length(connection);
   if (content_length == 0) {
 
     // Not acceptable.
-    request()->write_error_response (500);
+    request()->write_error_response (connection, 500);
   } else {
 
     // Retrieving content from socket.
-    connection()->socket().async_read (connection()->buffer(),
-                                       transfer_exactly_t (content_length),
-                                       [this, on_success] (auto error, auto bytes_read) {
+    connection->socket().async_read (connection->buffer(),
+                                     transfer_exactly_t (content_length),
+                                     [this, connection, on_success] (auto error, auto bytes_read) {
 
       // Checking that no socket errors occurred.
       if (error) {
 
         // Something went wrong.
-        connection()->close();
+        connection->close();
       } else {
 
         // Reading content into stream;
-        istream stream (&connection()->buffer());
+        istream stream (&connection->buffer());
         shared_ptr<unsigned char> buffer (new unsigned char [bytes_read], std::default_delete<unsigned char []>());
         stream.read (reinterpret_cast<char*> (buffer.get()), bytes_read);
 
@@ -110,25 +110,25 @@ void post_handler_base::handle (std::function<void()> on_success)
 }
 
 
-void post_handler_base::write_success_envelope (std::function<void()> on_success)
+void post_handler_base::write_success_envelope (connection_ptr connection, std::function<void()> on_success)
 {
   // Writing status code success back to client.
-  write_status (200, [this, on_success] () {
+  write_status (connection, 200, [this, connection, on_success] () {
 
     // Writing standard headers back to client.
-    write_standard_headers ([this, on_success] () {
+    write_standard_headers (connection, [this, connection, on_success] () {
 
       // Ensuring envelope is closed.
-      ensure_envelope_finished (on_success);
+      ensure_envelope_finished (connection, on_success);
     });
   });
 }
 
 
-size_t post_handler_base::get_content_length ()
+size_t post_handler_base::get_content_length (connection_ptr connection)
 {
   // Max allowed length of content.
-  const size_t MAX_POST_REQUEST_CONTENT_LENGTH = connection()->server()->configuration().get<size_t> ("max-request-content-length", 4096);
+  const size_t MAX_POST_REQUEST_CONTENT_LENGTH = connection->server()->configuration().get<size_t> ("max-request-content-length", 4096);
 
   // Checking if there is any content first.
   string content_length_str = request()->envelope().header ("Content-Length");

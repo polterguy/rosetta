@@ -31,12 +31,12 @@ using namespace boost::filesystem;
 using namespace rosetta::common;
 
 
-put_folder_handler::put_folder_handler (connection_ptr connection, class request * request)
-  : request_handler_base (connection, request)
+put_folder_handler::put_folder_handler (class request * request)
+  : request_handler_base (request)
 { }
 
 
-void put_folder_handler::handle (std::function<void()> on_success)
+void put_folder_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // Retrieving URI from request.
   auto path = request()->envelope().path();
@@ -45,28 +45,28 @@ void put_folder_handler::handle (std::function<void()> on_success)
   if (exists (path)) {
 
     // Oops, folder already exists.
-    request()->write_error_response (500);
+    request()->write_error_response (connection, 500);
   } else {
 
     // Creating folder.
     create_directories (path);
 
     // Returning success.
-    write_success_envelope (on_success);
+    write_success_envelope (connection, on_success);
   }
 }
 
 
-void put_folder_handler::write_success_envelope (std::function<void()> on_success)
+void put_folder_handler::write_success_envelope (connection_ptr connection, std::function<void()> on_success)
 {
   // Writing status code success back to client.
-  write_status (200, [this, on_success] () {
+  write_status (connection, 200, [this, connection, on_success] () {
 
     // Writing standard headers back to client.
-    write_standard_headers ([this, on_success] () {
+    write_standard_headers (connection, [this, connection, on_success] () {
 
       // Ensuring envelope is closed.
-      ensure_envelope_finished (on_success);
+      ensure_envelope_finished (connection, on_success);
     });
   });
 }

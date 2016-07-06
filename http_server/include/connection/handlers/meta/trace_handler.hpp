@@ -40,10 +40,10 @@ class trace_handler final : public request_handler_base
 public:
 
   /// Creates a trace handler.
-  trace_handler (connection_ptr connection, class request * request);
+  trace_handler (class request * request);
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) override;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
 
 private:
 

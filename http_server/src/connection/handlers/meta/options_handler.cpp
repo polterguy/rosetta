@@ -31,12 +31,12 @@ using namespace rosetta::common;
 string uri_encode (const string & entity);
 
 
-options_handler::options_handler (connection_ptr connection, class request * request)
-  : request_handler_base (connection, request)
+options_handler::options_handler (class request * request)
+  : request_handler_base (request)
 { }
 
 
-void options_handler::handle (std::function<void()> on_success)
+void options_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {/*
   // Writing status code.
   write_status (200, x, [this, x, on_success] (auto x) {

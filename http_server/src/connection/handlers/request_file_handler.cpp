@@ -34,22 +34,22 @@ namespace rosetta {
 namespace http_server {
 
 
-request_file_handler::request_file_handler (connection_ptr connection, class request * request)
-  : request_handler_base (connection, request)
+request_file_handler::request_file_handler (class request * request)
+  : request_handler_base (request)
 { }
 
 
-void request_file_handler::write_file_headers (path filepath, bool last_modified, std::function<void()> on_success)
+void request_file_handler::write_file_headers (connection_ptr connection, path filepath, bool last_modified, std::function<void()> on_success)
 {
   // Figuring out size of file, and making sure it's not larger than what we are allowed to handle according to configuration of server.
   size_t size = file_size (filepath);
 
   // Retrieving MIME type, and verifying this is a type of file we actually serve.
-  string mime_type = get_mime (filepath);
+  string mime_type = get_mime (connection, filepath);
   if (mime_type == "") {
 
     // File type is not served according to configuration of server.
-    request()->write_error_response (403);
+    request()->write_error_response (connection, 403);
   } else {
 
     // Building our standard response headers for a file transfer.
@@ -62,7 +62,7 @@ void request_file_handler::write_file_headers (path filepath, bool last_modified
       headers.push_back ({"Last-Modified", date::from_path_change (filepath).to_string ()});
 
     // Writing special handler headers to connection.
-    write_headers (headers, [this, on_success] () {
+    write_headers (connection, headers, [on_success] () {
 
       // Invoking on_success() supplied by caller.
       on_success ();
@@ -71,30 +71,33 @@ void request_file_handler::write_file_headers (path filepath, bool last_modified
 }
 
 
-void request_file_handler::write_file (path filepath, unsigned int status_code, bool last_modified, std::function<void()> on_success)
+void request_file_handler::write_file (connection_ptr connection,
+                                       path filepath,
+                                       unsigned int status_code,
+                                       bool last_modified, std::function<void()> on_success)
 {
   // Making things slightly more tidy in here.
   using namespace std;
 
   // Retrieving MIME type, and verifying this is a type of file we actually serve.
-  string mime_type = get_mime (filepath);
+  string mime_type = get_mime (connection, filepath);
   if (mime_type == "") {
 
     // File type is not served according to configuration of server.
-    request()->write_error_response (403);
+    request()->write_error_response (connection, 403);
   } else {
 
     // Writing status code.
-    write_status (status_code, [this, filepath, on_success, last_modified] () {
+    write_status (connection, status_code, [this, connection, filepath, on_success, last_modified] () {
 
       // Writing special file headers back to client.
-      write_file_headers (filepath, last_modified, [this, filepath, on_success] () {
+      write_file_headers (connection, filepath, last_modified, [this, connection, filepath, on_success] () {
 
         // Writing standard headers to client.
-        write_standard_headers ([this, filepath, on_success] () {
+        write_standard_headers (connection, [this, connection, filepath, on_success] () {
 
           // Make sure we close envelope.
-          ensure_envelope_finished ([this, filepath, on_success] () {
+          ensure_envelope_finished (connection, [this, connection, filepath, on_success] () {
 
             // Opening up file, as a shared_ptr, passing it into write_file(),
             // such that file stays around, until all bytes have been written.
@@ -102,11 +105,11 @@ void request_file_handler::write_file (path filepath, unsigned int status_code, 
             if (!fs_ptr->good()) {
 
               // Oops, couldn't open file!
-              connection()->close();
+              connection->close();
             } else {
 
               // Writing actual file.
-              write_file (fs_ptr, on_success);
+              write_file (connection, fs_ptr, on_success);
             }
           });
         });
@@ -116,33 +119,37 @@ void request_file_handler::write_file (path filepath, unsigned int status_code, 
 }
 
 
-void request_file_handler::write_file (path filepath, unsigned int status_code, collection headers, std::function<void()> on_success)
+void request_file_handler::write_file (connection_ptr connection,
+                                       path filepath,
+                                       unsigned int status_code,
+                                       collection headers,
+                                       std::function<void()> on_success)
 {
   // Making things slightly more tidy in here.
   using namespace std;
 
   // Retrieving MIME type, and verifying this is a type of file we actually serve.
-  string mime_type = get_mime (filepath);
+  string mime_type = get_mime (connection, filepath);
   if (mime_type == "") {
 
     // File type is not served according to configuration of server.
-    request()->write_error_response (403);
+    request()->write_error_response (connection, 403);
   } else {
 
     // Writing status code.
-    write_status (status_code,[this, filepath, headers, on_success] () {
+    write_status (connection, status_code,[this, connection, filepath, headers, on_success] () {
 
       // Writing special file headers back to client.
-      write_file_headers (filepath, false, [this, filepath, headers, on_success] () {
+      write_file_headers (connection, filepath, false, [this, connection, filepath, headers, on_success] () {
 
         // Writing extra headers.
-        write_headers (headers, [this, filepath, on_success] () {
+        write_headers (connection, headers, [this, connection, filepath, on_success] () {
 
           // Writing standard headers to client.
-          write_standard_headers ([this, filepath, on_success] () {
+          write_standard_headers (connection, [this, connection, filepath, on_success] () {
 
             // Make sure we close envelope.
-            ensure_envelope_finished ([this, filepath, on_success] () {
+            ensure_envelope_finished (connection, [this, connection, filepath, on_success] () {
 
               // Opening up file, as a shared_ptr, passing it into write_file(),
               // such that file stays around, until all bytes have been written.
@@ -150,11 +157,11 @@ void request_file_handler::write_file (path filepath, unsigned int status_code, 
               if (!fs_ptr->good()) {
 
                 // Oops, file couldn't open.
-                connection()->close();
+                connection->close();
               } else {
 
                 // Writing actual file.
-                write_file (fs_ptr, on_success);
+                write_file (connection, fs_ptr, on_success);
               }
             });
           });
@@ -165,7 +172,7 @@ void request_file_handler::write_file (path filepath, unsigned int status_code, 
 }
 
 
-void request_file_handler::write_file (shared_ptr<std::ifstream> fs_ptr, std::function<void()> on_success)
+void request_file_handler::write_file (connection_ptr connection, shared_ptr<std::ifstream> fs_ptr, std::function<void()> on_success)
 {
   // Checking if we're done.
   if (fs_ptr->eof()) {
@@ -185,17 +192,17 @@ void request_file_handler::write_file (shared_ptr<std::ifstream> fs_ptr, std::fu
     // socket, for then to invoke "self" multiple times, until entire file has been served over socket, back to client.
     // This conserves memory and resources on the server, but also makes sure the file is open for a longer period.
     // However, to make it possible to retrieve very large files, without completely exhausting the server's resources, this is our choice.
-    connection()->socket().async_write (bf, [this, on_success, fs_ptr] (auto error, auto bytes_written) {
+    connection->socket().async_write (bf, [this, connection, on_success, fs_ptr] (auto error, auto bytes_written) {
 
       // Sanity check.
       if (error) {
 
         // Something went wrong.
-        connection()->close();
+        connection->close();
       } else {
 
         // So far, so good.
-        write_file (fs_ptr, on_success);
+        write_file (connection, fs_ptr, on_success);
       }
     });
   }

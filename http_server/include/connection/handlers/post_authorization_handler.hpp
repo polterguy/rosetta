@@ -36,15 +36,15 @@ class post_authorization_handler final : public post_handler_base
 public:
 
   /// Creates a POST handler for user data.
-  post_authorization_handler (connection_ptr connection, class request * request);
+  post_authorization_handler (class request * request);
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) override;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
 
 private:
 
   /// Evaluates request after parsing is done.
-  void evaluate ();
+  void evaluate (connection_ptr connection);
 };
 
 

@@ -27,22 +27,21 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-redirect_handler::redirect_handler (connection_ptr connection,
-                                    class request * request,
+redirect_handler::redirect_handler (class request * request,
                                     unsigned int status,
                                     const string & uri,
                                     bool no_store)
-  : request_handler_base (connection, request),
+  : request_handler_base (request),
     _status (status),
     _uri (uri),
     _no_store (no_store)
 { }
 
 
-void redirect_handler::handle (std::function<void()> on_success)
+void redirect_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // First writing status.
-  write_status (_status, [this, on_success] () {
+  write_status (connection, _status, [this, connection, on_success] () {
 
     // Then writing "Location" of resource requested.
     collection list = {{"Location", _uri}};
@@ -52,13 +51,13 @@ void redirect_handler::handle (std::function<void()> on_success)
       list.push_back ({"Cache-Control", "no-store"});
 
     // Rendering the headers, "Location", and possibly "Cache-Control".
-    write_headers (list, [this, on_success] () {
+    write_headers (connection, list, [this, connection, on_success] () {
 
       // Then making sure we add the "standard headers".
-      write_standard_headers ([this, on_success] () {
+      write_standard_headers (connection, [this, connection, on_success] () {
 
         // Then making sure we close our response envelope.
-        ensure_envelope_finished ([on_success] () {
+        ensure_envelope_finished (connection, [on_success] () {
 
           // Finished handling request.
           on_success ();

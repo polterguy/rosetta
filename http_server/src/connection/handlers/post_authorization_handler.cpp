@@ -29,32 +29,32 @@ using std::string;
 using namespace rosetta::common;
 
 
-post_authorization_handler::post_authorization_handler (connection_ptr connection, class request * request)
-  : post_handler_base (connection, request)
+post_authorization_handler::post_authorization_handler (class request * request)
+  : post_handler_base (request)
 { }
 
 
-void post_authorization_handler::handle (std::function<void()> on_success)
+void post_authorization_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // Letting base class do the heavy lifting.
-  post_handler_base::handle ([this, on_success] () {
+  post_handler_base::handle (connection, [this, connection, on_success] () {
 
     // Evaluates request, now that we have the data supplied by client.
     try {
 
       // Unless evaluate() throws an exception, we can safely return success back to client.
-      evaluate ();
-      write_success_envelope (on_success);
+      evaluate (connection);
+      write_success_envelope (connection, on_success);
     } catch (std::exception & error) {
 
       // Something went wrong!
-      request()->write_error_response (500);
+      request()->write_error_response (connection, 500);
     }
   });
 }
 
 
-void post_authorization_handler::evaluate ()
+void post_authorization_handler::evaluate (connection_ptr connection)
 {
   // Finding out which verb this request wants to change the value of.
   auto verb_iter = std::find_if (_parameters.begin(), _parameters.end(), [] (auto & idx) {
@@ -75,7 +75,7 @@ void post_authorization_handler::evaluate ()
   string value = std::get<1> (*value_iter);
 
   // Updating authorization file for current path.
-  connection()->server()->authorization().update (request()->envelope().path(), verb, value);
+  connection->server()->authorization().update (request()->envelope().path(), verb, value);
 }
 
 

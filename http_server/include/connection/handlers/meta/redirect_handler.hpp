@@ -38,10 +38,10 @@ class redirect_handler final : public request_handler_base
 public:
 
   /// Creates a redirect file handler.
-  redirect_handler (connection_ptr connection, class request * request, unsigned int status, const string & uri, bool no_store);
+  redirect_handler (class request * request, unsigned int status, const string & uri, bool no_store);
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) override;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
 
 private:
 

@@ -15,6 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <iostream>
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
@@ -45,8 +46,8 @@ void connection::handle()
   set_deadline_timer (_server->configuration().get<size_t> ("connection-keep-alive-timeout", 20));
 
   // Creating a new request on the current connection, and handling it.
-  _request = request::create (shared_from_this());
-  _request->handle ();
+  _request = request::create ();
+  _request->handle (shared_from_this());
 }
 
 
@@ -80,16 +81,9 @@ void connection::close()
   // Killing deadline timer, removing connection, and closing socket..
   _timer.cancel ();
 
-  // In case shutdown throws for some reasons, we make sure the connection is removed from the server first.
-  // We do however POST this to the io_service object of our server, which means that all other completion handlers
-  // will be invoked, before connection is destroyed, since when the socket is closed, there might be outstanding
-  // operations, waiting to execute their code, which are dependent upon the connection instance to still be alive.
-  auto self (shared_from_this ());
-  _server->service().post ([this, self] () {
-
-    // Removing connection in handler for post job.
-    _server->remove_connection (self);
-  });
+  // Removing connection from server, which means that as async handlers are invoked, with an error, due to socket being closed,
+  // all shared_ptrs will be destroyed, until there are no more of them left.
+  _server->remove_connection (shared_from_this());
 
   // Closing socket gracefully, if it is open.
   if (_socket->is_open()) {

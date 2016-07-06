@@ -27,8 +27,8 @@ using std::string;
 using namespace rosetta::common;
 
 
-error_handler::error_handler (connection_ptr connection, class request * request, unsigned int status_code)
-  : request_file_handler (connection, request),
+error_handler::error_handler (class request * request, unsigned int status_code)
+  : request_file_handler (request),
     _status_code (status_code)
 {
   // Verify that this actually is an error, and if not, throws an exception.
@@ -37,13 +37,13 @@ error_handler::error_handler (connection_ptr connection, class request * request
 }
 
 
-void error_handler::handle (std::function<void()> on_success)
+void error_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // Figuring out which file to serve.
   string error_file = "error-pages/" + boost::lexical_cast<string> (_status_code) + ".html";
 
   // Using base class implementation for writing error file.
-  write_file (error_file, _status_code, false, [on_success] () {
+  write_file (connection, error_file, _status_code, false, [on_success] () {
 
     on_success ();
   });

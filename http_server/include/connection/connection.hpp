@@ -64,7 +64,7 @@ public:
 
   /// Returns true if connection is SSL.
   bool is_secure() const { return _socket->is_secure (); };
-
+  
 private:
 
   /// Creates a connection on the given socket, for the given server instance.

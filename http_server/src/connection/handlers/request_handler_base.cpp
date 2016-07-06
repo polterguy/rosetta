@@ -34,13 +34,12 @@ namespace rosetta {
 namespace http_server {
 
 
-request_handler_base::request_handler_base (connection_ptr connection, class request * request)
-  : _connection (connection),
-    _request (request)
+request_handler_base::request_handler_base (class request * request)
+  : _request (request)
 { }
 
 
-void request_handler_base::write_status (unsigned int status_code, std::function<void()> on_success)
+void request_handler_base::write_status (connection_ptr connection, unsigned int status_code, std::function<void()> on_success)
 {
   // Creating status line, and serializing to socket, making sure status_line stays around until after write operation is finished.
   shared_ptr<string> status_line = make_shared<string> ("HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ");
@@ -96,13 +95,13 @@ void request_handler_base::write_status (unsigned int status_code, std::function
   *status_line += "\r\n";
 
   // Writing status line to socket.
-  _connection->socket().async_write (buffer (*status_line), [this, on_success, status_line] (auto error, auto bytes_written) {
+  connection->socket().async_write (buffer (*status_line), [this, connection, on_success, status_line] (auto error, auto bytes_written) {
 
     // Sanity check.
     if (error) {
 
       // Something went wrong.
-      _connection->close();
+      connection->close();
     } else {
 
       // So far, so good.
@@ -112,7 +111,7 @@ void request_handler_base::write_status (unsigned int status_code, std::function
 }
 
 
-void request_handler_base::write_headers (collection headers, std::function<void()> on_success)
+void request_handler_base::write_headers (connection_ptr connection, collection headers, std::function<void()> on_success)
 {
   if (headers.size() == 0) {
 
@@ -129,28 +128,28 @@ void request_handler_base::write_headers (collection headers, std::function<void
     headers.erase (headers.begin (), headers.begin () + 1);
 
     // Writing header.
-    write_header (key, value, [this, headers, on_success] () {
+    write_header (connection, key, value, [this, connection, headers, on_success] () {
 
       // Invoking self, having popped off the first header in the collection.
-      write_headers (headers, on_success);
+      write_headers (connection, headers, on_success);
     });
   }
 }
 
 
-void request_handler_base::write_header (const string & key, const string & value, std::function<void()> on_success)
+void request_handler_base::write_header (connection_ptr connection, const string & key, const string & value, std::function<void()> on_success)
 {
   // Creating header, making sure the string stays around until after socket write operation is finished.
   shared_ptr<string> header_content = make_shared<string> (key + ": " + value + "\r\n");
 
   // Writing header content to socket.
-  _connection->socket().async_write (buffer (*header_content), [this, on_success, header_content] (auto error, auto bytes_written) {
+  connection->socket().async_write (buffer (*header_content), [this, connection, on_success, header_content] (auto error, auto bytes_written) {
 
     // Sanity check.
     if (error) {
 
       // Something went wrong.
-      _connection->close();
+      connection->close();
     } else {
 
       // So far, so good.
@@ -160,7 +159,7 @@ void request_handler_base::write_header (const string & key, const string & valu
 }
 
 
-void request_handler_base::write_standard_headers (std::function<void()> on_success)
+void request_handler_base::write_standard_headers (connection_ptr connection, std::function<void()> on_success)
 {
   // Making things more tidy in here.
   using namespace std;
@@ -173,13 +172,13 @@ void request_handler_base::write_standard_headers (std::function<void()> on_succ
   // Making sure we submit the server name back to client, if server is configured to do this.
   // Notice, even if server configuration says that server should identify itself, we do not provide any version information!
   // This is to make it harder to create a "targeted attack" trying to hack the server.
-  if (_connection->server()->configuration().get<bool> ("provide-server-info", false))
+  if (connection->server()->configuration().get<bool> ("provide-server-info", false))
     *header_content += "Server: Rosetta\r\n";
 
   // Checking if server is configured to render "static headers".
   // Notice that static headers are defined as a pipe separated (|) list of strings, with both name and value of header, for instance
   // "Foo: bar|Howdy-World: circus". The given example would render two static headers, "Foo" and "Howdy-World", with their respective values.
-  const string static_headers = _connection->server()->configuration().get <string> ("static-response-headers", "");
+  const string static_headers = connection->server()->configuration().get <string> ("static-response-headers", "");
   if (static_headers.size() > 0) {
 
     // Server is configured to render "static headers".
@@ -192,13 +191,13 @@ void request_handler_base::write_standard_headers (std::function<void()> on_succ
   }
 
   // Writing header content to socket.
-  _connection->socket().async_write (buffer (*header_content), [this, on_success, header_content] (auto error, auto bytes_written) {
+  connection->socket().async_write (buffer (*header_content), [this, connection, on_success, header_content] (auto error, auto bytes_written) {
 
     // Sanity check.
     if (error) {
 
       // Something went wrong.
-      _connection->close();
+      connection->close();
     } else {
 
       // So far, so good.
@@ -208,19 +207,19 @@ void request_handler_base::write_standard_headers (std::function<void()> on_succ
 }
 
 
-void request_handler_base::ensure_envelope_finished (std::function<void()> on_success)
+void request_handler_base::ensure_envelope_finished (connection_ptr connection, std::function<void()> on_success)
 {
   // Creating last empty line, to finish of envelope, making sure our buffer stays around, until async_write is finished doing its thing.
   shared_ptr<string> cr_lf = make_shared<string> ("\r\n");
 
   // Writing header content to socket.
-  _connection->socket().async_write (buffer (*cr_lf), [this, on_success, cr_lf] (auto error, auto bytes_written) {
+  connection->socket().async_write (buffer (*cr_lf), [this, connection, on_success, cr_lf] (auto error, auto bytes_written) {
 
     // Sanity check.
     if (error) {
 
       // Something went wrong.
-      _connection->close();
+      connection->close();
     } else {
 
       // So far, so good.
@@ -230,10 +229,10 @@ void request_handler_base::ensure_envelope_finished (std::function<void()> on_su
 }
 
 
-string request_handler_base::get_mime (path filename)
+string request_handler_base::get_mime (connection_ptr connection, path filename)
 {
   // Then we do a lookup into the configuration for our server, to see if it has defined a MIME type for the given file's extension.
-  string mime_type = connection()->server()->configuration().get<string> ("mime" + filename.extension().string (), "");
+  string mime_type = connection->server()->configuration().get<string> ("mime" + filename.extension().string (), "");
 
   // Returning MIME type to caller.
   return mime_type;

@@ -36,23 +36,23 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-get_folder_handler::get_folder_handler (connection_ptr connection, class request * request)
-  : request_handler_base (connection, request)
+get_folder_handler::get_folder_handler (class request * request)
+  : request_handler_base (request)
 { }
 
 
-void get_folder_handler::handle (std::function<void()> on_success)
+void get_folder_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // Retrieving root path, and checking if we should write it.
   path full_path = request()->envelope().path();
   if (should_write_folder (full_path)) {
 
     // Returning file to client.
-    write_folder (full_path, on_success);
+    write_folder (connection, full_path, on_success);
   } else {
 
     // File has not been tampered with since the "If-Modified-Since" HTTP header, returning 304 response, without file content.
-    write_304_response (on_success);
+    write_304_response (connection, on_success);
   }
 }
 
@@ -85,19 +85,19 @@ bool get_folder_handler::should_write_folder (path full_path)
 }
 
 
-void get_folder_handler::write_304_response (std::function<void()> on_success)
+void get_folder_handler::write_304_response (connection_ptr connection, std::function<void()> on_success)
 {
   // Writing status code 304 (Not-Modified) back to client.
-  write_status (304, [this, on_success] () {
+  write_status (connection, 304, [this, connection, on_success] () {
 
     // Writing standard HTTP headers to connection.
-    write_standard_headers ([this, on_success] () {
+    write_standard_headers (connection, [this, connection, on_success] () {
 
       // Making sure we add up a Vary header on "Authorization", such that if user is authorized, then folder content is reloaded.
-      write_headers ({{"Vary", "Authorization"}}, [this, on_success] () {
+      write_headers (connection, {{"Vary", "Authorization"}}, [this, connection, on_success] () {
 
         // Making sure we close envelope.      
-        ensure_envelope_finished ([on_success] () {
+        ensure_envelope_finished (connection, [on_success] () {
 
           // Invoking callback, since we're done writing the response.
           on_success ();
@@ -108,7 +108,7 @@ void get_folder_handler::write_304_response (std::function<void()> on_success)
 }
 
 
-void get_folder_handler::write_folder (path folderpath, std::function<void()> on_success)
+void get_folder_handler::write_folder (connection_ptr connection, path folderpath, std::function<void()> on_success)
 {
   // Using shared_ptr of vector to hold folder information.
   auto buffer_ptr = std::make_shared<std::vector<unsigned char>> ();
@@ -123,7 +123,7 @@ void get_folder_handler::write_folder (path folderpath, std::function<void()> on
   while (idx != directory_iterator{}) {
 
     // Making sure we only display files that are served.
-    if (is_regular_file (*idx) && (get_mime (idx->path().extension()) == "" || idx->path().filename().string().find_first_of (".") == 0)) {
+    if (is_regular_file (*idx) && (get_mime (connection, idx->path().extension()) == "" || idx->path().filename().string().find_first_of (".") == 0)) {
 
       // Either file is not served, or it is an invisible file that starts with a "."
       // Regardless, we do not show these files, neither do we list them!
@@ -173,10 +173,10 @@ void get_folder_handler::write_folder (path folderpath, std::function<void()> on
   buffer_ptr->push_back ('}');
 
   // Writing status code.
-  write_status (200, [this, buffer_ptr, folderpath, on_success] () {
+  write_status (connection, 200, [this, connection, buffer_ptr, folderpath, on_success] () {
 
     // Writing standard headers to client.
-    write_standard_headers ([this, buffer_ptr, folderpath, on_success] () {
+    write_standard_headers (connection, [this, connection, buffer_ptr, folderpath, on_success] () {
 
       // Writing headers for folder information.
       size_t size = buffer_ptr->size();
@@ -189,13 +189,13 @@ void get_folder_handler::write_folder (path folderpath, std::function<void()> on
         {"Last-Modified", date::from_path_change (folderpath).to_string ()}};
 
       // Writing special handler headers to connection.
-      write_headers (headers, [this, buffer_ptr, on_success] () {
+      write_headers (connection, headers, [this, connection, buffer_ptr, on_success] () {
         
         // Make sure we close envelope.
-        ensure_envelope_finished ([this, buffer_ptr, on_success] () {
+        ensure_envelope_finished (connection, [this, connection, buffer_ptr, on_success] () {
 
           // Now writing content of folder.
-          connection()->socket().async_write (buffer (*buffer_ptr), [this, on_success, buffer_ptr] (auto error, auto bytes_written) {
+          connection->socket().async_write (buffer (*buffer_ptr), [on_success, buffer_ptr] (auto error, auto bytes_written) {
 
             // Finished!
             on_success ();

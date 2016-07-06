@@ -36,23 +36,23 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-get_file_handler::get_file_handler (connection_ptr connection, class request * request)
-  : request_file_handler (connection, request)
+get_file_handler::get_file_handler (class request * request)
+  : request_file_handler (request)
 { }
 
 
-void get_file_handler::handle (std::function<void()> on_success)
+void get_file_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // Retrieving root path, and checking if we should write it.
   path full_path = request()->envelope().path();
   if (should_write_file (full_path)) {
 
     // Returning file to client.
-    write_file (full_path, 200, true, on_success);
+    write_file (connection, full_path, 200, true, on_success);
   } else {
 
     // File has not been tampered with since the "If-Modified-Since" HTTP header, returning 304 response, without file content.
-    write_304_response (on_success);
+    write_304_response (connection, on_success);
   }
 }
 
@@ -85,16 +85,16 @@ bool get_file_handler::should_write_file (path full_path)
 }
 
 
-void get_file_handler::write_304_response (std::function<void()> on_success)
+void get_file_handler::write_304_response (connection_ptr connection, std::function<void()> on_success)
 {
   // Writing status code 304 (Not-Modified) back to client.
-  write_status (304, [this, on_success] () {
+  write_status (connection, 304, [this, connection, on_success] () {
 
     // Writing standard HTTP headers to connection.
-    write_standard_headers ([this, on_success] () {
+    write_standard_headers (connection, [this, connection, on_success] () {
 
       // Making sure we close envelope.      
-      ensure_envelope_finished ([on_success] () {
+      ensure_envelope_finished (connection, [on_success] () {
 
         // invoking callback, since we're done writing the response.
         on_success ();

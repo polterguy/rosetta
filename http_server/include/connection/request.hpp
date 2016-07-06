@@ -40,25 +40,22 @@ class request : public std::enable_shared_from_this<request>, public boost::nonc
 public:
 
   /// Creates a new request, and returns as a shared_ptr.
-  static request_ptr create (connection_ptr connection);
+  static request_ptr create ();
 
   /// Handles a request, and invokes the given function when finished.
-  void handle ();
+  void handle (connection_ptr connection);
 
   /// Returns the envelope of the request.
   const request_envelope & envelope() const { return _envelope; }
 
   /// Writes the given error response back to client.
-  void write_error_response (int status_code);
+  void write_error_response (connection_ptr connection, int status_code);
 
 private:
 
   /// Creates an instance of this class on the given connection. Private to ensure factory method is used.
-  request (connection_ptr connection);
+  request ();
 
-
-  /// Connection this request belongs to.
-  connection_ptr _connection;
 
   /// Envelope for request, HTTP-Request line, HTTP headers and GET parameters.
   request_envelope _envelope;

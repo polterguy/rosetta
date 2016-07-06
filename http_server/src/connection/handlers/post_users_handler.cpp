@@ -33,32 +33,32 @@ using std::default_delete;
 using namespace rosetta::common;
 
 
-post_users_handler::post_users_handler (connection_ptr connection, class request * request)
-  : post_handler_base (connection, request)
+post_users_handler::post_users_handler (class request * request)
+  : post_handler_base (request)
 { }
 
 
-void post_users_handler::handle (std::function<void()> on_success)
+void post_users_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // Letting base class do the heavy lifting.
-  post_handler_base::handle ([this, on_success] () {
+  post_handler_base::handle (connection, [this, connection, on_success] () {
 
     // Evaluates request, now that we have the data supplied by client.
     try {
 
       // Unless evaluate() throws an exception, we can safely return success back to client.
-      evaluate ();
-      write_success_envelope (on_success);
+      evaluate (connection);
+      write_success_envelope (connection, on_success);
     } catch (std::exception & error) {
 
       // Something went wrong!
-      request()->write_error_response (500);
+      request()->write_error_response (connection, 500);
     }
   });
 }
 
 
-void post_users_handler::evaluate ()
+void post_users_handler::evaluate (connection_ptr connection)
 {
   // Finding out which action this request wants to perform.
   auto action_iter = std::find_if (_parameters.begin(), _parameters.end(), [] (auto & idx) {
@@ -79,11 +79,11 @@ void post_users_handler::evaluate ()
     if (request()->envelope().ticket().role == "root") {
 
       // Some root account is trying to perform an action.
-      root_action (action);
+      root_action (connection, action);
     } else if (request()->envelope().ticket().authenticated()) {
 
       // Some authenticated, but non-root account, is trying to perform an action
-      non_root_action (action);
+      non_root_action (connection, action);
     } else {
 
       // Only authenticated clients are allowed to do anything here!
@@ -93,7 +93,7 @@ void post_users_handler::evaluate ()
 }
 
 
-void post_users_handler::root_action (const string & action)
+void post_users_handler::root_action (connection_ptr connection, const string & action)
 {
   // Root is allowed to;
   // * Change password of his own account
@@ -104,24 +104,24 @@ void post_users_handler::root_action (const string & action)
   if (action == "change-password") {
     
     // Some root user is trying to change password of some user.
-    root_change_password ();
+    root_change_password (connection);
   } else if (action == "change-role") {
 
     // Some root user is trying to change the role of (hopefully) some other user.
-    root_change_role ();
+    root_change_role (connection);
   } else if (action == "create-user") {
 
     // Some root user is trying to create a new user.
-    root_create_user ();
+    root_create_user (connection);
   } else if (action == "delete-user") {
 
     // Some root account is trying to delete a user.
-    root_delete_user ();
+    root_delete_user (connection);
   }
 }
 
 
-void post_users_handler::root_change_password ()
+void post_users_handler::root_change_password (connection_ptr connection)
 {
   // Root account tries to change password, now we need to figure out if it's his password, or another user's password.
   // We default to authenticated user (root account performing action)
@@ -145,11 +145,11 @@ void post_users_handler::root_change_password ()
   string new_password = std::get<1> (*password_iter);
 
   // Now we have all the data necessary to change password of some user account.
-  change_password (username, new_password);
+  change_password (connection, username, new_password);
 }
 
 
-void post_users_handler::root_change_role ()
+void post_users_handler::root_change_role (connection_ptr connection)
 {
   // Root account tries to change the role of another user.
   // First we retrieve the username of the account root is trying to change the role of.
@@ -173,11 +173,11 @@ void post_users_handler::root_change_role ()
   string role = std::get<1> (*role_iter);
 
   // Now we have all the necessary data to change the role of some account in system.
-  connection()->server()->authentication().change_role (username, role);
+  connection->server()->authentication().change_role (username, role);
 }
 
 
-void post_users_handler::root_create_user ()
+void post_users_handler::root_create_user (connection_ptr connection)
 {
   // Root account tries to create a new user.
   // First we retrieve the username of the account root is trying to create.
@@ -205,14 +205,14 @@ void post_users_handler::root_create_user ()
   string password = std::get<1> (*password_iter);
 
   // Now we have all the necessary data to create a new user in system.
-  connection()->server()->authentication().create_user (username,
-                                                        password,
-                                                        role,
-                                                        connection()->server()->configuration().get<string> ("server-salt"));
+  connection->server()->authentication().create_user (username,
+                                                      password,
+                                                      role,
+                                                      connection->server()->configuration().get<string> ("server-salt"));
 }
 
 
-void post_users_handler::root_delete_user ()
+void post_users_handler::root_delete_user (connection_ptr connection)
 {
   // Root account tries to delete an existing (hopefully) user.
   // First we retrieve the username of the account root is trying to delete.
@@ -224,11 +224,11 @@ void post_users_handler::root_delete_user ()
   string username = std::get<1> (*username_iter);
 
   // Now we have all the necessary data to create a new user in system.
-  connection()->server()->authentication().delete_user (username);
+  connection->server()->authentication().delete_user (username);
 }
 
 
-void post_users_handler::non_root_action (const string & action)
+void post_users_handler::non_root_action (connection_ptr connection, const string & action)
 {
   // Non-root accounts are only able to change passwords of their own account.
   // A "change my password" action, requires exactly two parameters.
@@ -246,15 +246,15 @@ void post_users_handler::non_root_action (const string & action)
   string new_password = std::get<1> (*password_iter);
 
   // Now we have all the data necessary to change password of currently authenticated client's account.
-  change_password (request()->envelope().ticket().username, new_password);
+  change_password (connection, request()->envelope().ticket().username, new_password);
 }
 
 
-void post_users_handler::change_password (const string & username, const string & new_password)
+void post_users_handler::change_password (connection_ptr connection, const string & username, const string & new_password)
 {
-  connection()->server()->authentication().change_password (request()->envelope().ticket().username,
-                                                            new_password,
-                                                            connection()->server()->configuration().get <string> ("server-salt"));
+  connection->server()->authentication().change_password (request()->envelope().ticket().username,
+                                                          new_password,
+                                                          connection->server()->configuration().get <string> ("server-salt"));
 }
 
 

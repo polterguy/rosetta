@@ -30,41 +30,41 @@ using std::string;
 using namespace rosetta::common;
 
 
-put_file_handler::put_file_handler (connection_ptr connection, class request * request)
-  : request_handler_base (connection, request)
+put_file_handler::put_file_handler (class request * request)
+  : request_handler_base (request)
 { }
 
 
-void put_file_handler::handle (std::function<void()> on_success)
+void put_file_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // Retrieving URI from request.
   auto path = request()->envelope().path();
-  save_request_content (path, on_success);
+  save_request_content (connection, path, on_success);
 }
 
 
-void put_file_handler::save_request_content (path filename, std::function<void()> on_success)
+void put_file_handler::save_request_content (connection_ptr connection, path filename, std::function<void()> on_success)
 {
   // Making things more tidy in here.
   using namespace std;
 
   // Setting deadline timer for content read.
-  const int CONTENT_READ_TIMEOUT = connection()->server()->configuration().get<int> ("request-content-read-timeout", 300);
-  connection()->set_deadline_timer (CONTENT_READ_TIMEOUT);
+  const int CONTENT_READ_TIMEOUT = connection->server()->configuration().get<int> ("request-content-read-timeout", 300);
+  connection->set_deadline_timer (CONTENT_READ_TIMEOUT);
 
   // Retrieving Content-Length of request.
-  size_t content_length = get_content_length ();
+  size_t content_length = get_content_length (connection);
   if (content_length == 0) {
 
     // This is a logical error.
-    request()->write_error_response (500);
+    request()->write_error_response (connection, 500);
   } else {
 
     // Creating file, to pass in as shared_ptr, to make sure it stays valid, until process is finished.
     auto file_ptr = make_shared<std::ofstream> (filename.string () + ".partial", ios::binary | ios::trunc | ios::out);
 
     // Creating an input stream wrapping the asio stream buffer.
-    auto ss_ptr = make_shared<istream> (&connection()->buffer());
+    auto ss_ptr = make_shared<istream> (&connection->buffer());
 
     // Creating exceptional_executor, to make sure file becomes deleted, unless entire operation succeeds.
     exceptional_executor x ([file_ptr, filename] () {
@@ -76,19 +76,20 @@ void put_file_handler::save_request_content (path filename, std::function<void()
     });
 
     // Invoking implementation, that reads from socket, and saves to file.
-    save_request_content_to_file (file_ptr, ss_ptr, content_length, x, [this, filename, on_success] () {
+    save_request_content_to_file (connection, file_ptr, ss_ptr, content_length, x, [this, connection, filename, on_success] () {
 
       // Renaming file from its temporary name.
       boost::filesystem::rename (filename.string () + ".partial", filename);
 
       // Returning success to client.
-      write_success_envelope (on_success);
+      write_success_envelope (connection, on_success);
     });
   }
 }
 
 
-void put_file_handler::save_request_content_to_file (std::shared_ptr<std::ofstream> file_ptr,
+void put_file_handler::save_request_content_to_file (connection_ptr connection,
+                                                     std::shared_ptr<std::ofstream> file_ptr,
                                                      std::shared_ptr<std::istream> ss_ptr,
                                                      size_t content_length,
                                                      exceptional_executor x,
@@ -99,15 +100,15 @@ void put_file_handler::save_request_content_to_file (std::shared_ptr<std::ofstre
   content_length = content_length > BUFFER_SIZE ? content_length - BUFFER_SIZE : 0;
 
   // Reading next chunk from socket.
-  connection()->socket().async_read (connection()->buffer(),
+  connection->socket().async_read (connection->buffer(),
                                      transfer_exactly (chunk_size),
-                                     [this, file_ptr, ss_ptr, content_length, x, on_success] (auto error, auto bytes_read) {
+                                     [this, connection, file_ptr, ss_ptr, content_length, x, on_success] (auto error, auto bytes_read) {
 
     // Checking for socket errors.
     if (error) {
 
       // Something went wrong.
-      connection()->close();
+      connection->close();
     } else {
 
       // Then reading from wrapped input stream, and flushing to output file.
@@ -118,7 +119,7 @@ void put_file_handler::save_request_content_to_file (std::shared_ptr<std::ofstre
       if (content_length > 0) {
 
         // Reading next chunk.
-        save_request_content_to_file (file_ptr, ss_ptr, content_length, x, on_success);
+        save_request_content_to_file (connection, file_ptr, ss_ptr, content_length, x, on_success);
 
       } else {
 
@@ -136,10 +137,10 @@ void put_file_handler::save_request_content_to_file (std::shared_ptr<std::ofstre
 }
 
 
-size_t put_file_handler::get_content_length ()
+size_t put_file_handler::get_content_length (connection_ptr connection)
 {
   // Max allowed length of content.
-  const size_t MAX_REQUEST_CONTENT_LENGTH = connection()->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
+  const size_t MAX_REQUEST_CONTENT_LENGTH = connection->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
 
   // Checking if there is any content first.
   string content_length_str = request()->envelope().header ("Content-Length");
@@ -162,16 +163,16 @@ size_t put_file_handler::get_content_length ()
 }
 
 
-void put_file_handler::write_success_envelope (std::function<void()> on_success)
+void put_file_handler::write_success_envelope (connection_ptr connection, std::function<void()> on_success)
 {
   // Writing status code success back to client.
-  write_status (200, [this, on_success] () {
+  write_status (connection, 200, [this, connection, on_success] () {
 
     // Writing standard headers back to client.
-    write_standard_headers ([this, on_success] () {
+    write_standard_headers (connection, [this, connection, on_success] () {
 
       // Ensuring envelope is closed.
-      ensure_envelope_finished (on_success);
+      ensure_envelope_finished (connection, on_success);
     });
   });
 }

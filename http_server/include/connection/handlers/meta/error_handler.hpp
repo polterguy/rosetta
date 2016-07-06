@@ -36,10 +36,10 @@ class error_handler : public request_file_handler
 public:
 
   /// Creates an error request handler.
-  error_handler (connection_ptr connection, class request * request, unsigned int status_code);
+  error_handler (class request * request, unsigned int status_code);
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) override;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
 
 private:
 

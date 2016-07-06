@@ -31,51 +31,50 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-request_ptr request::create (connection_ptr connection)
+request_ptr request::create ()
 {
-  return std::shared_ptr<request> (new request (connection));
+  return std::shared_ptr<request> (new request ());
 }
 
 
-request::request (connection_ptr connection)
-  : _connection (connection),
-    _envelope (connection, this)
+request::request ()
+  : _envelope (this)
 { }
 
 
-void request::handle ()
+void request::handle (connection_ptr connection)
 {
   // Reading envelope.
-  _envelope.read ([this] () {
+  _envelope.read (connection, [this, connection] () {
 
     // Killing deadline timer while we handle request.
-    _connection->set_deadline_timer (-1);
-    _request_handler = create_request_handler (_connection, this);
-    _request_handler->handle ([this] () {
+    connection->set_deadline_timer (-1);
+    _request_handler = create_request_handler (connection, this);
+    _request_handler->handle (connection, [this, connection] () {
 
       // Request is now finished handled, and we need to determine if we should keep connection alive or not.
       if (_envelope.header ("Connection") == "close") {
 
         // Closing connection
-        _connection->close();
+        connection->close();
       } else {
 
         // Keep-Alive Connection.
-        _connection->handle();
+        connection->handle();
       }
     });
   });
 }
 
 
-void request::write_error_response (int status_code)
+void request::write_error_response (connection_ptr connection, int status_code)
 {
   // Creating an error handler.
-  _request_handler = create_request_handler (_connection, this, status_code);
-  _request_handler->handle ([this] () {
+  _request_handler = create_request_handler (connection, this, status_code);
+  _request_handler->handle (connection, [this, connection] () {
 
     // Closing connection on everything that are error requests.
-    _connection->close();
+    connection->close();
   });
 }
 

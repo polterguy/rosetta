@@ -33,19 +33,19 @@ using namespace rosetta::common;
 bool sanity_check_uri (path uri);
 
 
-head_handler::head_handler (connection_ptr connection, class request * request)
-  : request_file_handler (connection, request)
+head_handler::head_handler (class request * request)
+  : request_file_handler (request)
 { }
 
 
-void head_handler::handle (std::function<void()> on_success)
+void head_handler::handle (connection_ptr connection, std::function<void()> on_success)
 {
   // First writing status 200.
-  write_status (200, [this, on_success] () {
+  write_status (connection, 200, [this, connection, on_success] () {
 
     // Notice, we are NOT writing any content in a HEAD response.
     // But we write entire response, including "Content-Length", and "Last-Modified", except the content parts.
-    write_file_headers (request()->envelope().path(), true, on_success);
+    write_file_headers (connection, request()->envelope().path(), true, on_success);
   });
 }
 

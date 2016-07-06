@@ -39,10 +39,10 @@ class get_folder_handler final : public request_handler_base
 public:
 
   /// Creates a static file handler.
-  get_folder_handler (connection_ptr connection, class request * request);
+  get_folder_handler (class request * request);
 
   /// Handles the given request.
-  virtual void handle (std::function<void()> on_success) override;
+  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
 
 private:
 
@@ -50,10 +50,10 @@ private:
   bool should_write_folder (path folderpath);
 
   /// Writes folder content back to client as JSON.
-  void write_folder (path folderpath, std::function<void()> on_success);
+  void write_folder (connection_ptr connection, path folderpath, std::function<void()> on_success);
 
   /// Writes 304 response back to client.
-  void write_304_response (std::function<void()> on_success);
+  void write_304_response (connection_ptr connection, std::function<void()> on_success);
 };
 
 

@@ -51,10 +51,10 @@ class request_envelope
 public:
 
   /// Creates an instance of class.
-  request_envelope (connection_ptr connection, request * request);
+  request_envelope (request * request);
 
   /// Reads the request envelope from the connection, and invokes given callback afterwards.
-  void read (std::function<void()> on_success);
+  void read (connection_ptr connection, std::function<void()> on_success);
 
 
   /// Returns the URI of the request.
@@ -93,26 +93,23 @@ public:
 private:
 
   /// Parses the HTTP-Request line.
-  void parse_request_line (const string & request_line);
+  void parse_request_line (connection_ptr connection, const string & request_line);
 
   /// Parses and verifies correctness of the URI from the HTTP-Request line.
-  void parse_uri (string uri);
+  void parse_uri (connection_ptr connection, string uri);
 
   /// Reads the next HTTP headers from socket.
-  void read_headers (std::function<void()> on_success);
+  void read_headers (connection_ptr connection, std::function<void()> on_success);
 
   /// Parses and verifies sanity of the given HTTP header line.
-  void parse_http_header_line (const string & line);
+  void parse_http_header_line (connection_ptr connection, const string & line);
 
   /// Parses the HTTP GET parameters.
   void parse_parameters (const string & params);
 
   /// Authenticates client according to "Authorization" HTTP header value.
-  void authenticate_client (const string & header_value);
+  void authenticate_client (connection_ptr connection, const string & header_value);
 
-
-  /// Connection this instance belongs to.
-  connection_ptr _connection;
 
   /// Request this instance belongs to.
   request * _request;
