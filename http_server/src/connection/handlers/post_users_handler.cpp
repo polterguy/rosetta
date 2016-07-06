@@ -33,7 +33,7 @@ using std::default_delete;
 using namespace rosetta::common;
 
 
-post_users_handler::post_users_handler (class connection * connection, class request * request)
+post_users_handler::post_users_handler (connection_ptr connection, class request * request)
   : post_handler_base (connection, request)
 { }
 

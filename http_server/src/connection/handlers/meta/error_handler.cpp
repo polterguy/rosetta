@@ -27,7 +27,7 @@ using std::string;
 using namespace rosetta::common;
 
 
-error_handler::error_handler (class connection * connection, class request * request, unsigned int status_code)
+error_handler::error_handler (connection_ptr connection, class request * request, unsigned int status_code)
   : request_file_handler (connection, request),
     _status_code (status_code)
 {

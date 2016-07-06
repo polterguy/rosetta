@@ -31,13 +31,13 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-request_ptr request::create (connection * connection)
+request_ptr request::create (connection_ptr connection)
 {
   return std::shared_ptr<request> (new request (connection));
 }
 
 
-request::request (connection * connection)
+request::request (connection_ptr connection)
   : _connection (connection),
     _envelope (connection, this)
 { }

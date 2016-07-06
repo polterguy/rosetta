@@ -38,7 +38,7 @@ class post_users_handler final : public post_handler_base
 public:
 
   /// Creates a POST handler for user data.
-  post_users_handler (class connection * connection, class request * request);
+  post_users_handler (connection_ptr connection, class request * request);
 
   /// Handles the given request.
   virtual void handle (std::function<void()> on_success) override;

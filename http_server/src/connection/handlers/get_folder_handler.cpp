@@ -36,7 +36,7 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-get_folder_handler::get_folder_handler (class connection * connection, class request * request)
+get_folder_handler::get_folder_handler (connection_ptr connection, class request * request)
   : request_handler_base (connection, request)
 { }
 

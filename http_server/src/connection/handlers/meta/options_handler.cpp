@@ -31,7 +31,7 @@ using namespace rosetta::common;
 string uri_encode (const string & entity);
 
 
-options_handler::options_handler (class connection * connection, class request * request)
+options_handler::options_handler (connection_ptr connection, class request * request)
   : request_handler_base (connection, request)
 { }
 

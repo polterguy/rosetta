@@ -43,7 +43,7 @@ class request_file_handler : public request_handler_base
 protected:
 
   /// Protected constructor.
-  request_file_handler (class connection * connection, class request * request);
+  request_file_handler (connection_ptr connection, class request * request);
 
   /// Writing the given file's HTTP headers on socket back to client.
   void write_file_headers (path file_path, bool last_modified, std::function<void()> on_success);

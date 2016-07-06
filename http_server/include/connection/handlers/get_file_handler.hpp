@@ -39,7 +39,7 @@ class get_file_handler final : public request_file_handler
 public:
 
   /// Creates a static file handler.
-  get_file_handler (class connection * connection, class request * request);
+  get_file_handler (connection_ptr connection, class request * request);
 
   /// Handles the given request.
   virtual void handle (std::function<void()> on_success) override;

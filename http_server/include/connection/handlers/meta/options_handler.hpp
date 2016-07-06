@@ -36,7 +36,7 @@ class options_handler final : public request_handler_base
 public:
 
   /// Creates an options handler.
-  options_handler (class connection * connection, class request * request);
+  options_handler (connection_ptr connection, class request * request);
 
   /// Handles the given request.
   virtual void handle (std::function<void()> on_success) override;

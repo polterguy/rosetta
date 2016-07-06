@@ -37,7 +37,7 @@ class put_folder_handler final : public request_handler_base
 public:
 
   /// Creates a PUT folder handler.
-  put_folder_handler (class connection * connection, class request * request);
+  put_folder_handler (connection_ptr connection, class request * request);
 
   /// Handles the given request.
   virtual void handle (std::function<void()> on_success) override;

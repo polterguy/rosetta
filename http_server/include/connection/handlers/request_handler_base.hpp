@@ -33,6 +33,7 @@ namespace http_server {
 
 class request;
 class connection;
+typedef std::shared_ptr<connection> connection_ptr;
 
 // Helpers for HTTP headers.
 typedef std::tuple<string, string> collection_type;
@@ -50,7 +51,7 @@ public:
 protected:
 
   /// Protected constructor.
-  request_handler_base (class connection * connection, class request * request);
+  request_handler_base (connection_ptr connection, class request * request);
 
   /// Writing given HTTP headetr with given value back to client.
   void write_status (unsigned int status_code, std::function<void()> on_success);
@@ -68,7 +69,7 @@ protected:
   void ensure_envelope_finished (std::function<void()> on_success);
 
   /// Returns connection for this instance.
-  connection * connection() { return _connection; }
+  connection_ptr connection() { return _connection; }
 
   /// Returns request for this instance.
   request * request() { return _request; }
@@ -79,7 +80,7 @@ protected:
 private:
 
   /// The connection this instance belongs to.
-  class connection * _connection;
+  connection_ptr _connection;
 
   /// The request that owns this instance.
   class request * _request;

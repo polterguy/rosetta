@@ -27,7 +27,7 @@ using boost::system::error_code;
 using namespace rosetta::common;
 
 
-redirect_handler::redirect_handler (class connection * connection,
+redirect_handler::redirect_handler (connection_ptr connection,
                                     class request * request,
                                     unsigned int status,
                                     const string & uri,

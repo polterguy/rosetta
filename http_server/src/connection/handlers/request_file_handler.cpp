@@ -34,7 +34,7 @@ namespace rosetta {
 namespace http_server {
 
 
-request_file_handler::request_file_handler (class connection * connection, class request * request)
+request_file_handler::request_file_handler (connection_ptr connection, class request * request)
   : request_handler_base (connection, request)
 { }
 

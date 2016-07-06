@@ -28,6 +28,7 @@ namespace rosetta {
 namespace http_server {
 
 class connection;
+typedef std::shared_ptr<connection> connection_ptr;
 
 class request;
 typedef std::shared_ptr<request> request_ptr;
@@ -39,7 +40,7 @@ class request : public std::enable_shared_from_this<request>, public boost::nonc
 public:
 
   /// Creates a new request, and returns as a shared_ptr.
-  static request_ptr create (connection * connection);
+  static request_ptr create (connection_ptr connection);
 
   /// Handles a request, and invokes the given function when finished.
   void handle ();
@@ -53,11 +54,11 @@ public:
 private:
 
   /// Creates an instance of this class on the given connection. Private to ensure factory method is used.
-  request (connection * connection);
+  request (connection_ptr connection);
 
 
   /// Connection this request belongs to.
-  connection * _connection;
+  connection_ptr _connection;
 
   /// Envelope for request, HTTP-Request line, HTTP headers and GET parameters.
   request_envelope _envelope;

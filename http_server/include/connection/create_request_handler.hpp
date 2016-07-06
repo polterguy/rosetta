@@ -31,7 +31,7 @@ typedef std::shared_ptr<request_handler_base> request_handler_ptr;
 
 
 /// Creates the specified type of handler, according to file extension given, and configuration of server.
-request_handler_ptr create_request_handler (class connection * connection, class request * request, int status_code = -1);
+request_handler_ptr create_request_handler (connection_ptr connection, class request * request, int status_code = -1);
 
 
 } // namespace http_server

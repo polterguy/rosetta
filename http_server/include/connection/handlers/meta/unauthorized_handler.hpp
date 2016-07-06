@@ -36,7 +36,7 @@ class unauthorized_handler final : public error_handler
 public:
 
   /// Creates an error request handler.
-  unauthorized_handler (class connection * connection, class request * request, bool allow_authentication);
+  unauthorized_handler (connection_ptr connection, class request * request, bool allow_authentication);
 
   /// Handles the given request.
   virtual void handle (std::function<void()> on_success) override;

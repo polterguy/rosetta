@@ -38,7 +38,7 @@ using namespace boost::asio::detail;
 using namespace rosetta::common;
 
 
-post_handler_base::post_handler_base (class connection * connection, class request * request)
+post_handler_base::post_handler_base (connection_ptr connection, class request * request)
   : request_handler_base (connection, request)
 { }
 

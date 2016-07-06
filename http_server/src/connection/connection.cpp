@@ -45,7 +45,7 @@ void connection::handle()
   set_deadline_timer (_server->configuration().get<size_t> ("connection-keep-alive-timeout", 20));
 
   // Creating a new request on the current connection, and handling it.
-  _request = request::create (this);
+  _request = request::create (shared_from_this());
   _request->handle ();
 }
 
@@ -62,11 +62,8 @@ void connection::set_deadline_timer (int seconds)
     // Updating the timer's expiration, which will implicitly invoke any existing handlers, with an "operation aborted" error code.
     _timer.expires_from_now (boost::posix_time::seconds (seconds));
 
-    // Making sure we pass in a shared_ptr copy of this to function of exceptional_executor, and on_success() callback.
-    auto self (shared_from_this ());
-
     // Associating a handler with deadline timer, that ensures the closing of connection if it kicks in, unless timer is aborted.
-    _timer.async_wait ([this, self] (auto error) {
+    _timer.async_wait ([this] (auto error) {
 
       // We don't close if the operation was aborted, since when timer is canceled, the handler will be invoked with
       // the "aborted" error_code, and every time we change the deadline timer, or cancel() the timer,
@@ -82,9 +79,26 @@ void connection::close()
 {
   // Killing deadline timer, removing connection, and closing socket..
   _timer.cancel ();
-  _socket->close();
+
+  // In case shutdown throws for some reasons, we make sure the connection is removed from the server first.
+  // We do however POST this to the io_service object of our server, which means that all other completion handlers
+  // will be invoked, before connection is destroyed, since when the socket is closed, there might be outstanding
+  // operations, waiting to execute their code, which are dependent upon the connection instance to still be alive.
   auto self (shared_from_this ());
-  _server->remove_connection (self);
+  _server->service().post ([this, self] () {
+
+    // Removing connection in handler for post job.
+    _server->remove_connection (self);
+  });
+
+  // Closing socket gracefully, if it is open.
+  if (_socket->is_open()) {
+
+    // Socket still open, shutting down, and closing.
+    boost::system::error_code ignored;
+    _socket->shutdown(socket_base::shutdown_type::shutdown_both, ignored);
+    _socket->close();
+  }
 }
 
 

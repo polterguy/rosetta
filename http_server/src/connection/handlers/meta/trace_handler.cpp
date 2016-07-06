@@ -32,7 +32,7 @@ using namespace rosetta::common;
 string uri_encode (const string & entity);
 
 
-trace_handler::trace_handler (class connection * connection, class request * request)
+trace_handler::trace_handler (connection_ptr connection, class request * request)
   : request_handler_base (connection, request)
 { }
 

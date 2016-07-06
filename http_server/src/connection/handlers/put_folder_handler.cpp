@@ -31,7 +31,7 @@ using namespace boost::filesystem;
 using namespace rosetta::common;
 
 
-put_folder_handler::put_folder_handler (class connection * connection, class request * request)
+put_folder_handler::put_folder_handler (connection_ptr connection, class request * request)
   : request_handler_base (connection, request)
 { }
 

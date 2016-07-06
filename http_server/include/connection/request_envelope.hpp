@@ -35,6 +35,8 @@ using namespace boost::filesystem;
 using namespace rosetta::common;
 
 class connection;
+typedef std::shared_ptr<connection> connection_ptr;
+
 class request;
 
 // Helpers for HTTP headers and GET parameters collections types.
@@ -49,7 +51,7 @@ class request_envelope
 public:
 
   /// Creates an instance of class.
-  request_envelope (connection * connection, request * request);
+  request_envelope (connection_ptr connection, request * request);
 
   /// Reads the request envelope from the connection, and invokes given callback afterwards.
   void read (std::function<void()> on_success);
@@ -110,7 +112,7 @@ private:
 
 
   /// Connection this instance belongs to.
-  connection * _connection;
+  connection_ptr _connection;
 
   /// Request this instance belongs to.
   request * _request;

@@ -53,7 +53,7 @@ using namespace boost::filesystem;
 using namespace rosetta::common;
 
 
-bool in_user_agent_list (const class connection * connection, const class request * request, const string & list)
+bool in_user_agent_list (connection_ptr connection, const class request * request, const string & list)
 {
   // Making things more tidy in here.
   using namespace std;
@@ -90,19 +90,19 @@ bool in_user_agent_list (const class connection * connection, const class reques
 }
 
 
-bool in_user_agent_whitelist (const class connection * connection, const class request * request)
+bool in_user_agent_whitelist (connection_ptr connection, const class request * request)
 {
   return in_user_agent_list (connection, request, "whitelist");
 }
 
 
-bool in_user_agent_blacklist (const class connection * connection, const class request * request)
+bool in_user_agent_blacklist (connection_ptr connection, const class request * request)
 {
   return in_user_agent_list (connection, request, "blacklist");
 }
 
 
-bool should_upgrade_insecure_requests (const class connection * connection, const class request * request)
+bool should_upgrade_insecure_requests (connection_ptr connection, const class request * request)
 {
   // Checking if current request is secured already.
   if (!connection->is_secure()) {
@@ -136,7 +136,7 @@ bool should_upgrade_insecure_requests (const class connection * connection, cons
 }
 
 
-request_handler_ptr upgrade_insecure_request (class connection * connection, class request * request)
+request_handler_ptr upgrade_insecure_request (connection_ptr connection, class request * request)
 {
   // Redirecting client to SSL version of the same resource.
   auto request_uri = request->envelope().uri().string ();
@@ -166,7 +166,7 @@ request_handler_ptr upgrade_insecure_request (class connection * connection, cla
 }
 
 
-bool authorize_request (connection * connection, request * request)
+bool authorize_request (connection_ptr connection, request * request)
 {
   auto ticket = request->envelope().ticket();
   auto path = request->envelope().path();
@@ -201,13 +201,13 @@ bool authorize_request (connection * connection, request * request)
 }
 
 
-request_handler_ptr create_authorize_handler (class connection * connection, class request * request)
+request_handler_ptr create_authorize_handler (connection_ptr connection, class request * request)
 {
   return request_handler_ptr (new unauthorized_handler (connection, request, !request->envelope().ticket().authenticated()));
 }
 
 
-request_handler_ptr create_trace_handler (class connection * connection, class request * request)
+request_handler_ptr create_trace_handler (connection_ptr connection, class request * request)
 {
   // Authorizing request.
   if (authorize_request (connection, request)) {
@@ -230,7 +230,7 @@ request_handler_ptr create_trace_handler (class connection * connection, class r
 }
 
 
-request_handler_ptr create_head_handler (class connection * connection, class request * request)
+request_handler_ptr create_head_handler (connection_ptr connection, class request * request)
 {
   // Authorizing request.
   if (authorize_request (connection, request)) {
@@ -256,7 +256,7 @@ request_handler_ptr create_head_handler (class connection * connection, class re
 }
 
 
-request_handler_ptr create_options_handler (class connection * connection, class request * request)
+request_handler_ptr create_options_handler (connection_ptr connection, class request * request)
 {
   // Authorizing request.
   if (authorize_request (connection, request)) {
@@ -279,7 +279,7 @@ request_handler_ptr create_options_handler (class connection * connection, class
 }
 
 
-request_handler_ptr create_get_file_handler (class connection * connection, class request * request)
+request_handler_ptr create_get_file_handler (connection_ptr connection, class request * request)
 {
   // Figuring out handler to use according to request extension, and if document type is served/handled.
   string extension = request->envelope().path().extension().string ();
@@ -298,7 +298,7 @@ request_handler_ptr create_get_file_handler (class connection * connection, clas
 }
 
 
-request_handler_ptr create_get_handler (class connection * connection, class request * request)
+request_handler_ptr create_get_handler (connection_ptr connection, class request * request)
 {
   // Authorizing request.
   if (authorize_request (connection, request)) {
@@ -333,7 +333,7 @@ request_handler_ptr create_get_handler (class connection * connection, class req
 }
 
 
-request_handler_ptr create_put_handler (class connection * connection, class request * request)
+request_handler_ptr create_put_handler (connection_ptr connection, class request * request)
 {
   // Authorizing request.
   if (authorize_request (connection, request)) {
@@ -364,7 +364,7 @@ request_handler_ptr create_put_handler (class connection * connection, class req
 }
 
 
-request_handler_ptr create_delete_handler (class connection * connection, class request * request)
+request_handler_ptr create_delete_handler (connection_ptr connection, class request * request)
 {
   // Checking if client is authorized to use the DELETE verb towards path.
   if (authorize_request (connection, request)) {
@@ -387,7 +387,7 @@ request_handler_ptr create_delete_handler (class connection * connection, class 
 }
 
 
-request_handler_ptr create_post_users_handler (class connection * connection, class request * request)
+request_handler_ptr create_post_users_handler (connection_ptr connection, class request * request)
 {
   // No need to authorize these types of request, since all authenticated clients are allowed to post to the ".users" file, though
   // only root accounts are allowed to do anything but changing their own password.
@@ -405,7 +405,7 @@ request_handler_ptr create_post_users_handler (class connection * connection, cl
 }
 
 
-request_handler_ptr create_post_authorization_handler (class connection * connection, class request * request)
+request_handler_ptr create_post_authorization_handler (connection_ptr connection, class request * request)
 {
   // No need to authorize these types of request, since only "root" accounts are allowed to post to the ".auth" files at all.
   if (request->envelope().ticket().role == "root") {
@@ -420,7 +420,7 @@ request_handler_ptr create_post_authorization_handler (class connection * connec
 }
 
 
-request_handler_ptr create_post_handler (class connection * connection, class request * request)
+request_handler_ptr create_post_handler (connection_ptr connection, class request * request)
 {
   // Making sure Content-Type of request is something we know how to handle.
   if (request->envelope().header ("Content-Type") != "application/x-www-form-urlencoded")
@@ -446,7 +446,7 @@ request_handler_ptr create_post_handler (class connection * connection, class re
 }
 
 
-request_handler_ptr create_verb_handler (class connection * connection, class request * request)
+request_handler_ptr create_verb_handler (connection_ptr connection, class request * request)
 {
   if (request->envelope().method() == "TRACE") {
 
@@ -484,7 +484,7 @@ request_handler_ptr create_verb_handler (class connection * connection, class re
 }
 
 
-request_handler_ptr create_request_handler (class connection * connection, class request * request, int status_code)
+request_handler_ptr create_request_handler (connection_ptr connection, class request * request, int status_code)
 {
   // Checking if we can accept User-Agent according whitelist and blacklist definitions.
   if (!in_user_agent_whitelist (connection, request) || in_user_agent_blacklist (connection, request)) {

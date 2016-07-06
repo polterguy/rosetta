@@ -45,7 +45,7 @@ string capitalize_header_name (const string & name);
 bool sanity_check_path (path uri);
 
 
-request_envelope::request_envelope (connection * connection, request * request)
+request_envelope::request_envelope (connection_ptr connection, request * request)
   : _connection (connection),
     _request (request),
     _folder_request (false)

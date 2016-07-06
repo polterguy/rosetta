@@ -27,7 +27,7 @@ using std::string;
 using namespace rosetta::common;
 
 
-unauthorized_handler::unauthorized_handler (class connection * connection, class request * request, bool allow_authentication)
+unauthorized_handler::unauthorized_handler (connection_ptr connection, class request * request, bool allow_authentication)
   : error_handler (connection, request, 401),
     _allow_authentication (allow_authentication)
 { }

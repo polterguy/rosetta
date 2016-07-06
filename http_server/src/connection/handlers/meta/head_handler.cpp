@@ -33,7 +33,7 @@ using namespace rosetta::common;
 bool sanity_check_uri (path uri);
 
 
-head_handler::head_handler (class connection * connection, class request * request)
+head_handler::head_handler (connection_ptr connection, class request * request)
   : request_file_handler (connection, request)
 { }
 

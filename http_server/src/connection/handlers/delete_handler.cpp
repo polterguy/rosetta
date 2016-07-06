@@ -28,7 +28,7 @@ using std::string;
 using namespace rosetta::common;
 
 
-delete_handler::delete_handler (class connection * connection, class request * request)
+delete_handler::delete_handler (connection_ptr connection, class request * request)
   : request_handler_base (connection, request)
 { }
 
