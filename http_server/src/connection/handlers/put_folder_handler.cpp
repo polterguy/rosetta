@@ -36,7 +36,7 @@ put_folder_handler::put_folder_handler (class connection * connection, class req
 { }
 
 
-void put_folder_handler::handle (exceptional_executor x, functor on_success)
+void put_folder_handler::handle (std::function<void()> on_success)
 {
   // Retrieving URI from request.
   auto path = request()->envelope().path();
@@ -45,27 +45,28 @@ void put_folder_handler::handle (exceptional_executor x, functor on_success)
   if (exists (path)) {
 
     // Oops, folder already exists.
-    request()->write_error_response (x, 403);
+    request()->write_error_response (500);
+  } else {
+
+    // Creating folder.
+    create_directories (path);
+
+    // Returning success.
+    write_success_envelope (on_success);
   }
-
-  // Creating folder.
-  create_directories (path);
-
-  // Returning success.
-  write_success_envelope (x, on_success);
 }
 
 
-void put_folder_handler::write_success_envelope (exceptional_executor x, functor on_success)
+void put_folder_handler::write_success_envelope (std::function<void()> on_success)
 {
   // Writing status code success back to client.
-  write_status (200, x, [this, on_success] (auto x) {
+  write_status (200, [this, on_success] () {
 
     // Writing standard headers back to client.
-    write_standard_headers (x, [this, on_success] (auto x) {
+    write_standard_headers ([this, on_success] () {
 
       // Ensuring envelope is closed.
-      ensure_envelope_finished (x, on_success);
+      ensure_envelope_finished (on_success);
     });
   });
 }

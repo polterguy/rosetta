@@ -44,7 +44,7 @@ public:
   void handle();
 
   /// Ensures connection is closed.
-  void ensure_close();
+  void close();
 
   /// Sets the deadline timer for a specified amount of time, before connection is closed.
   void set_deadline_timer (int seconds = -1);
@@ -55,6 +55,9 @@ public:
 
   /// Returns the socket for the current instance.
   rosetta_socket & socket() { return *_socket; }
+
+  /// Returns the address for the client.
+  ip::address address() const { return _client_address; }
 
   /// Returns the stream buffer for the current instance.
   streambuf & buffer() { return _buffer; }
@@ -83,6 +86,9 @@ private:
 
   /// Request for connection.
   request_ptr _request;
+  
+  /// Since we potentially need this one after socket is actually closed, we need to store it in here.
+  ip::address _client_address;
 };
 
 

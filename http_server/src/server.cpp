@@ -108,12 +108,12 @@ void server::run ()
       
       // This is an attempt to gracefully shutdown the server, simply break while loop.
       break;
-    } catch (const std::exception & error) {
+    } catch (std::exception & error) {
       
       // An exception occurred, simply re-iterating while loop, to re-start io_service.
       // We could do logging here, especially for debugging purposes.
       // If you wish to log, then please un-comment the following line.
-      //std::cerr << error.what () << std::endl;
+      std::cerr << error.what () << std::endl;
     }
   }
 }
@@ -150,7 +150,7 @@ void server::create_connection (socket_ptr socket, std::function<void(connection
 void server::remove_connection (connection_ptr connection)
 {
   // Erasing connection from our list of connections.
-  ip::address client_address = connection->socket().remote_endpoint().address();
+  ip::address client_address = connection->address();
   auto & client_connections = _connections [client_address];
   client_connections.erase (connection);
 
@@ -313,7 +313,7 @@ void server::on_stop (int signal_number)
 
     // Stopping all connections for client first, then removing client entirely from list of IP addresses.
     for (auto idxConnection : idxClient.second) {
-      idxConnection->ensure_close ();
+      idxConnection->close ();
     }
     _connections.erase (idxClient.first);
   }

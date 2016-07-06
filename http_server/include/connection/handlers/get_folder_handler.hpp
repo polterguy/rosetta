@@ -42,7 +42,7 @@ public:
   get_folder_handler (class connection * connection, class request * request);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, functor on_success) override;
+  virtual void handle (std::function<void()> on_success) override;
 
 private:
 
@@ -50,10 +50,10 @@ private:
   bool should_write_folder (path folderpath);
 
   /// Writes folder content back to client as JSON.
-  void write_folder (path folderpath, exceptional_executor x, functor on_success);
+  void write_folder (path folderpath, std::function<void()> on_success);
 
   /// Writes 304 response back to client.
-  void write_304_response (exceptional_executor x, functor on_success);
+  void write_304_response (std::function<void()> on_success);
 };
 
 

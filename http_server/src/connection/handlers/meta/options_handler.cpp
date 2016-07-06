@@ -36,7 +36,7 @@ options_handler::options_handler (class connection * connection, class request *
 { }
 
 
-void options_handler::handle (exceptional_executor x, functor on_success)
+void options_handler::handle (std::function<void()> on_success)
 {/*
   // Writing status code.
   write_status (200, x, [this, x, on_success] (auto x) {

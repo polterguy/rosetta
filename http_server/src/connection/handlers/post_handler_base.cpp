@@ -43,7 +43,7 @@ post_handler_base::post_handler_base (class connection * connection, class reque
 { }
 
 
-void post_handler_base::handle (exceptional_executor x, functor on_success)
+void post_handler_base::handle (std::function<void()> on_success)
 {
   // Setting deadline timer for content read.
   const int POST_CONTENT_READ_TIMEOUT = connection()->server()->configuration().get<int> ("request-post-content-read-timeout", 30);
@@ -51,63 +51,75 @@ void post_handler_base::handle (exceptional_executor x, functor on_success)
 
   // Reading content of request.
   auto content_length = get_content_length();
-  connection()->socket().async_read (connection()->buffer(),
-                                     transfer_exactly_t (content_length),
-                                     [this, x, on_success] (auto error, auto bytes_read) {
+  if (content_length == 0) {
 
-    // Checking that no socket errors occurred.
-    if (error)
-      throw request_exception ("Socket error while reading request content.");
+    // Not acceptable.
+    request()->write_error_response (500);
+  } else {
 
-    // Reading content into stream;
-    istream stream (&connection()->buffer());
-    shared_ptr<unsigned char> buffer (new unsigned char [bytes_read], std::default_delete<unsigned char []>());
-    stream.read (reinterpret_cast<char*> (buffer.get()), bytes_read);
+    // Retrieving content from socket.
+    connection()->socket().async_read (connection()->buffer(),
+                                       transfer_exactly_t (content_length),
+                                       [this, on_success] (auto error, auto bytes_read) {
 
-    // Creating a string out of content, before splitting it into each name/value pair.
-    string str_content (buffer.get(), buffer.get () + bytes_read);
-    vector<string> parameters;
-    split (parameters, str_content, boost::is_any_of ("&"));
-    for (auto & idx : parameters) {
-      vector<string> name_value;
-      split (name_value, idx, boost::is_any_of ("="));
+      // Checking that no socket errors occurred.
+      if (error) {
 
-      // Making sure there is both a name and a value in current parameter.
-      if (name_value.size() != 2)
-        throw request_exception ("Bad data found in POST request.");
+        // Something went wrong.
+        connection()->close();
+      } else {
 
-      // Retrieving name and value.
-      string name  = uri_encode::decode (name_value [0]);
-      string value = uri_encode::decode (name_value [1]);
+        // Reading content into stream;
+        istream stream (&connection()->buffer());
+        shared_ptr<unsigned char> buffer (new unsigned char [bytes_read], std::default_delete<unsigned char []>());
+        stream.read (reinterpret_cast<char*> (buffer.get()), bytes_read);
 
-      // Sanitizing both name and value.
-      for (auto idx : name) {
-        if (idx < 32 || idx > 126)
-          throw request_exception ("Bad characters found in POST request content.");
+        // Creating a string out of content, before splitting it into each name/value pair.
+        string str_content (buffer.get(), buffer.get () + bytes_read);
+        vector<string> parameters;
+        split (parameters, str_content, boost::is_any_of ("&"));
+        for (auto & idx : parameters) {
+          vector<string> name_value;
+          split (name_value, idx, boost::is_any_of ("="));
+
+          // Making sure there is both a name and a value in current parameter.
+          if (name_value.size() != 2)
+            throw request_exception ("Bad data found in POST request.");
+
+          // Retrieving name and value.
+          string name  = uri_encode::decode (name_value [0]);
+          string value = uri_encode::decode (name_value [1]);
+
+          // Sanitizing both name and value.
+          for (auto idx : name) {
+            if (idx < 32 || idx > 126)
+              throw request_exception ("Bad characters found in POST request content.");
+          }
+          for (auto idx : value) {
+            if (idx < 32 || idx > 126)
+              throw request_exception ("Bad characters found in POST request content.");
+          }
+          _parameters.push_back ( {name, value} );
+        }
+
+        // Evaluates request, now that we have the data supplied by client.
+        on_success ();
       }
-      for (auto idx : value) {
-        if (idx < 32 || idx > 126)
-          throw request_exception ("Bad characters found in POST request content.");
-      }
-      _parameters.push_back ( {name, value} );
-    }
-
-    // Evaluates request, now that we have the data supplied by client.
-    on_success (x);
-  });
+    });
+  }
 }
 
 
-void post_handler_base::write_success_envelope (exceptional_executor x, functor on_success)
+void post_handler_base::write_success_envelope (std::function<void()> on_success)
 {
   // Writing status code success back to client.
-  write_status (200, x, [this, on_success] (auto x) {
+  write_status (200, [this, on_success] () {
 
     // Writing standard headers back to client.
-    write_standard_headers (x, [this, on_success] (auto x) {
+    write_standard_headers ([this, on_success] () {
 
       // Ensuring envelope is closed.
-      ensure_envelope_finished (x, on_success);
+      ensure_envelope_finished (on_success);
     });
   });
 }
@@ -125,17 +137,13 @@ size_t post_handler_base::get_content_length ()
   if (content_length_str.size() == 0) {
 
     // No content.
-    throw request_exception ("No Content-Length header in PUT request.");
+    return 0;
   } else {
 
     // Checking that Content-Length does not exceed max request content length.
     auto content_length = boost::lexical_cast<size_t> (content_length_str);
     if (content_length > MAX_POST_REQUEST_CONTENT_LENGTH)
-      throw request_exception ("Too much content in request for server to handle.");
-
-    // Checking that Content-Length is not 0, or negative.
-    if (content_length <= 0)
-      throw request_exception ("No content provided to PUT handler.");
+      return 0;
 
     // Returning Content-Length to caller.
     return content_length;

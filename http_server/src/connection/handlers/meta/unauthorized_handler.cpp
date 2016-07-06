@@ -33,7 +33,7 @@ unauthorized_handler::unauthorized_handler (class connection * connection, class
 { }
 
 
-void unauthorized_handler::handle (exceptional_executor x, functor on_success)
+void unauthorized_handler::handle (std::function<void()> on_success)
 {
   // Figuring out which file to serve.
   string error_file = "error-pages/401.html";
@@ -44,16 +44,16 @@ void unauthorized_handler::handle (exceptional_executor x, functor on_success)
   if (_allow_authentication && (connection()->is_secure() || connection()->server()->configuration().get<bool> ("authenticate-over-non-ssl", false))) {
 
     // Making sure we signal to client that it needs to authenticate.
-    write_file (error_file, 401, {{"WWW-Authenticate", "Basic realm=\"User Visible Realm\""}}, x, [on_success] (auto x) {
+    write_file (error_file, 401, {{"WWW-Authenticate", "Basic realm=\"User Visible Realm\""}}, [on_success] () {
 
-      on_success (x);
+      on_success ();
     });
   } else {
 
     // Using base class implementation for writing error file.
-    write_file (error_file, 401, false, x, [on_success] (auto x) {
+    write_file (error_file, 401, false, [on_success] () {
 
-      on_success (x);
+      on_success ();
     });
   }
 }

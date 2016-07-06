@@ -42,13 +42,13 @@ public:
   static request_ptr create (connection * connection);
 
   /// Handles a request, and invokes the given function when finished.
-  void handle (exceptional_executor x, functor on_success);
+  void handle ();
 
   /// Returns the envelope of the request.
   const request_envelope & envelope() const { return _envelope; }
 
   /// Writes the given error response back to client.
-  void write_error_response (exceptional_executor x, int status_code);
+  void write_error_response (int status_code);
 
 private:
 

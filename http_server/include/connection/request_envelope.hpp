@@ -52,7 +52,7 @@ public:
   request_envelope (connection * connection, request * request);
 
   /// Reads the request envelope from the connection, and invokes given callback afterwards.
-  void read (exceptional_executor x, functor on_success);
+  void read (std::function<void()> on_success);
 
 
   /// Returns the URI of the request.
@@ -97,7 +97,7 @@ private:
   void parse_uri (string uri);
 
   /// Reads the next HTTP headers from socket.
-  void read_headers (exceptional_executor x, functor on_success);
+  void read_headers (std::function<void()> on_success);
 
   /// Parses and verifies sanity of the given HTTP header line.
   void parse_http_header_line (const string & line);

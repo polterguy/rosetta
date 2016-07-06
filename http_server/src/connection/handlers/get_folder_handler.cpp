@@ -41,18 +41,18 @@ get_folder_handler::get_folder_handler (class connection * connection, class req
 { }
 
 
-void get_folder_handler::handle (exceptional_executor x, functor on_success)
+void get_folder_handler::handle (std::function<void()> on_success)
 {
   // Retrieving root path, and checking if we should write it.
   path full_path = request()->envelope().path();
   if (should_write_folder (full_path)) {
 
     // Returning file to client.
-    write_folder (full_path, x, on_success);
+    write_folder (full_path, on_success);
   } else {
 
     // File has not been tampered with since the "If-Modified-Since" HTTP header, returning 304 response, without file content.
-    write_304_response (x, on_success);
+    write_304_response (on_success);
   }
 }
 
@@ -85,22 +85,22 @@ bool get_folder_handler::should_write_folder (path full_path)
 }
 
 
-void get_folder_handler::write_304_response (exceptional_executor x, functor on_success)
+void get_folder_handler::write_304_response (std::function<void()> on_success)
 {
   // Writing status code 304 (Not-Modified) back to client.
-  write_status (304, x, [this, on_success] (auto x) {
+  write_status (304, [this, on_success] () {
 
     // Writing standard HTTP headers to connection.
-    write_standard_headers (x, [this, on_success] (auto x) {
+    write_standard_headers ([this, on_success] () {
 
       // Making sure we add up a Vary header on "Authorization", such that if user is authorized, then folder content is reloaded.
-      write_headers ({{"Vary", "Authorization"}}, x, [this, on_success] (auto x) {
+      write_headers ({{"Vary", "Authorization"}}, [this, on_success] () {
 
         // Making sure we close envelope.      
-        ensure_envelope_finished (x, [on_success] (auto x) {
+        ensure_envelope_finished ([on_success] () {
 
-          // invoking callback, since we're done writing the response.
-          on_success (x);
+          // Invoking callback, since we're done writing the response.
+          on_success ();
         });
       });
     });
@@ -108,7 +108,7 @@ void get_folder_handler::write_304_response (exceptional_executor x, functor on_
 }
 
 
-void get_folder_handler::write_folder (path folderpath, exceptional_executor x, functor on_success)
+void get_folder_handler::write_folder (path folderpath, std::function<void()> on_success)
 {
   // Using shared_ptr of vector to hold folder information.
   auto buffer_ptr = std::make_shared<std::vector<unsigned char>> ();
@@ -173,10 +173,10 @@ void get_folder_handler::write_folder (path folderpath, exceptional_executor x, 
   buffer_ptr->push_back ('}');
 
   // Writing status code.
-  write_status (200, x, [this, buffer_ptr, folderpath, on_success] (auto x) {
+  write_status (200, [this, buffer_ptr, folderpath, on_success] () {
 
     // Writing standard headers to client.
-    write_standard_headers (x, [this, buffer_ptr, folderpath, on_success] (auto x) {
+    write_standard_headers ([this, buffer_ptr, folderpath, on_success] () {
 
       // Writing headers for folder information.
       size_t size = buffer_ptr->size();
@@ -189,16 +189,16 @@ void get_folder_handler::write_folder (path folderpath, exceptional_executor x, 
         {"Last-Modified", date::from_path_change (folderpath).to_string ()}};
 
       // Writing special handler headers to connection.
-      write_headers (headers, x, [this, buffer_ptr, on_success] (auto x) {
+      write_headers (headers, [this, buffer_ptr, on_success] () {
         
         // Make sure we close envelope.
-        ensure_envelope_finished (x, [this, buffer_ptr, on_success] (auto x) {
+        ensure_envelope_finished ([this, buffer_ptr, on_success] () {
 
           // Now writing content of folder.
-          connection()->socket().async_write (buffer (*buffer_ptr), [this, on_success, x, buffer_ptr] (auto error, auto bytes_written) {
+          connection()->socket().async_write (buffer (*buffer_ptr), [this, on_success, buffer_ptr] (auto error, auto bytes_written) {
 
             // Finished!
-            on_success (x);
+            on_success ();
           });
         });
       });

@@ -81,7 +81,7 @@ int main (int argc, char * argv[])
   } catch (const std::exception & err) {
     
     // Giving feedback to std error with exception message.
-    std::cerr << "Unhandled Rosetta exception; '" << err.what() << "'" << endl;
+    std::cerr << "Unhandled exception; '" << err.what() << "'" << endl;
   }
 }
 
@@ -91,25 +91,30 @@ void show_copyright_server_info (const configuration & config)
 {
   // Showing copyright notice, providing callback to inject information about how to access website.
   configuration::serialize_copyright (std::cout, [config] (std::ostream & stream) {
-    
+
     // Serializing information about how to view website, making sure we've accommodated for 80 characters per line.
     string s = "# Go to; 'http://localhost:"
              + config.get<string>("port")
              + "' to see your website.";
-      
+
     // Making sure we've got 80 characters in string, padded by "#", before we serialize it to stream.
     while (s.size() < 79) { s += " "; }
     stream << s << "#" << endl;
-    
+
     // Serializing thread model.
     string thread_model = config.get<string> ("thread-model");
     s = "# Thread model is; '" + thread_model + "'";
     while (s.size() < 79) { s += " "; }
     stream << s << "#" << endl;
-    
+
+    // Serializing thread model.
+    s = "# Boost version; '" + string (BOOST_LIB_VERSION) + "'";
+    while (s.size() < 79) { s += " "; }
+    stream << s << "#" << endl;
+
     // If thread-model is "multi-thread", we serialize the number of threads for server.
     if (thread_model == "multi-thread") {
-    
+
       // Serializing number of threads.
       s = "# Thread pool size; " + boost::lexical_cast<string> (config.get<size_t> ("threads"));
       while (s.size() < 79) { s += " "; }

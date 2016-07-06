@@ -43,7 +43,7 @@ public:
   trace_handler (class connection * connection, class request * request);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, functor on_success) override;
+  virtual void handle (std::function<void()> on_success) override;
 
 private:
 

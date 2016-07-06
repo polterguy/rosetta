@@ -38,14 +38,14 @@ head_handler::head_handler (class connection * connection, class request * reque
 { }
 
 
-void head_handler::handle (exceptional_executor x, functor on_success)
+void head_handler::handle (std::function<void()> on_success)
 {
   // First writing status 200.
-  write_status (200, x, [this, x, on_success] (auto x) {
+  write_status (200, [this, on_success] () {
 
     // Notice, we are NOT writing any content in a HEAD response.
     // But we write entire response, including "Content-Length", and "Last-Modified", except the content parts.
-    write_file_headers (request()->envelope().path(), true, x, on_success);
+    write_file_headers (request()->envelope().path(), true, on_success);
   });
 }
 

@@ -38,16 +38,22 @@ post_users_handler::post_users_handler (class connection * connection, class req
 { }
 
 
-void post_users_handler::handle (exceptional_executor x, functor on_success)
+void post_users_handler::handle (std::function<void()> on_success)
 {
   // Letting base class do the heavy lifting.
-  post_handler_base::handle (x, [this, on_success] (auto x) {
+  post_handler_base::handle ([this, on_success] () {
 
     // Evaluates request, now that we have the data supplied by client.
-    evaluate ();
+    try {
 
-    // Unless evaluate() throws an exception, we can safely return success back to client.
-    write_success_envelope (x, on_success);
+      // Unless evaluate() throws an exception, we can safely return success back to client.
+      evaluate ();
+      write_success_envelope (on_success);
+    } catch (std::exception & error) {
+
+      // Something went wrong!
+      request()->write_error_response (500);
+    }
   });
 }
 
@@ -60,23 +66,29 @@ void post_users_handler::evaluate ()
   });
 
   // Retrieving the action client wants to perform.
-  if (action_iter == _parameters.end ())
-    throw request_exception ("Unrecognized HTTP POST request, missing 'action' parameter."); // Not recognized, hence a "bug".
-  string action = std::get<1> (*action_iter);
+  if (action_iter == _parameters.end ()) {
 
-  // Checking if client is authenticated as root, which has extended privileges.
-  if (request()->envelope().ticket().role == "root") {
-
-    // Some root account is trying to perform an action.
-    root_action (action);
-  } else if (request()->envelope().ticket().authenticated()) {
-
-    // Some authenticated, but non-root account, is trying to perform an action
-    non_root_action (action);
+    // Oops, no "action" POST parameter given.
+    throw request_exception ("Missing 'action' parameter of POST request.");
   } else {
 
-    // Only authenticated clients are allowed to do anything here!
-    throw request_exception ("Non-authenticated client tried to POST.");
+    // Retrieving "action" client tries to execute.
+    string action = std::get<1> (*action_iter);
+
+    // Checking if client is authenticated as root, which has extended privileges.
+    if (request()->envelope().ticket().role == "root") {
+
+      // Some root account is trying to perform an action.
+      root_action (action);
+    } else if (request()->envelope().ticket().authenticated()) {
+
+      // Some authenticated, but non-root account, is trying to perform an action
+      non_root_action (action);
+    } else {
+
+      // Only authenticated clients are allowed to do anything here!
+      throw request_exception ("Client is not authorized to perform this action.");
+    }
   }
 }
 

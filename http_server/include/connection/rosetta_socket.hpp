@@ -68,6 +68,9 @@ public:
 
   /// Returns true is socket is SSL type.
   virtual bool is_secure() const = 0;
+
+  /// Returns true if socket is closed by other side.
+  virtual bool closed_by_other_side() = 0;
 };
 
 
@@ -115,10 +118,13 @@ public:
   void close () override { _socket.close(); }
 
   /// Returns true if socket is open.
-  bool is_open() override { return _socket.is_open(); }
+  bool is_open() override { return _socket.is_open() && !closed_by_other_side(); }
 
   /// Returns false, since this is not a secure (SSL) socket.
   virtual bool is_secure() const override { return false; }
+
+  /// Returns true if socket is closed by other side.
+  bool closed_by_other_side() override {boost::system::error_code error; _socket.remote_endpoint (error); return error;}
 
 
   /// Returns socket to caller.
@@ -169,16 +175,19 @@ public:
   ip::tcp::endpoint remote_endpoint () override { return _socket.lowest_layer().remote_endpoint(); }
 
   /// Shuts down socket.
-  void shutdown (socket_base::shutdown_type what, error_code & error) override { _socket.lowest_layer().shutdown (what, error); }
+  void shutdown (socket_base::shutdown_type what, error_code & error) override { _socket.shutdown(); _socket.lowest_layer().shutdown (what, error); }
 
   /// Close socket.
   void close () override { _socket.lowest_layer().close(); }
 
   /// Returns true if socket is open.
-  bool is_open() override { return _socket.lowest_layer().is_open(); }
+  bool is_open() override { return _socket.lowest_layer().is_open() && !closed_by_other_side(); }
 
   /// Returns true, since this is an SSL socket.
   virtual bool is_secure() const override { return true; }
+
+  /// Returns true if socket is closed by other side.
+  bool closed_by_other_side() override {boost::system::error_code error; _socket.lowest_layer().remote_endpoint (error); return error;}
 
 
   /// Returns SSL stream wrapping socket to caller.

@@ -34,18 +34,27 @@ post_authorization_handler::post_authorization_handler (class connection * conne
 { }
 
 
-void post_authorization_handler::handle (exceptional_executor x, functor on_success)
+void post_authorization_handler::handle (std::function<void()> on_success)
 {
   // Letting base class do the heavy lifting.
-  post_handler_base::handle (x, [this, on_success] (auto x) {
+  post_handler_base::handle ([this, on_success] () {
 
     // Evaluates request, now that we have the data supplied by client.
-    evaluate (x, on_success);
+    try {
+
+      // Unless evaluate() throws an exception, we can safely return success back to client.
+      evaluate ();
+      write_success_envelope (on_success);
+    } catch (std::exception & error) {
+
+      // Something went wrong!
+      request()->write_error_response (500);
+    }
   });
 }
 
 
-void post_authorization_handler::evaluate (exceptional_executor x, functor on_success)
+void post_authorization_handler::evaluate ()
 {
   // Finding out which verb this request wants to change the value of.
   auto verb_iter = std::find_if (_parameters.begin(), _parameters.end(), [] (auto & idx) {

@@ -39,10 +39,10 @@ redirect_handler::redirect_handler (class connection * connection,
 { }
 
 
-void redirect_handler::handle (exceptional_executor x, functor on_success)
+void redirect_handler::handle (std::function<void()> on_success)
 {
   // First writing status.
-  write_status (_status, x, [this, x, on_success] (auto x) {
+  write_status (_status, [this, on_success] () {
 
     // Then writing "Location" of resource requested.
     collection list = {{"Location", _uri}};
@@ -52,16 +52,16 @@ void redirect_handler::handle (exceptional_executor x, functor on_success)
       list.push_back ({"Cache-Control", "no-store"});
 
     // Rendering the headers, "Location", and possibly "Cache-Control".
-    write_headers (list, x, [this, on_success] (auto x) {
+    write_headers (list, [this, on_success] () {
 
       // Then making sure we add the "standard headers".
-      write_standard_headers (x, [this, on_success] (auto x) {
+      write_standard_headers ([this, on_success] () {
 
         // Then making sure we close our response envelope.
-        ensure_envelope_finished (x, [on_success] (auto x) {
+        ensure_envelope_finished ([on_success] () {
 
           // Finished handling request.
-          on_success (x);        
+          on_success ();
         });
       });
     });

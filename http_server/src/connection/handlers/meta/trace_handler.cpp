@@ -37,10 +37,10 @@ trace_handler::trace_handler (class connection * connection, class request * req
 { }
 
 
-void trace_handler::handle (exceptional_executor x, functor on_success)
+void trace_handler::handle (std::function<void()> on_success)
 {
   // Writing status code.
-  write_status (200, x, [this, x, on_success] (auto x) {
+  write_status (200, [this, on_success] () {
 
     // Figuring out what we're sending, before we send the headers, to see the size of our request.
     auto buffer_ptr = build_content ();
@@ -52,19 +52,19 @@ void trace_handler::handle (exceptional_executor x, functor on_success)
       {"Content-Length", boost::lexical_cast<string> (buffer_ptr->size ())}};
 
     // Writing HTTP headers to connection.
-    write_headers (headers, x, [this, on_success, buffer_ptr] (auto x) {
+    write_headers (headers, [this, on_success, buffer_ptr] () {
 
       // Writing standard headers.
-      write_standard_headers (x, [this, on_success, buffer_ptr] (auto x) {
+      write_standard_headers ([this, on_success, buffer_ptr] () {
 
         // Making sure we close envelope.
-        ensure_envelope_finished (x, [this, on_success, buffer_ptr] (auto x) {
+        ensure_envelope_finished ([this, on_success, buffer_ptr] () {
 
           // Writing entire request, HTTP-Request line, and HTTP headers, back to client, as content.
-          connection()->socket().async_write (buffer (*buffer_ptr), [buffer_ptr, on_success, x] (auto error, auto bytes_written) {
+          connection()->socket().async_write (buffer (*buffer_ptr), [buffer_ptr, on_success] (auto error, auto bytes_written) {
 
             // Invoking callback, signaling we're done.
-            on_success (x);
+            on_success ();
           });
         });
       });

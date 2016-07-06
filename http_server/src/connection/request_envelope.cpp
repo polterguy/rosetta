@@ -52,39 +52,32 @@ request_envelope::request_envelope (connection * connection, request * request)
 { }
 
 
-// This method first reads the HTTP-Request line and parses it. Afterwards, it handles over control to the method
-// that is responsible for reading the HTTP headers.
-// It passes the X and on_success function on inwards, to the next layers, allowing them to decide whether or
-// not the request has been successfully parsed or not, and on_success() can be invoked, or x should be allowed to
-// go out of scope, cleaning thins up for us.
-// See the request::handle() for more details about this logic.
-void request_envelope::read (exceptional_executor x, functor on_success)
+void request_envelope::read (std::function<void()> on_success)
 {
   // Figuring out max length of URI.
   const size_t MAX_URI_LENGTH = _connection->server()->configuration().get<size_t> ("max-uri-length", 4096);
   match_condition match (MAX_URI_LENGTH);
 
   // Reading until "max_length" or CR/LF has been found.
-  _connection->socket().async_read_until (_connection->buffer(), match, [this, match, x, on_success] (auto error, auto bytes_read) {
+  _connection->socket().async_read_until (_connection->buffer(), match, [this, match, on_success] (auto error, auto bytes_read) {
 
     // Checking if socket has an error, or HTTP-Request line was too long.
-    if (error == error::operation_aborted)
-      return;
-    if (error)
-      throw request_exception ("Socket error while reading HTTP-Request line.");
+    if (error) {
 
-    if (match.has_error()) {
+      // Something went wrong while reading from socket.
+      _connection->close();
+    } else if (match.has_error()) {
 
       // Too long URI.
-      _request->write_error_response (x, 414);
-      return;
+      _request->write_error_response (414);
+    } else {
+
+      // Parsing request line, and verifying it's OK.
+      parse_request_line (get_line (_connection->buffer()));
+
+      // Reading headers.
+      read_headers (on_success);
     }
-
-    // Parsing request line, and verifying it's OK.
-    parse_request_line (get_line (_connection->buffer()));
-
-    // Reading headers.
-    read_headers (x, on_success);
   });
 }
 
@@ -183,43 +176,46 @@ void request_envelope::parse_uri (string uri)
 }
 
 
-void request_envelope::read_headers (exceptional_executor x, functor on_success)
+void request_envelope::read_headers (std::function<void()> on_success)
 {
   // Retrieving max header size.
   const size_t max_header_length = _connection->server()->configuration().get<size_t> ("max-header-length", 8192);
   match_condition match (max_header_length);
 
   // Reading first header.
-  _connection->socket().async_read_until (_connection->buffer(), match, [this, x, match, on_success] (auto error, auto bytes_read) {
+  _connection->socket().async_read_until (_connection->buffer(), match, [this, match, on_success] (auto error, auto bytes_read) {
 
     // Checking if socket has an error, or header exceeded maximum length.
-    if (error == error::operation_aborted)
-      return;
-    if (error)
-      throw request_exception ("Socket error while reading HTTP-Request line.");
+    if (error) {
 
-    if (match.has_error() || _headers.size() > _connection->server()->configuration().get<size_t> ("max-header-count", 25)) {
+      // Something went wrong when reading from socket.
+      _connection->close();
+    } else if (match.has_error()) {
 
-      // HTTP header was too much for us to handle, or there were too many HTTP headers sent from client. Returning 413 to client.
-      _request->write_error_response (x, 413);
-      return;
-    }
-
-    // Now we can start parsing HTTP headers.
-    string line = get_line (_connection->buffer());
-
-    // Checking if there are any more headers being sent from client.
-    // When we are done reading headers, and there are no more headers, then there should be an additional empty string sent from client.
-    if (line.size () == 0) {
-
-      // No more headers, the previous header was the last.
-      // Invoking given on_success() handler function.
-      on_success (x);
+      // HTTP header was too much for us to handle.
+      _request->write_error_response (413);
     } else {
 
-      // Parsing HTTP header, before repeating the process, and invoking "self".
-      parse_http_header_line (line);
-      read_headers (x, on_success);
+      // Now we can start parsing HTTP headers.
+      string line = get_line (_connection->buffer());
+
+      // Checking if there are any more headers being sent from client.
+      // When we are done reading headers, and there are no more headers, then there should be an additional empty string sent from client.
+      if (line.size () == 0) {
+
+        // No more headers, the previous header was the last.
+        // Invoking given on_success() handler function.
+        on_success ();
+      } else if (_headers.size() >= _connection->server()->configuration().get<size_t> ("max-header-count", 25)) {
+
+        // Too many HTTP headers in request.
+        _request->write_error_response (413);
+      } else {
+
+        // Parsing HTTP header, before repeating the process, and invoking "self".
+        parse_http_header_line (line);
+        read_headers (on_success);
+      }
     }
   });
 }

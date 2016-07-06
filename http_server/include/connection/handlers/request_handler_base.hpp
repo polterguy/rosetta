@@ -20,6 +20,7 @@
 
 #include <tuple>
 #include <vector>
+#include <functional>
 #include <boost/filesystem.hpp>
 #include "common/include/exceptional_executor.hpp"
 
@@ -44,7 +45,7 @@ class request_handler_base : public boost::noncopyable
 public:
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, functor callback) = 0;
+  virtual void handle (std::function<void()> on_success) = 0;
 
 protected:
 
@@ -52,19 +53,19 @@ protected:
   request_handler_base (class connection * connection, class request * request);
 
   /// Writing given HTTP headetr with given value back to client.
-  void write_status (unsigned int status_code, exceptional_executor x, functor on_success);
+  void write_status (unsigned int status_code, std::function<void()> on_success);
 
   /// Writes a single HTTP header, with the given name/value combination back to client.
-  void write_header (const string & key, const string & value, exceptional_executor x, functor on_success);
+  void write_header (const string & key, const string & value, std::function<void()> on_success);
 
   /// Writing given HTTP header collection back to client.
-  void write_headers (collection headers, exceptional_executor x, functor on_success);
+  void write_headers (collection headers, std::function<void()> on_success);
 
   /// Writes back the standard HTTP headers back to client, that the server is configured to pass back on every response.
-  void write_standard_headers (exceptional_executor x, functor on_success);
+  void write_standard_headers (std::function<void()> on_success);
 
   /// Ensures that the envelope of the response is flushed, and one empty line with CR/LF is written back to the client.
-  void ensure_envelope_finished (exceptional_executor x, functor on_success);
+  void ensure_envelope_finished (std::function<void()> on_success);
 
   /// Returns connection for this instance.
   connection * connection() { return _connection; }

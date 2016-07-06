@@ -40,7 +40,7 @@ request_handler_base::request_handler_base (class connection * connection, class
 { }
 
 
-void request_handler_base::write_status (unsigned int status_code, exceptional_executor x, functor on_success)
+void request_handler_base::write_status (unsigned int status_code, std::function<void()> on_success)
 {
   // Creating status line, and serializing to socket, making sure status_line stays around until after write operation is finished.
   shared_ptr<string> status_line = make_shared<string> ("HTTP/1.1 " + boost::lexical_cast<string> (status_code) + " ");
@@ -96,23 +96,28 @@ void request_handler_base::write_status (unsigned int status_code, exceptional_e
   *status_line += "\r\n";
 
   // Writing status line to socket.
-  _connection->socket().async_write (buffer (*status_line), [on_success, x, status_line] (auto error, auto bytes_written) {
+  _connection->socket().async_write (buffer (*status_line), [this, on_success, status_line] (auto error, auto bytes_written) {
 
     // Sanity check.
-    if (error)
-      throw request_exception ("Socket error while writing HTTP status line.");
-    else
-      on_success (x);
+    if (error) {
+
+      // Something went wrong.
+      _connection->close();
+    } else {
+
+      // So far, so good.
+      on_success ();
+    }
   });
 }
 
 
-void request_handler_base::write_headers (collection headers, exceptional_executor x, functor on_success)
+void request_handler_base::write_headers (collection headers, std::function<void()> on_success)
 {
   if (headers.size() == 0) {
 
     // No more headers, invoking on_success().
-    on_success (x);
+    on_success ();
 
   } else {
 
@@ -124,33 +129,38 @@ void request_handler_base::write_headers (collection headers, exceptional_execut
     headers.erase (headers.begin (), headers.begin () + 1);
 
     // Writing header.
-    write_header (key, value, x, [this, headers, on_success] (auto x) {
+    write_header (key, value, [this, headers, on_success] () {
 
       // Invoking self, having popped off the first header in the collection.
-      write_headers (headers, x, on_success);
+      write_headers (headers, on_success);
     });
   }
 }
 
 
-void request_handler_base::write_header (const string & key, const string & value, exceptional_executor x, functor on_success)
+void request_handler_base::write_header (const string & key, const string & value, std::function<void()> on_success)
 {
   // Creating header, making sure the string stays around until after socket write operation is finished.
   shared_ptr<string> header_content = make_shared<string> (key + ": " + value + "\r\n");
 
   // Writing header content to socket.
-  _connection->socket().async_write (buffer (*header_content), [this, on_success, x, header_content] (auto error, auto bytes_written) {
+  _connection->socket().async_write (buffer (*header_content), [this, on_success, header_content] (auto error, auto bytes_written) {
 
     // Sanity check.
-    if (error)
-      throw request_exception ("Socket error while writing HTTP header.");
-    else
-      on_success (x);
+    if (error) {
+
+      // Something went wrong.
+      _connection->close();
+    } else {
+
+      // So far, so good.
+      on_success ();
+    }
   });
 }
 
 
-void request_handler_base::write_standard_headers (exceptional_executor x, functor on_success)
+void request_handler_base::write_standard_headers (std::function<void()> on_success)
 {
   // Making things more tidy in here.
   using namespace std;
@@ -182,30 +192,40 @@ void request_handler_base::write_standard_headers (exceptional_executor x, funct
   }
 
   // Writing header content to socket.
-  _connection->socket().async_write (buffer (*header_content), [on_success, x, header_content] (auto error, auto bytes_written) {
+  _connection->socket().async_write (buffer (*header_content), [this, on_success, header_content] (auto error, auto bytes_written) {
 
     // Sanity check.
-    if (error)
-      throw request_exception ("Socket error while writing HTTP header.");
-    else
-      on_success (x);
+    if (error) {
+
+      // Something went wrong.
+      _connection->close();
+    } else {
+
+      // So far, so good.
+      on_success ();
+    }
   });
 }
 
 
-void request_handler_base::ensure_envelope_finished (exceptional_executor x, functor on_success)
+void request_handler_base::ensure_envelope_finished (std::function<void()> on_success)
 {
   // Creating last empty line, to finish of envelope, making sure our buffer stays around, until async_write is finished doing its thing.
   shared_ptr<string> cr_lf = make_shared<string> ("\r\n");
 
   // Writing header content to socket.
-  _connection->socket().async_write (buffer (*cr_lf), [on_success, x, cr_lf] (auto error, auto bytes_written) {
+  _connection->socket().async_write (buffer (*cr_lf), [this, on_success, cr_lf] (auto error, auto bytes_written) {
 
     // Sanity check.
-    if (error)
-      throw request_exception ("Socket error while writing HTTP header.");
-    else
-      on_success (x);
+    if (error) {
+
+      // Something went wrong.
+      _connection->close();
+    } else {
+
+      // So far, so good.
+      on_success ();
+    }
   });
 }
 

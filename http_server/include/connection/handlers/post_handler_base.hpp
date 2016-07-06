@@ -45,12 +45,12 @@ public:
   post_handler_base (class connection * connection, class request * request);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, functor on_success) override;
+  virtual void handle (std::function<void()> on_success) override;
 
 protected:
 
   /// Writes success return to client.
-  void write_success_envelope (exceptional_executor x, functor on_success);
+  void write_success_envelope (std::function<void()> on_success);
 
   /// POST parameters key/value.
   vector<tuple<string, string>> _parameters;

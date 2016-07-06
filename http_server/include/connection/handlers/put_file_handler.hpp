@@ -47,26 +47,25 @@ public:
   put_file_handler (class connection * connection, class request * request);
 
   /// Handles the given request.
-  virtual void handle (exceptional_executor x, functor on_success) override;
+  virtual void handle (std::function<void()> on_success) override;
 
 private:
 
   /// Saves content of request to the specified file.
-  void save_request_content (path filename, exceptional_executor x, functor on_success);
+  void save_request_content (path filename, std::function<void()> on_success);
 
   /// Write request content to file.
   void save_request_content_to_file (shared_ptr<std::ofstream> file_ptr,
                                      shared_ptr<istream> socket_stream_ptr,
                                      size_t content_length,
                                      exceptional_executor x,
-                                     exceptional_executor x2,
-                                     functor on_success);
+                                     std::function<void()> on_success);
 
   /// Returns Content-Length of request, and verifies there is any content, and that request is not malformed.
   size_t get_content_length ();
 
   /// Writes success return to client.
-  void write_success_envelope (exceptional_executor x, functor on_success);
+  void write_success_envelope (std::function<void()> on_success);
 
 
   /// Buffer used for reading content from socket.

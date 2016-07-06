@@ -34,7 +34,8 @@ connection_ptr connection::create (class server * server, socket_ptr socket)
 connection::connection (class server * server, socket_ptr socket)
   : _server (server),
     _socket (socket),
-    _timer (server->service())
+    _timer (server->service()),
+    _client_address (socket->remote_endpoint().address())
 { }
 
 
@@ -43,24 +44,9 @@ void connection::handle()
   // Setting deadline timer to "keep-alive" value.
   set_deadline_timer (_server->configuration().get<size_t> ("connection-keep-alive-timeout", 20));
 
-  // Making sure we pass in a shared_ptr copy of this to function of exceptional_executor, and on_success function,
-  // to make sure connection is not destroyed, before exceptional_executor and on_success for sure is released, or invoked.
-  auto self = shared_from_this ();
-
-  // Creating a new request on the current connection, and handle it, with an exceptional_executor
-  // giving guarantee of destroying the connection, if an exception occurs.
+  // Creating a new request on the current connection, and handling it.
   _request = request::create (this);
-  _request->handle (exceptional_executor ([this, self] () {
-
-    // Closing connection.
-    ensure_close ();
-  }), [this, self] (auto x) {
-
-    // Invoked when request is finished handled.
-    // Releasing exceptional_executor, and invoking handle(), to wait for next request coming from client.
-    x.release();
-    handle();
-  });
+  _request->handle ();
 }
 
 
@@ -76,35 +62,29 @@ void connection::set_deadline_timer (int seconds)
     // Updating the timer's expiration, which will implicitly invoke any existing handlers, with an "operation aborted" error code.
     _timer.expires_from_now (boost::posix_time::seconds (seconds));
 
+    // Making sure we pass in a shared_ptr copy of this to function of exceptional_executor, and on_success() callback.
+    auto self (shared_from_this ());
+
     // Associating a handler with deadline timer, that ensures the closing of connection if it kicks in, unless timer is aborted.
-    _timer.async_wait ([this] (auto error) {
+    _timer.async_wait ([this, self] (auto error) {
 
       // We don't close if the operation was aborted, since when timer is canceled, the handler will be invoked with
       // the "aborted" error_code, and every time we change the deadline timer, or cancel() the timer,
       // we implicitly invoke any existing handlers.
       if (error != error::operation_aborted)
-        ensure_close ();
+        close ();
     });
   }
 }
 
 
-void connection::ensure_close()
+void connection::close()
 {
-  // Closing socket gracefully, if it is open.
-  if (_socket->is_open ()) {
-
-    // Killing deadline timer.
-    _timer.cancel ();
-
-    // Making sure we delete connection from server's list of connections.
-    _server->remove_connection (shared_from_this());
-
-    // Socket is still open, making sure we close it, gracefully.
-    error_code ec;
-    _socket->shutdown (ip::tcp::socket::shutdown_both, ec);
-    _socket->close();
-  }
+  // Killing deadline timer, removing connection, and closing socket..
+  _timer.cancel ();
+  _socket->close();
+  auto self (shared_from_this ());
+  _server->remove_connection (self);
 }
 
 

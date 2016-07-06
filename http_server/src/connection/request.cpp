@@ -43,52 +43,39 @@ request::request (connection * connection)
 { }
 
 
-// Notice, if this method is successful, through all layers, it will invoke the given on_success() function, passing in
-// the "x" parameter. If not, then "x", which is an exceptional_executor, will be executed, to make sure we
-// clean up things, if some exception, etc, occurs. This creates a guarantee of that connection will be closed,
-// if any of the layers, from this point and inwards, raises an exception. Since the "x" parameter is passed into
-// all layers, with its copy semantics, that mimics the old auto_ptr class from C++, from this point and inwards,
-// we have a guarantee of that "x" will be executed, unless we reach the point where on_success() can be safely invoked.
-// This lets the method that invokes this method decide what to do, both if an exception occurs, and if success is reached.
-void request::handle (exceptional_executor x, functor on_success)
+void request::handle ()
 {
-  // Reading envelope, passing in reference to "self"
-  _envelope.read (x, [this, on_success] (auto x) {
+  // Reading envelope.
+  _envelope.read ([this] () {
 
     // Killing deadline timer while we handle request.
     _connection->set_deadline_timer (-1);
-
-    // Now reading of envelope is done, and we can let our request_handler take care of the rest from here.
     _request_handler = create_request_handler (_connection, this);
-
-    // Letting request_handler take over from here.
-    _request_handler->handle (x, [this, on_success] (auto x) {
+    _request_handler->handle ([this] () {
 
       // Request is now finished handled, and we need to determine if we should keep connection alive or not.
-      if (_envelope.header ("Connection") != "close") {
+      if (_envelope.header ("Connection") == "close") {
 
-        // Invoking on_success callback.
-        on_success (x);
-      } // else - x goes out of scope, and releases connection, and all resources associated with it ...
+        // Closing connection
+        _connection->close();
+      } else {
+
+        // Keep-Alive Connection.
+        _connection->handle();
+      }
     });
   });
 }
 
 
-void request::write_error_response (exceptional_executor x, int status_code)
+void request::write_error_response (int status_code)
 {
   // Creating an error handler.
-  auto handler = create_request_handler (_connection, this, status_code);
+  _request_handler = create_request_handler (_connection, this, status_code);
+  _request_handler->handle ([this] () {
 
-  // Making sure we actually got something back.
-  if (handler == nullptr)
-    return; // Letting x go out of scope.
-
-  // Storing request handler smart pointer
-  _request_handler = handler;
-  _request_handler->handle (x, [this] (auto x) {
-
-    // Simply letting x go out of scope, to close down connection, and clean things up.
+    // Closing connection on everything that are error requests.
+    _connection->close();
   });
 }
 

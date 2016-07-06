@@ -39,7 +39,7 @@ request_file_handler::request_file_handler (class connection * connection, class
 { }
 
 
-void request_file_handler::write_file_headers (path filepath, bool last_modified, exceptional_executor x, functor on_success)
+void request_file_handler::write_file_headers (path filepath, bool last_modified, std::function<void()> on_success)
 {
   // Figuring out size of file, and making sure it's not larger than what we are allowed to handle according to configuration of server.
   size_t size = file_size (filepath);
@@ -49,70 +49,29 @@ void request_file_handler::write_file_headers (path filepath, bool last_modified
   if (mime_type == "") {
 
     // File type is not served according to configuration of server.
-    request()->write_error_response (x, 403);
-    return;
-  }
+    request()->write_error_response (403);
+  } else {
 
-  // Building our standard response headers for a file transfer.
-  collection headers {
-    {"Content-Type", mime_type},
-    {"Content-Length", boost::lexical_cast<string> (size)}};
+    // Building our standard response headers for a file transfer.
+    collection headers {
+      {"Content-Type", mime_type},
+      {"Content-Length", boost::lexical_cast<string> (size)}};
 
-  // Checking if caller wants to add "Las-Modified" header to envelope.
-  if (last_modified)
-    headers.push_back ({"Last-Modified", date::from_path_change (filepath).to_string ()});
+    // Checking if caller wants to add "Las-Modified" header to envelope.
+    if (last_modified)
+      headers.push_back ({"Last-Modified", date::from_path_change (filepath).to_string ()});
 
-  // Writing special handler headers to connection.
-  write_headers (headers, x, [this, on_success] (auto x) {
+    // Writing special handler headers to connection.
+    write_headers (headers, [this, on_success] () {
 
-    // Invoking on_success() supplied by caller.
-    on_success (x);
-  });
-}
-
-
-void request_file_handler::write_file (path filepath, unsigned int status_code, bool last_modified, exceptional_executor x, functor on_success)
-{
-  // Making things slightly more tidy in here.
-  using namespace std;
-
-  // Retrieving MIME type, and verifying this is a type of file we actually serve.
-  string mime_type = get_mime (filepath);
-  if (mime_type == "") {
-
-    // File type is not served according to configuration of server.
-    request()->write_error_response (x, 403);
-    return;
-  }
-
-  // Writing status code.
-  write_status (status_code, x, [this, filepath, on_success, last_modified] (auto x) {
-
-    // Writing special file headers back to client.
-    write_file_headers (filepath, last_modified, x, [this, filepath, on_success] (auto x) {
-
-      // Writing standard headers to client.
-      write_standard_headers (x, [this, filepath, on_success] (auto x) {
-
-        // Make sure we close envelope.
-        ensure_envelope_finished (x, [this, filepath, on_success] (auto x) {
-
-          // Opening up file, as a shared_ptr, passing it into write_file(),
-          // such that file stays around, until all bytes have been written.
-          shared_ptr<std::ifstream> fs_ptr = make_shared<std::ifstream> (filepath.string (), ios::in | ios::binary);
-          if (!fs_ptr->good())
-            throw request_exception ("Couldn't open file; '" + filepath.string () + "' for reading.");
-
-          // Writing actual file.
-          write_file (fs_ptr, x, on_success);
-        });
-      });
+      // Invoking on_success() supplied by caller.
+      on_success ();
     });
-  });
+  }
 }
 
 
-void request_file_handler::write_file (path filepath, unsigned int status_code, collection headers, exceptional_executor x, functor on_success)
+void request_file_handler::write_file (path filepath, unsigned int status_code, bool last_modified, std::function<void()> on_success)
 {
   // Making things slightly more tidy in here.
   using namespace std;
@@ -122,48 +81,97 @@ void request_file_handler::write_file (path filepath, unsigned int status_code, 
   if (mime_type == "") {
 
     // File type is not served according to configuration of server.
-    request()->write_error_response (x, 403);
-    return;
-  }
+    request()->write_error_response (403);
+  } else {
 
-  // Writing status code.
-  write_status (status_code, x, [this, filepath, headers, on_success] (auto x) {
+    // Writing status code.
+    write_status (status_code, [this, filepath, on_success, last_modified] () {
 
-    // Writing special file headers back to client.
-    write_file_headers (filepath, false, x, [this, filepath, headers, on_success] (auto x) {
-
-      // Writing extra headers.
-      write_headers (headers, x, [this, filepath, on_success] (auto x) {
+      // Writing special file headers back to client.
+      write_file_headers (filepath, last_modified, [this, filepath, on_success] () {
 
         // Writing standard headers to client.
-        write_standard_headers (x, [this, filepath, on_success] (auto x) {
+        write_standard_headers ([this, filepath, on_success] () {
 
           // Make sure we close envelope.
-          ensure_envelope_finished (x, [this, filepath, on_success] (auto x) {
+          ensure_envelope_finished ([this, filepath, on_success] () {
 
             // Opening up file, as a shared_ptr, passing it into write_file(),
             // such that file stays around, until all bytes have been written.
             shared_ptr<std::ifstream> fs_ptr = make_shared<std::ifstream> (filepath.string (), ios::in | ios::binary);
-            if (!fs_ptr->good())
-              throw request_exception ("Couldn't open file; '" + filepath.string () + "' for reading.");
+            if (!fs_ptr->good()) {
 
-            // Writing actual file.
-            write_file (fs_ptr, x, on_success);
+              // Oops, couldn't open file!
+              connection()->close();
+            } else {
+
+              // Writing actual file.
+              write_file (fs_ptr, on_success);
+            }
           });
         });
       });
     });
-  });
+  }
 }
 
 
-void request_file_handler::write_file (shared_ptr<std::ifstream> fs_ptr, exceptional_executor x, functor on_success)
+void request_file_handler::write_file (path filepath, unsigned int status_code, collection headers, std::function<void()> on_success)
+{
+  // Making things slightly more tidy in here.
+  using namespace std;
+
+  // Retrieving MIME type, and verifying this is a type of file we actually serve.
+  string mime_type = get_mime (filepath);
+  if (mime_type == "") {
+
+    // File type is not served according to configuration of server.
+    request()->write_error_response (403);
+  } else {
+
+    // Writing status code.
+    write_status (status_code,[this, filepath, headers, on_success] () {
+
+      // Writing special file headers back to client.
+      write_file_headers (filepath, false, [this, filepath, headers, on_success] () {
+
+        // Writing extra headers.
+        write_headers (headers, [this, filepath, on_success] () {
+
+          // Writing standard headers to client.
+          write_standard_headers ([this, filepath, on_success] () {
+
+            // Make sure we close envelope.
+            ensure_envelope_finished ([this, filepath, on_success] () {
+
+              // Opening up file, as a shared_ptr, passing it into write_file(),
+              // such that file stays around, until all bytes have been written.
+              shared_ptr<std::ifstream> fs_ptr = make_shared<std::ifstream> (filepath.string (), ios::in | ios::binary);
+              if (!fs_ptr->good()) {
+
+                // Oops, file couldn't open.
+                connection()->close();
+              } else {
+
+                // Writing actual file.
+                write_file (fs_ptr, on_success);
+              }
+            });
+          });
+        });
+      });
+    });
+  }
+}
+
+
+void request_file_handler::write_file (shared_ptr<std::ifstream> fs_ptr, std::function<void()> on_success)
 {
   // Checking if we're done.
   if (fs_ptr->eof()) {
 
     // Yup, we're done!
-    on_success (x);
+    on_success ();
   } else {
 
     // Reading from file into array.
@@ -177,14 +185,18 @@ void request_file_handler::write_file (shared_ptr<std::ifstream> fs_ptr, excepti
     // socket, for then to invoke "self" multiple times, until entire file has been served over socket, back to client.
     // This conserves memory and resources on the server, but also makes sure the file is open for a longer period.
     // However, to make it possible to retrieve very large files, without completely exhausting the server's resources, this is our choice.
-    connection()->socket().async_write (bf, [this, on_success, x, fs_ptr] (auto error, auto bytes_written) {
+    connection()->socket().async_write (bf, [this, on_success, fs_ptr] (auto error, auto bytes_written) {
 
       // Sanity check.
-      if (error)
-        throw request_exception ("Socket error while writing file.");
+      if (error) {
 
-      // Invoking self.
-      write_file (fs_ptr, x, on_success);
+        // Something went wrong.
+        connection()->close();
+      } else {
+
+        // So far, so good.
+        write_file (fs_ptr, on_success);
+      }
     });
   }
 }
