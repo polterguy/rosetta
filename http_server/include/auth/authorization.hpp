@@ -22,7 +22,6 @@
 #include <map>
 #include <boost/filesystem.hpp>
 #include <boost/noncopyable.hpp>
-#include <boost/thread/thread.hpp>
 #include "http_server/include/auth/authentication.hpp"
 
 using std::set;
@@ -63,9 +62,6 @@ private:
   /// Implementation of authorizing a client's ticket.
   bool authorize_implementation (const authentication::ticket & ticket, class path path, const string & verb) const;
 
-  /// Implementation of update.
-  void update_implementation (class path path, const string & verb, const string & new_value);
-
   /// Initializes authorization object.
   void initialize (const path folder);
 
@@ -75,9 +71,6 @@ private:
 
   /// Folders with explicit access rights.
   access_right _access;
-
-  /// Synchronization object for making sure write operations are atomic.
-  mutable boost::shared_mutex _lock;
 };
 
 

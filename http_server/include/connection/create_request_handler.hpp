@@ -25,7 +25,10 @@ namespace rosetta {
 namespace http_server {
 
 class request;
+
 class connection;
+typedef std::shared_ptr<connection> connection_ptr;
+
 class request_handler_base;
 typedef std::shared_ptr<request_handler_base> request_handler_ptr;
 

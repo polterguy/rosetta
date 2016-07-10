@@ -19,10 +19,8 @@
 #define ROSETTA_SERVER_REQUEST_HPP
 
 #include <memory>
-#include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/request_envelope.hpp"
 #include "http_server/include/connection/create_request_handler.hpp"
-#include "http_server/include/connection/handlers/request_handler_base.hpp"
 
 namespace rosetta {
 namespace http_server {
@@ -30,19 +28,16 @@ namespace http_server {
 class connection;
 typedef std::shared_ptr<connection> connection_ptr;
 
-class request;
-typedef std::shared_ptr<request> request_ptr;
-
 
 /// Wraps a single HTTP request.
-class request : public std::enable_shared_from_this<request>, public boost::noncopyable
+class request
 {
 public:
 
-  /// Creates a new request, and returns as a shared_ptr.
-  static request_ptr create ();
+  /// Creates a new request.
+  request ();
 
-  /// Handles a request, and invokes the given function when finished.
+  /// Handles a request, on the given connection.
   void handle (connection_ptr connection);
 
   /// Returns the envelope of the request.
@@ -52,10 +47,6 @@ public:
   void write_error_response (connection_ptr connection, int status_code);
 
 private:
-
-  /// Creates an instance of this class on the given connection. Private to ensure factory method is used.
-  request ();
-
 
   /// Envelope for request, HTTP-Request line, HTTP headers and GET parameters.
   request_envelope _envelope;

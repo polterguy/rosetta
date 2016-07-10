@@ -19,7 +19,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 #include "http_server/include/server.hpp"
-#include "http_server/include/multi_thread_server.hpp"
 #include "http_server/include/connection/connection.hpp"
 #include "http_server/include/exceptions/request_exception.hpp"
 
@@ -34,30 +33,9 @@ namespace http_server {
 static char const * const ADDRESS_CONFIG_KEY = "address";
 static char const * const PORT_CONFIG_KEY = "port";
 static char const * const SSL_PORT_CONFIG_KEY = "ssl-port";
-static char const * const THREAD_MODEL_CONFIG_KEY = "thread-model";
 static char const * const CERT_FILE = "ssl-certificate";
 static char const * const PRIVATE_KEY_FILE = "ssl-private-key";
 static char const * const SSL_HANDSHAKE_TIMEOUT = "connection-ssl-handshake-timeout";
-
-
-server_ptr server::create (const class configuration & configuration)
-{
-  string thread_model = configuration.get<string> (THREAD_MODEL_CONFIG_KEY, "thread-model");
-
-  if (thread_model == "single-thread") {
-
-    // Single threaded server.
-    return server_ptr (std::make_shared<server> (configuration));
-  } else if (thread_model == "thread-pool") {
-
-    // Thread pool server.
-    return server_ptr (std::make_shared<thread_pool_server> (configuration));
-  } else {
-
-    // Unknown server thread model.
-    throw configuration_exception ("Unknown thread-model setting found in configuration file; '" + thread_model + "'");
-  }
-}
 
 
 server::server (const class configuration & configuration)
@@ -66,7 +44,6 @@ server::server (const class configuration & configuration)
     _acceptor (_service),
     _acceptor_ssl (_service),
     _context (ssl::context::sslv23),
-    _authentication (_service),
     _authorization (configuration.get<path> ("www-root", "www-root"))
 {
   // Register quit signals.
@@ -119,7 +96,7 @@ void server::run ()
 }
 
 
-void server::create_connection (socket_ptr socket, std::function<void(connection_ptr c)> on_success)
+connection_ptr server::create_connection (socket_ptr socket)
 {
   // Figuring out IP address for current connection.
   ip::address client_address = socket->remote_endpoint().address();
@@ -143,7 +120,7 @@ void server::create_connection (socket_ptr socket, std::function<void(connection
   // Creating a new connection as a shared pointer, and putting it into our list of connections.
   connection_ptr connection = connection::create (this, socket);
   client_connections.insert (connection);
-  on_success (connection);
+  return connection;
 }
 
 
@@ -240,9 +217,7 @@ void server::on_accept ()
     if (!error) {
 
       // Creating connection and handling it.
-      create_connection (socket_ptr, [] (connection_ptr connection) {
-        connection->handle ();
-      });
+      create_connection (socket_ptr)->handle();
     }
   });
 }
@@ -287,15 +262,13 @@ void server::on_accept_ssl ()
       socket->ssl_stream().async_handshake (ssl::stream_base::server, [this, socket, handshake_timer] (const error_code & error) {
 
         // Verifying nothing went sour.
-        if (error != error::operation_aborted) {
+        if (!error) {
 
           // Canceling handshake timeout.
           handshake_timer->cancel ();
 
           // Creating connection and handling it.
-          create_connection (socket, [] (connection_ptr connection) {
-            connection->handle ();            
-          });
+          create_connection (socket)->handle();
         }
       });
     }

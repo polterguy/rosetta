@@ -15,13 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <boost/asio.hpp>
-#include <boost/filesystem.hpp>
-#include "http_server/include/server.hpp"
+#include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
-#include "http_server/include/exceptions/request_exception.hpp"
 #include "http_server/include/connection/create_request_handler.hpp"
+#include "http_server/include/connection/handlers/request_handler_base.hpp"
 
 namespace rosetta {
 namespace http_server {
@@ -29,12 +27,6 @@ namespace http_server {
 using std::string;
 using boost::system::error_code;
 using namespace rosetta::common;
-
-
-request_ptr request::create ()
-{
-  return std::shared_ptr<request> (new request ());
-}
 
 
 request::request ()
@@ -46,6 +38,9 @@ void request::handle (connection_ptr connection)
 {
   // Reading envelope.
   _envelope.read (connection, [this, connection] () {
+
+    // Making sure connection is closed, in case an exception occurs.
+    exceptional_executor x ([connection] () {connection->close ();});
 
     // Killing deadline timer while we handle request.
     connection->set_deadline_timer (-1);
@@ -63,6 +58,9 @@ void request::handle (connection_ptr connection)
         connection->handle();
       }
     });
+
+    // Releasing exception helper.
+    x.release();
   });
 }
 

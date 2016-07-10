@@ -75,7 +75,7 @@ void post_authorization_handler::evaluate (connection_ptr connection)
   string value = std::get<1> (*value_iter);
 
   // Updating authorization file for current path.
-  connection->server()->authorization().update (request()->envelope().path(), verb, value);
+  connection->server()->authorization().update (request()->envelope().path().parent_path(), verb, value);
 }
 
 

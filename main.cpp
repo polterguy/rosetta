@@ -69,7 +69,7 @@ int main (int argc, char * argv[])
     }
 
     // Creating server object.
-    server_ptr server (server::create (config));
+    server server_instance (config);
 
     // Showing copyright and server info to std out.
     show_copyright_server_info (config);
@@ -77,7 +77,7 @@ int main (int argc, char * argv[])
     // Starting server.
     // This method won't return before server is somehow stopped, or a severe exception,
     // that we do not know how to handle occurs.
-    server->run();
+    server_instance.run();
   } catch (const std::exception & err) {
     
     // Giving feedback to std error with exception message.
@@ -101,25 +101,10 @@ void show_copyright_server_info (const configuration & config)
     while (s.size() < 79) { s += " "; }
     stream << s << "#" << endl;
 
-    // Serializing thread model.
-    string thread_model = config.get<string> ("thread-model");
-    s = "# Thread model is; '" + thread_model + "'";
-    while (s.size() < 79) { s += " "; }
-    stream << s << "#" << endl;
-
-    // Serializing thread model.
+    // Serializing boost version.
     s = "# Boost version; '" + string (BOOST_LIB_VERSION) + "'";
     while (s.size() < 79) { s += " "; }
     stream << s << "#" << endl;
-
-    // If thread-model is "multi-thread", we serialize the number of threads for server.
-    if (thread_model == "multi-thread") {
-
-      // Serializing number of threads.
-      s = "# Thread pool size; " + boost::lexical_cast<string> (config.get<size_t> ("threads"));
-      while (s.size() < 79) { s += " "; }
-      stream << s << "#" << endl;
-    }
   });
 }
 
@@ -176,8 +161,6 @@ void create_default_configuration_file()
   config.set ("address", "localhost");
   config.set ("port", 8080);
   config.set ("ssl-port", 8081);
-  config.set ("thread-model", "thread-pool");
-  config.set ("threads", 128);
   config.set ("www-root", "www-root");
   config.set ("ssl-certificate", "server.crt");
   config.set ("ssl-private-key", "server.key");

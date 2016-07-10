@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include "common/include/base64.hpp"
+#include "common/include/exceptional_executor.hpp"
 #include "http_server/include/server.hpp"
 #include "http_server/include/helpers/uri_encode.hpp"
 #include "http_server/include/helpers/match_condition.hpp"
@@ -71,11 +72,17 @@ void request_envelope::read (connection_ptr connection, std::function<void()> on
       _request->write_error_response (connection, 414);
     } else {
 
+      // Making sure connection is closed in case an exception occurs in the parsing of request line.
+      exceptional_executor x ([connection] () {connection->close ();});
+
       // Parsing request line, and verifying it's OK.
       parse_request_line (connection, get_line (connection->buffer()));
 
       // Reading headers.
       read_headers (connection, on_success);
+
+      // Releasing exception helper.
+      x.release();
     }
   });
 }
@@ -195,6 +202,9 @@ void request_envelope::read_headers (connection_ptr connection, std::function<vo
       _request->write_error_response (connection, 413);
     } else {
 
+      // Making sure we close connection, if an exception occurs.
+      exceptional_executor x ([connection] () {connection->close ();});
+
       // Now we can start parsing HTTP headers.
       string line = get_line (connection->buffer());
 
@@ -215,6 +225,9 @@ void request_envelope::read_headers (connection_ptr connection, std::function<vo
         parse_http_header_line (connection, line);
         read_headers (connection, on_success);
       }
+
+      // Releasing exception helper.
+      x.release();
     }
   });
 }

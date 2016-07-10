@@ -22,8 +22,6 @@
 #include <map>
 #include <memory>
 #include <functional>
-#include <boost/asio.hpp>
-#include <boost/asio/ssl.hpp>
 #include "common/include/configuration.hpp"
 #include "http_server/include/auth/authorization.hpp"
 #include "http_server/include/auth/authentication.hpp"
@@ -38,25 +36,19 @@ namespace http_server {
 class connection;
 typedef std::shared_ptr<connection> connection_ptr;
 
-class server;
-typedef std::shared_ptr<server> server_ptr;
-
 typedef std::shared_ptr<rosetta_socket> socket_ptr;
 
 
 /// This is the main server object, and there will only be one server running in your application.
-class server : public boost::noncopyable
+class server final : public boost::noncopyable
 {
 public:
 
   /// Creates a server instance.
   server (const class configuration & configuration);
 
-  /// Creates a server object of type according to settings.
-  static server_ptr create (const configuration & configuration);
-
   /// Starts the server.
-  virtual void run ();
+  void run ();
 
   /// Returns the configuration for our server.
   const class configuration & configuration () const { return _configuration; };
@@ -65,7 +57,7 @@ public:
   io_service & service () { return _service; }
 
   /// Removes the specified connection.
-  virtual void remove_connection (connection_ptr connection);
+  void remove_connection (connection_ptr connection);
 
   /// Returns the authorization object for server
   const class authorization & authorization () const { return _authorization; }
@@ -75,12 +67,10 @@ public:
   const class authentication & authentication () const { return _authentication; }
   class authentication & authentication () { return _authentication; }
 
-protected:
+private:
 
   /// Starts a connection on the given socket.
-  virtual void create_connection (socket_ptr socket, std::function<void(connection_ptr c)> on_success);
-
-private:
+  connection_ptr create_connection (socket_ptr socket);
 
   /// Sets up HTTP (non-SSL) server, to start accepting normal HTTP requests.
   void setup_http_server ();

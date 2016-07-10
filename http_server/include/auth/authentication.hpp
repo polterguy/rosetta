@@ -23,7 +23,6 @@
 #include <functional>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/thread/thread.hpp>
 
 using std::string;
 using namespace boost::asio;
@@ -33,8 +32,6 @@ namespace rosetta {
 namespace http_server {
 
 class server;
-
-typedef std::function<void(bool)> success_handler;
 
 
 /// Responsible for authenticate a client.
@@ -71,7 +68,7 @@ private:
   friend class server;
 
   /// Creates an authentication instance.
-  authentication (io_service & service);
+  authentication ();
 
   /// Wraps a single user in system
   struct user final
@@ -87,15 +84,6 @@ private:
 
   /// Users, with their usernames and roles.
   std::map<string, user> _users;
-
-  /// Synchronization object for making sure write operations are atomic.
-  mutable boost::shared_mutex _lock;
-
-  /// io_service this instance belongs to.
-  io_service & _service;
-
-  /// True if authentication file is already on its way to being saved.
-  bool _file_save_in_progress;
 };
 
 

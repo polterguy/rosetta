@@ -21,15 +21,13 @@
 #include <memory>
 #include <boost/asio.hpp>
 #include "http_server/include/server.hpp"
+#include "http_server/include/connection/request.hpp"
 
 namespace rosetta {
 namespace http_server {
 
 class connection;
 typedef std::shared_ptr<connection> connection_ptr;
-
-class request;
-typedef std::shared_ptr<request> request_ptr;
 
 
 /// Wraps a connection to our server.
@@ -85,7 +83,7 @@ private:
   boost::asio::streambuf _buffer;
 
   /// Request for connection.
-  request_ptr _request;
+  request _request;
   
   /// Since we potentially need this one after socket is actually closed, we need to store it in here.
   ip::address _client_address;

@@ -27,9 +27,6 @@ using std::vector;
 using std::getline;
 using boost::trim;
 using boost::split;
-using boost::shared_lock;
-using boost::unique_lock;
-using boost::shared_mutex;
 
 namespace rosetta {
 namespace http_server {
@@ -128,9 +125,7 @@ bool authorization::authorize (const authentication::ticket & ticket, class path
     return true;
   } else {
 
-    // Invoking implementation of authorization logic, making sure we do this in a shared lock, partially synchronized, to prevent
-    // write operations from accessing object while we read.
-    shared_lock<shared_mutex> lock (_lock);
+    // Invoking implementation of authorization logic.
     return authorize_implementation (ticket, path, verb);
   }
 }
@@ -198,15 +193,40 @@ void authorization::update (class path path, const string & verb, const string &
   if (verb != "GET" && verb != "PUT" && verb != "DELETE" && verb != "TRACE" && verb != "HEAD")
     throw security_exception ("Illegal verb."); // Notice, POST cannot have its access rights changed.
 
-  // Doing actual update, making sure we do this in a unique_lock, to synchronize access to object, such that no read operations
-  // can be executed concurrently.
-  unique_lock<shared_mutex> lock (_lock);
-  update_implementation (path, verb, new_value);
-}
+  // Doing actual update, first erasing old value for verb.
+  verb_roles & roles_for_verb = _access [path.string()];
+  auto existing_iter = roles_for_verb.find (verb);
+  if (existing_iter != roles_for_verb.end())
+    roles_for_verb.erase (existing_iter);
 
+  // Then adding new value for verb.
+  vector<string> roles;
+  split (roles, new_value, boost::is_any_of ("|"));
+  roles.erase (std::find (roles.begin(), roles.end(), ""));
 
-void authorization::update_implementation (class path path, const string & verb, const string & new_value)
-{
+  // Looping through all roles supplied by caller.
+  auto & roles_set = roles_for_verb [verb];
+  for (auto & idxRole : roles) {
+    roles_set.insert (idxRole);
+  }
+
+  // Saving updated authorization file to disc.
+  path += "/.auth";
+  ofstream fs (path, std::ios::trunc | std::ios::out);
+  if (!fs.good())
+    throw security_exception ("Couldn't open authorization file for writing.");
+  for (auto & idxVerb : roles_for_verb) {
+    fs << idxVerb.first << ":";
+    bool first = true;
+    for (auto & idxRole : idxVerb.second) {
+      if (first)
+        first = false;
+      else
+        fs << "|";
+      fs << idxRole;
+    }
+    fs << std::endl;
+  }
 }
 
 

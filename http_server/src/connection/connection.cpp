@@ -45,9 +45,9 @@ void connection::handle()
   // Setting deadline timer to "keep-alive" value.
   set_deadline_timer (_server->configuration().get<size_t> ("connection-keep-alive-timeout", 20));
 
-  // Creating a new request on the current connection, and handling it.
-  _request = request::create ();
-  _request->handle (shared_from_this());
+  // Creating a new request, and handling it on the current connection.
+  _request = request();
+  _request.handle (shared_from_this());
 }
 
 
@@ -68,7 +68,7 @@ void connection::set_deadline_timer (int seconds)
 
       // We don't close if the operation was aborted, since when timer is canceled, the handler will be invoked with
       // the "aborted" error_code, and every time we change the deadline timer, or cancel() the timer,
-      // we implicitly invoke any existing handlers.
+        // we implicitly invoke any existing handlers.
       if (error != error::operation_aborted)
         close ();
     });
@@ -83,14 +83,15 @@ void connection::close()
 
   // Removing connection from server, which means that as async handlers are invoked, with an error, due to socket being closed,
   // all shared_ptrs will be destroyed, until there are no more of them left.
-  _server->remove_connection (shared_from_this());
+  auto self = shared_from_this();
+  _server->remove_connection (self);
 
   // Closing socket gracefully, if it is open.
   if (_socket->is_open()) {
 
     // Socket still open, shutting down, and closing.
     boost::system::error_code ignored;
-    _socket->shutdown(socket_base::shutdown_type::shutdown_both, ignored);
+    _socket->shutdown (socket_base::shutdown_type::shutdown_both, ignored);
     _socket->close();
   }
 }

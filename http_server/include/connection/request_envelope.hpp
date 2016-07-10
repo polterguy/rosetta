@@ -18,13 +18,11 @@
 #ifndef ROSETTA_SERVER_REQUEST_ENVELOPE_HPP
 #define ROSETTA_SERVER_REQUEST_ENVELOPE_HPP
 
-#include <map>
 #include <tuple>
 #include <string>
 #include <vector>
 #include <functional>
 #include <boost/filesystem.hpp>
-#include "common/include/exceptional_executor.hpp"
 #include "http_server/include/auth/authentication.hpp"
 
 namespace rosetta {
@@ -32,7 +30,6 @@ namespace http_server {
 
 using std::string;
 using namespace boost::filesystem;
-using namespace rosetta::common;
 
 class connection;
 typedef std::shared_ptr<connection> connection_ptr;

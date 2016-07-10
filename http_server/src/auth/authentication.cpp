@@ -29,17 +29,12 @@ using std::vector;
 using std::getline;
 using boost::trim;
 using boost::split;
-using boost::shared_lock;
-using boost::unique_lock;
-using boost::shared_mutex;
 
 namespace rosetta {
 namespace http_server {
 
 
-authentication::authentication (io_service & service)
-  : _service (service),
-    _file_save_in_progress (false)
+authentication::authentication ()
 {
   // Opening authentication file given.
   ifstream auth_file (".users");
@@ -80,9 +75,6 @@ authentication::ticket authentication::authenticate (const string & username, co
   string base64_password;
   base64::encode ( {sha1.begin(), sha1.end()}, base64_password);
 
-  // Making sure we synchronize access to users, in a shared_lock, allowing multiple readers, but none while write operation is executed.
-  shared_lock<shared_mutex> lock (_lock);
-
   // Finding user with username and password combination
   auto user_iter = _users.find (username);
   if (user_iter == _users.end() || user_iter->second.password != base64_password) {
@@ -105,9 +97,6 @@ void authentication::change_password (const string & username, const string & pa
   string base64_password;
   base64::encode ( {sha1.begin(), sha1.end()}, base64_password);
 
-  // Making sure we synchronize access to users, in a unique_lock, to prevent any other read/write operations to execute concurrently.
-  unique_lock<shared_mutex> lock (_lock);
-
   // Finding user with username and password combination
   auto user_iter = _users.find (username);
   if (user_iter != _users.end()) {
@@ -125,9 +114,6 @@ void authentication::change_password (const string & username, const string & pa
 
 void authentication::change_role (const string & username, const string & role)
 {
-  // Making sure we synchronize access to users, in a unique_lock, to prevent any other read/write operations while this one is executed.
-  unique_lock<shared_mutex> lock (_lock);
-
   // Finding user with username and password combination
   auto user_iter = _users.find (username);
   if (user_iter != _users.end()) {
@@ -151,9 +137,6 @@ void authentication::create_user (const string & username, const string & passwo
   string base64_password;
   base64::encode ( {sha1.begin(), sha1.end()}, base64_password);
 
-  // Making sure we synchronize access to users, in a unique_lock, to prevent any other read/write operations while this one is executed.
-  unique_lock<shared_mutex> lock (_lock);
-
   // Checking if user with the same name exists from before.
   auto user_iter = _users.find (username);
   if (user_iter == _users.end()) {
@@ -171,9 +154,6 @@ void authentication::create_user (const string & username, const string & passwo
 
 void authentication::delete_user (const string & username)
 {
-  // Making sure we synchronize access to users, in a unique_lock, to prevent any other read/write operations while this one is executed.
-  unique_lock<shared_mutex> lock (_lock);
-
   // Checking if user exists.
   auto user_iter = _users.find (username);
   if (user_iter != _users.end()) {
@@ -189,59 +169,15 @@ void authentication::delete_user (const string & username)
 }
 
 
-// Explanation;
-// When we enter this method, we're inside a unique_lock, which we need while updating the users database in memory.
-// However, we want to release this lock ASAP.
-// Hence, what we do, is to set a boolean, signaling to other threads, that file is already on its way to being saved.
-// If another thread then invokes this method, before file actually has been physically saved to disc, then it will
-// see that the boolean value is true, hence it will not post its own save() function as a future, making us get away
-// with one save(), possibly for multiple updates to the database.
-// In addition, since the actual save() implementation is actually only reading the memory, and never actually modifying
-// the database, which is kept in memory, the save() method only requires in fact a shared_lock, allowing other readers
-// to gain access to the database, as long as they are only reading from it.
-// This allows us to get away with having a unique_lock that *ONLY* locks the database, while it is modifying the data in
-// memory, and not while it is saving whatever it has in memory to disc.
-// This again, results in a *TINY* lock, which is extremely short, and hence does not lock down access to the users database,
-// for a long time, and in fact only while memory is being changed.
-// So basically, a thread that tries to invoke save(), before another thread had its save() executed, will simply return
-// immediately, without initiating a save() operation of its own.
-//
-// Or to explain it really, really simple;
-// Writing the users database to disc is not a "lock operation", "locking" only occurs when changing its values in memory!
-//
-// Simply put; Fucking Brilliant!! ;)
 void authentication::save ()
 {
-  // This might make us get away with one save operation, for multiples changes, since there is no reasons to post work,
-  // saving the file, if another thread did the same thing, and its save method was still not executed.
-  // Notice, we're still inside a "unique_lock" at this point, so changing the boolean is safe!
-  if (_file_save_in_progress)
-    return;
-  _file_save_in_progress = true;
-
-  // Notice, to release lock ASAP, we post this as "future work" to io_service.
-  _service.post ([this] () {
-
-    // Making sure we synchronize access to users, in a shared_lock, allowing multiple readers,
-    // but none while any change operations are executed.
-    // This prevents another "change" operation to enter, while this one is being performed, while
-    // still allowing other "read" operations to enter.
-    // Making our locks *TINY*!!
-    shared_lock<shared_mutex> lock (_lock);
-
-    // Saving file.
-    ofstream fs (".users", std::ios::trunc | std::ios::out);
-    if (!fs.good ())
-      throw server_exception ("Couldn't open authentication file for writing.");
-    for (auto & idx : _users) {
-      fs << idx.first << ":" << idx.second.password << ":" << idx.second.role << std::endl;
-    }
-
-    // Signaling to other threads that they must post their own save() functions to have file saved.
-    // Notice, due to the shared_lock above in this function, it's really quite irrelevant exactly where in
-    // this method we are changing this boolean value.
-    _file_save_in_progress = false;
-  });
+  // Saving file.
+  ofstream fs (".users", std::ios::trunc | std::ios::out);
+  if (!fs.good ())
+    throw server_exception ("Couldn't open authentication file for writing.");
+  for (auto & idx : _users) {
+    fs << idx.first << ":" << idx.second.password << ":" << idx.second.role << std::endl;
+  }
 }
 
 
