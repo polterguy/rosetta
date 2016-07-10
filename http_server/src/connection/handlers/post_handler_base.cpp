@@ -39,7 +39,7 @@ using namespace rosetta::common;
 
 
 post_handler_base::post_handler_base (class request * request)
-  : request_handler_base (request)
+  : content_request_handler (request)
 { }
 
 
@@ -68,6 +68,9 @@ void post_handler_base::handle (connection_ptr connection, std::function<void()>
         // Something went wrong.
         connection->close();
       } else {
+
+        // Making sure connection is closed, in case an exception occurs.
+        exceptional_executor x ([connection] () {connection->close ();});
 
         // Reading content into stream;
         istream stream (&connection->buffer());
@@ -104,49 +107,11 @@ void post_handler_base::handle (connection_ptr connection, std::function<void()>
 
         // Evaluates request, now that we have the data supplied by client.
         on_success ();
+
+        // Releasing exception handler.
+        x.release();
       }
     });
-  }
-}
-
-
-void post_handler_base::write_success_envelope (connection_ptr connection, std::function<void()> on_success)
-{
-  // Writing status code success back to client.
-  write_status (connection, 200, [this, connection, on_success] () {
-
-    // Writing standard headers back to client.
-    write_standard_headers (connection, [this, connection, on_success] () {
-
-      // Ensuring envelope is closed.
-      ensure_envelope_finished (connection, on_success);
-    });
-  });
-}
-
-
-size_t post_handler_base::get_content_length (connection_ptr connection)
-{
-  // Max allowed length of content.
-  const size_t MAX_POST_REQUEST_CONTENT_LENGTH = connection->server()->configuration().get<size_t> ("max-request-content-length", 4096);
-
-  // Checking if there is any content first.
-  string content_length_str = request()->envelope().header ("Content-Length");
-
-  // Checking if there is any Content-Length
-  if (content_length_str.size() == 0) {
-
-    // No content.
-    return 0;
-  } else {
-
-    // Checking that Content-Length does not exceed max request content length.
-    auto content_length = boost::lexical_cast<size_t> (content_length_str);
-    if (content_length > MAX_POST_REQUEST_CONTENT_LENGTH)
-      return 0;
-
-    // Returning Content-Length to caller.
-    return content_length;
   }
 }
 

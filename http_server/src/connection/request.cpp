@@ -67,6 +67,9 @@ void request::handle (connection_ptr connection)
 
 void request::write_error_response (connection_ptr connection, int status_code)
 {
+  // Making sure connection is closed, in case an exception occurs.
+  exceptional_executor x ([connection] () {connection->close ();});
+
   // Creating an error handler.
   _request_handler = create_request_handler (connection, this, status_code);
   _request_handler->handle (connection, [this, connection] () {
@@ -74,6 +77,9 @@ void request::write_error_response (connection_ptr connection, int status_code)
     // Closing connection on everything that are error requests.
     connection->close();
   });
+
+  // Releasing exception helper.
+  x.release();
 }
 
 

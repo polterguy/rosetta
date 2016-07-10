@@ -46,20 +46,5 @@ void delete_handler::handle (connection_ptr connection, std::function<void()> on
 }
 
 
-void delete_handler::write_success_envelope (connection_ptr connection, std::function<void()> on_success)
-{
-  // Writing status code success back to client.
-  write_status (connection, 200, [this, connection, on_success] () {
-
-    // Writing standard headers back to client.
-    write_standard_headers (connection, [this, connection, on_success] () {
-
-      // Ensuring envelope is closed.
-      ensure_envelope_finished (connection, on_success);
-    });
-  });
-}
-
-
 } // namespace http_server
 } // namespace rosetta

@@ -123,7 +123,7 @@ void get_folder_handler::write_folder (connection_ptr connection, path folderpat
   while (idx != directory_iterator{}) {
 
     // Making sure we only display files that are served.
-    if (is_regular_file (*idx) && (get_mime (connection, idx->path().extension()) == "" || idx->path().filename().string().find_first_of (".") == 0)) {
+    if (is_regular_file (*idx)) {
 
       // Either file is not served, or it is an invisible file that starts with a "."
       // Regardless, we do not show these files, neither do we list them!

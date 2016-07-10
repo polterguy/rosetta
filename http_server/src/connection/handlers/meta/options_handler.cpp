@@ -37,9 +37,9 @@ options_handler::options_handler (class request * request)
 
 
 void options_handler::handle (connection_ptr connection, std::function<void()> on_success)
-{/*
+{
   // Writing status code.
-  write_status (200, x, [this, x, on_success] (auto x) {
+  write_status (connection, 200, [this, connection, on_success] () {
 
     // Building our request headers.
     collection headers {
@@ -47,16 +47,17 @@ void options_handler::handle (connection_ptr connection, std::function<void()> o
       {"Date", date::now ().to_string ()}};
 
     // Retrieving whether or not all possible verbs are allowed for resource.
-    auto & auth = connection()->server()->authorization();
+    auto & auth = connection->server()->authorization();
     auto ticket = request()->envelope().ticket();
     auto path = request()->envelope().path();
-    bool trace = connection()->server()->configuration().get<bool> ("trace-allowed", false) && auth.authorize (ticket, path, "TRACE");
-    bool head = connection()->server()->configuration().get<bool> ("head-allowed", false) && auth.authorize (ticket, path, "HEAD");
+    bool trace = connection->server()->configuration().get<bool> ("trace-allowed", false) && auth.authorize (ticket, path, "TRACE");
+    bool head = connection->server()->configuration().get<bool> ("head-allowed", false) && auth.authorize (ticket, path, "HEAD");
     bool get = auth.authorize (ticket, path, "GET");
     bool put = auth.authorize (ticket, path, "PUT") && (!exists (path) || auth.authorize (ticket, path, "DELETE"));
     bool del = auth.authorize (ticket, path, "DELETE");
+    bool post = auth.authorize (ticket, path, "POST");
     string allowed = "";
-    if (del && put && get && head && trace) {
+    if (post && del && put && get && head && trace) {
 
       // All verbs are allowed for resource.
       allowed = "*";
@@ -74,27 +75,29 @@ void options_handler::handle (connection_ptr connection, std::function<void()> o
         allowed += ", PUT";
       if (del)
         allowed += ", DELETE";
+      if (post)
+        allowed += ", POST";
     }
 
     // Adding "Allow" header to response.
     headers.push_back ( {"Allow", allowed} );
 
     // Writing HTTP headers to connection.
-    write_headers (headers, x, [this, on_success] (auto x) {
+    write_headers (connection, headers, [this, connection, on_success] () {
 
       // Writing standard headers.
-      write_standard_headers (x, [this, on_success] (auto x) {
+      write_standard_headers (connection, [this, connection, on_success] () {
 
         // Making sure we close envelope.
-        ensure_envelope_finished (x, [this, on_success] (auto x) {
+        ensure_envelope_finished (connection, [this, connection, on_success] () {
 
           // Invoking callback, signaling we're done.
-          on_success (x);
+          on_success ();
         });
       });
     });
   });
-*/}
+}
 
 
 } // namespace http_server

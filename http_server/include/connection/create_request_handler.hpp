@@ -15,11 +15,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROSETTA_SERVER_REQUEST_HANDLER_FACTORY_HPP
-#define ROSETTA_SERVER_REQUEST_HANDLER_FACTORY_HPP
+#ifndef ROSETTA_SERVER_CREATE_REQUEST_HANDLER_HPP
+#define ROSETTA_SERVER_CREATE_REQUEST_HANDLER_HPP
 
 #include <memory>
-#include <functional>
 
 namespace rosetta {
 namespace http_server {
@@ -40,4 +39,4 @@ request_handler_ptr create_request_handler (connection_ptr connection, class req
 } // namespace http_server
 } // namespace rosetta
 
-#endif // ROSETTA_SERVER_REQUEST_HANDLER_FACTORY_HPP
+#endif // ROSETTA_SERVER_CREATE_REQUEST_HANDLER_HPP

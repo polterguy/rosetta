@@ -15,36 +15,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROSETTA_SERVER_DELETE_HANDLER_HPP
-#define ROSETTA_SERVER_DELETE_HANDLER_HPP
+#ifndef ROSETTA_SERVER_CONTENT_REQUEST_HANDLER_HPP
+#define ROSETTA_SERVER_CONTENT_REQUEST_HANDLER_HPP
 
+#include <array>
+#include <fstream>
+#include <iostream>
 #include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
+
+using std::array;
+using std::string;
+using std::istream;
+using std::shared_ptr;
+using namespace rosetta::common;
 
 namespace rosetta {
 namespace http_server {
 
-using std::string;
-using namespace rosetta::common;
-
 class request;
-class connection;
 
 
-/// DELETE handler for static files.
-class delete_handler final : public request_handler_base
+/// PUT handler for static files.
+class content_request_handler : public request_handler_base
 {
 public:
 
-  /// Creates a static file handler.
-  delete_handler (class request * request);
+  /// Creates a PUT handler.
+  content_request_handler (class request * request);
 
-  /// Handles the given request.
-  virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
+protected:
+
+  /// Returns Content-Length of request, and verifies there is any content, and that request is not malformed.
+  size_t get_content_length (connection_ptr connection);
 };
 
 
 } // namespace http_server
 } // namespace rosetta
 
-#endif // ROSETTA_SERVER_DELETE_HANDLER_HPP
+#endif // ROSETTA_SERVER_CONTENT_REQUEST_HANDLER_HPP

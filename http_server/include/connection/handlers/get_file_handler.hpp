@@ -19,12 +19,10 @@
 #define ROSETTA_SERVER_STATIC_FILE_HANDLER_HPP
 
 #include <boost/filesystem.hpp>
-#include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/request_file_handler.hpp"
 
 using std::string;
 using namespace boost::filesystem;
-using namespace rosetta::common;
 
 namespace rosetta {
 namespace http_server {

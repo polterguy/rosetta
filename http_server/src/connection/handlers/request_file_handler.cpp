@@ -16,12 +16,9 @@
  */
 
 #include <boost/asio.hpp>
-#include <boost/algorithm/string.hpp>
-#include "http_server/include/server.hpp"
 #include "http_server/include/helpers/date.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
-#include "http_server/include/exceptions/request_exception.hpp"
 #include "http_server/include/connection/handlers/request_file_handler.hpp"
 
 using std::string;
@@ -206,6 +203,16 @@ void request_file_handler::write_file (connection_ptr connection, shared_ptr<std
       }
     });
   }
+}
+
+
+string request_file_handler::get_mime (connection_ptr connection, path filename)
+{
+  // Then we do a lookup into the configuration for our server, to see if it has defined a MIME type for the given file's extension.
+  string mime_type = connection->server()->configuration().get<string> ("mime" + filename.extension().string (), "");
+
+  // Returning MIME type to caller.
+  return mime_type;
 }
 
 

@@ -21,8 +21,7 @@
 #include <array>
 #include <fstream>
 #include <iostream>
-#include "common/include/exceptional_executor.hpp"
-#include "http_server/include/connection/handlers/request_handler_base.hpp"
+#include "http_server/include/connection/handlers/content_request_handler.hpp"
 
 using std::array;
 using std::string;
@@ -39,7 +38,7 @@ const static size_t BUFFER_SIZE = 8192;
 
 
 /// PUT handler for static files.
-class put_file_handler final : public request_handler_base
+class put_file_handler final : public content_request_handler
 {
 public:
 
@@ -61,12 +60,6 @@ private:
                                      size_t content_length,
                                      exceptional_executor x,
                                      std::function<void()> on_success);
-
-  /// Returns Content-Length of request, and verifies there is any content, and that request is not malformed.
-  size_t get_content_length (connection_ptr connection);
-
-  /// Writes success return to client.
-  void write_success_envelope (connection_ptr connection, std::function<void()> on_success);
 
 
   /// Buffer used for reading content from socket.

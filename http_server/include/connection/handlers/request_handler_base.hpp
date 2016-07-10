@@ -15,17 +15,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROSETTA_SERVER_REQUEST_HANDLER_HPP
-#define ROSETTA_SERVER_REQUEST_HANDLER_HPP
+#ifndef ROSETTA_SERVER_REQUEST_HANDLER_BASE_HPP
+#define ROSETTA_SERVER_REQUEST_HANDLER_BASE_HPP
 
 #include <tuple>
 #include <vector>
 #include <functional>
 #include <boost/filesystem.hpp>
-#include "common/include/exceptional_executor.hpp"
+#include <boost/noncopyable.hpp>
 
 using std::string;
-using namespace rosetta::common;
 using namespace boost::filesystem;
 
 namespace rosetta {
@@ -40,7 +39,7 @@ typedef std::tuple<string, string> collection_type;
 typedef std::vector<collection_type> collection;
 
 
-/// Handles an HTTP request.
+/// Common base class for all HTTP handlers.
 class request_handler_base : public boost::noncopyable
 {
 public:
@@ -68,11 +67,11 @@ protected:
   /// Ensures that the envelope of the response is flushed, and one empty line with CR/LF is written back to the client.
   void ensure_envelope_finished (connection_ptr connection, std::function<void()> on_success);
 
+  /// Writes success return to client.
+  void write_success_envelope (connection_ptr connection, std::function<void()> on_success);
+
   /// Returns request for this instance.
   request * request() { return _request; }
-
-  /// Returns the MIME type according to file extension.
-  string get_mime (connection_ptr connection, path filename);
 
 private:
 
@@ -84,4 +83,4 @@ private:
 } // namespace http_server
 } // namespace rosetta
 
-#endif // ROSETTA_SERVER_REQUEST_HANDLER_HPP
+#endif // ROSETTA_SERVER_REQUEST_HANDLER_BASE_HPP

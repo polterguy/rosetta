@@ -21,7 +21,6 @@
 #include "http_server/include/helpers/date.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
-#include "http_server/include/exceptions/request_exception.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
 
 using std::string;
@@ -229,13 +228,18 @@ void request_handler_base::ensure_envelope_finished (connection_ptr connection, 
 }
 
 
-string request_handler_base::get_mime (connection_ptr connection, path filename)
+void request_handler_base::write_success_envelope (connection_ptr connection, std::function<void()> on_success)
 {
-  // Then we do a lookup into the configuration for our server, to see if it has defined a MIME type for the given file's extension.
-  string mime_type = connection->server()->configuration().get<string> ("mime" + filename.extension().string (), "");
+  // Writing status code success back to client.
+  write_status (connection, 200, [this, connection, on_success] () {
 
-  // Returning MIME type to caller.
-  return mime_type;
+    // Writing standard headers back to client.
+    write_standard_headers (connection, [this, connection, on_success] () {
+
+      // Ensuring envelope is closed.
+      ensure_envelope_finished (connection, on_success);
+    });
+  });
 }
 
 

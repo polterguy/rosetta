@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 #include "common/include/exceptional_executor.hpp"
-#include "http_server/include/connection/handlers/request_handler_base.hpp"
+#include "http_server/include/connection/handlers/content_request_handler.hpp"
 
 namespace rosetta {
 namespace http_server {
@@ -37,7 +37,7 @@ class connection;
 
 
 /// POST authorization data handler.
-class post_handler_base : public request_handler_base
+class post_handler_base : public content_request_handler
 {
 public:
 
@@ -49,16 +49,8 @@ public:
 
 protected:
 
-  /// Writes success return to client.
-  void write_success_envelope (connection_ptr connection, std::function<void()> on_success);
-
   /// POST parameters key/value.
   vector<tuple<string, string>> _parameters;
-
-private:
-
-  /// Validates and returns the length of the request.
-  size_t get_content_length (connection_ptr connection);
 };
 
 

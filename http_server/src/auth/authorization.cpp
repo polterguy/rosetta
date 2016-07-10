@@ -123,6 +123,10 @@ bool authorization::authorize (const authentication::ticket & ticket, class path
 
     // Root is allowed to do everything!
     return true;
+  } else if (verb == "POST" && ticket.authenticated() && path == "/.users") {
+
+    // All authenticated users are allowed to change their passwords, using POST towards "/.users" file.
+    return true;
   } else {
 
     // Invoking implementation of authorization logic.

@@ -16,11 +16,8 @@
  */
 
 #include <boost/filesystem.hpp>
-#include "http_server/include/server.hpp"
-#include "http_server/include/helpers/date.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
-#include "http_server/include/exceptions/request_exception.hpp"
 #include "http_server/include/connection/handlers/put_folder_handler.hpp"
 
 namespace rosetta {
@@ -32,7 +29,7 @@ using namespace rosetta::common;
 
 
 put_folder_handler::put_folder_handler (class request * request)
-  : request_handler_base (request)
+  : content_request_handler (request)
 { }
 
 
@@ -54,21 +51,6 @@ void put_folder_handler::handle (connection_ptr connection, std::function<void()
     // Returning success.
     write_success_envelope (connection, on_success);
   }
-}
-
-
-void put_folder_handler::write_success_envelope (connection_ptr connection, std::function<void()> on_success)
-{
-  // Writing status code success back to client.
-  write_status (connection, 200, [this, connection, on_success] () {
-
-    // Writing standard headers back to client.
-    write_standard_headers (connection, [this, connection, on_success] () {
-
-      // Ensuring envelope is closed.
-      ensure_envelope_finished (connection, on_success);
-    });
-  });
 }
 
 

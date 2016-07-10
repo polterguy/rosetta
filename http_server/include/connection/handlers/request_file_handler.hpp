@@ -18,10 +18,11 @@
 #ifndef ROSETTA_SERVER_REQUEST_FILE_HANDLER_HPP
 #define ROSETTA_SERVER_REQUEST_FILE_HANDLER_HPP
 
+#include <memory>
 #include <fstream>
+#include <functional>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
-#include "common/include/exceptional_executor.hpp"
 #include "http_server/include/connection/handlers/request_handler_base.hpp"
 
 namespace rosetta {
@@ -30,7 +31,6 @@ namespace http_server {
 using std::string;
 using std::ifstream;
 using std::shared_ptr;
-using namespace rosetta::common;
 using namespace boost::filesystem;
 
 class request;
@@ -55,6 +55,9 @@ protected:
 
   /// Writes a file with the additional HTTP headers supplied, in addition to all the file standard headers, except "Last-Modified".
   void write_file (connection_ptr connection, path file_path, unsigned int status_code, collection headers, std::function<void()> on_success);
+
+  /// Returns the MIME type according to file extension.
+  string get_mime (connection_ptr connection, path filename);
 
 private:
 

@@ -18,8 +18,7 @@
 #ifndef ROSETTA_SERVER_PUT_FOLDER_HANDLER_HPP
 #define ROSETTA_SERVER_PUT_FOLDER_HANDLER_HPP
 
-#include "common/include/exceptional_executor.hpp"
-#include "http_server/include/connection/handlers/request_handler_base.hpp"
+#include "http_server/include/connection/handlers/content_request_handler.hpp"
 
 using std::shared_ptr;
 using namespace rosetta::common;
@@ -32,7 +31,7 @@ class connection;
 
 
 /// PUT handler for folders.
-class put_folder_handler final : public request_handler_base
+class put_folder_handler final : public content_request_handler
 {
 public:
 
@@ -41,11 +40,6 @@ public:
 
   /// Handles the given request.
   virtual void handle (connection_ptr connection, std::function<void()> on_success) override;
-
-private:
-
-  /// Writes success return to client.
-  void write_success_envelope (connection_ptr connection, std::function<void()> on_success);
 };
 
 

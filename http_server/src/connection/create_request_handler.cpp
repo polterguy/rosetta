@@ -19,12 +19,10 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 #include "http_server/include/server.hpp"
-#include "http_server/include/helpers/date.hpp"
 #include "http_server/include/helpers/uri_encode.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
 #include "http_server/include/exceptions/request_exception.hpp"
-#include "http_server/include/exceptions/security_exception.hpp"
 #include "http_server/include/connection/create_request_handler.hpp"
 
 // Including all HTTP handlers we support.
@@ -37,6 +35,8 @@
 #include "http_server/include/connection/handlers/delete_handler.hpp"
 #include "http_server/include/connection/handlers/post_users_handler.hpp"
 #include "http_server/include/connection/handlers/post_authorization_handler.hpp"
+
+// Meta HTTP handlers.
 #include "http_server/include/connection/handlers/meta/head_handler.hpp"
 #include "http_server/include/connection/handlers/meta/options_handler.hpp"
 #include "http_server/include/connection/handlers/meta/error_handler.hpp"
@@ -156,9 +156,9 @@ request_handler_ptr upgrade_insecure_request (connection_ptr connection, class r
       new_uri += "&";
     }
     new_uri += uri_encode::encode (std::get<0> (idx));
-    auto val = uri_encode::encode (std::get<1> (idx));
+    auto val = std::get<1> (idx);
     if (val.size() > 0)
-      new_uri += "=" + val;
+      new_uri += "=" + uri_encode::encode (val);
   }
 
   // Returning Redirect Temporarily, with a "no-store" value for the "Cache-Control" header.
@@ -179,7 +179,7 @@ bool authorize_request (connection_ptr connection, request * request)
 
       if (is_directory (path)) {
 
-        // Client is not "overwrite" an existing directory.
+        // Client cannot "overwrite" an existing directory.
         return false;
       } else {
         
@@ -261,7 +261,7 @@ request_handler_ptr create_options_handler (connection_ptr connection, class req
   // Authorizing request.
   if (authorize_request (connection, request)) {
 
-    // Checking if HEAD method is allowed according to configuration.
+    // Checking if OPTIONS method is allowed according to configuration.
     if (!connection->server()->configuration().get<bool> ("options-allowed", false)) {
 
       // Method not allowed.
@@ -341,7 +341,7 @@ request_handler_ptr create_put_handler (connection_ptr connection, class request
     // Checking that parent folder of file/folder actually exists.
     if (!exists (request->envelope().path().parent_path())) {
 
-      // Client tries to POST something to a location that does not exist.
+      // Client tries to PUT something to a location that does not exist.
       return request_handler_ptr (new error_handler (request, 404));
     } else {
 
@@ -352,7 +352,7 @@ request_handler_ptr create_put_handler (connection_ptr connection, class request
         return request_handler_ptr (new put_file_handler (request));
       } else {
 
-        // User tries to put a folder.
+        // User tries to PUT a folder.
         return request_handler_ptr (new put_folder_handler (request));
       }
     }
@@ -392,7 +392,7 @@ request_handler_ptr create_post_users_handler (connection_ptr connection, class 
   // No need to authorize these types of request, since all authenticated clients are allowed to post to the ".users" file, though
   // only root accounts are allowed to do anything but changing their own password.
   // Therefor we simply check if client is authenticated at all, before creating our POST users handler.
-  // Then we verify type of POST action inside our post_users_handler.
+  // Then we verify type of POST action, and authorize the user, inside our post_users_handler.
   if (request->envelope().ticket().authenticated()) {
 
     // User tries to POST data to server's ".users" file.
@@ -424,7 +424,7 @@ request_handler_ptr create_post_handler (connection_ptr connection, class reques
 {
   // Making sure Content-Type of request is something we know how to handle.
   if (request->envelope().header ("Content-Type") != "application/x-www-form-urlencoded")
-    throw request_exception ("Unsupported Content-Type in POST request");
+    throw request_exception ("Unsupported Content-Type in POST request.");
 
   // Making sure there is any content in post request.
   if (request->envelope().header ("Content-Length") == "")

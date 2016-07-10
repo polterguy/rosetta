@@ -16,11 +16,10 @@
  */
 
 #include <boost/filesystem.hpp>
+#include "common/include/exceptional_executor.hpp"
 #include "http_server/include/server.hpp"
-#include "http_server/include/helpers/date.hpp"
 #include "http_server/include/connection/request.hpp"
 #include "http_server/include/connection/connection.hpp"
-#include "http_server/include/exceptions/request_exception.hpp"
 #include "http_server/include/connection/handlers/put_file_handler.hpp"
 
 namespace rosetta {
@@ -31,7 +30,7 @@ using namespace rosetta::common;
 
 
 put_file_handler::put_file_handler (class request * request)
-  : request_handler_base (request)
+  : content_request_handler (request)
 { }
 
 
@@ -111,6 +110,9 @@ void put_file_handler::save_request_content_to_file (connection_ptr connection,
       connection->close();
     } else {
 
+      // Making sure we close connection, in case an exception occurs.
+      exceptional_executor x2 ([connection] () { connection->close(); });
+
       // Then reading from wrapped input stream, and flushing to output file.
       ss_ptr->readsome (_file_buffer.data(), _file_buffer.size());
       file_ptr->write (_file_buffer.data(), ss_ptr->gcount ());
@@ -132,48 +134,10 @@ void put_file_handler::save_request_content_to_file (connection_ptr connection,
         // Invoking functor callback supplied by caller.
         on_success ();
       }
+
+      // Releasing exception helper.
+      x2.release();
     }
-  });
-}
-
-
-size_t put_file_handler::get_content_length (connection_ptr connection)
-{
-  // Max allowed length of content.
-  const size_t MAX_REQUEST_CONTENT_LENGTH = connection->server()->configuration().get<size_t> ("max-request-content-length", 4194304);
-
-  // Checking if there is any content first.
-  string content_length_str = request()->envelope().header ("Content-Length");
-
-  // Checking if there is any Content-Length
-  if (content_length_str.size() == 0) {
-
-    // No content.
-    return 0;
-  } else {
-
-    // Checking that Content-Length does not exceed max request content length.
-    auto content_length = boost::lexical_cast<size_t> (content_length_str);
-    if (content_length > MAX_REQUEST_CONTENT_LENGTH)
-      return 0;
-
-    // Returning Content-Length to caller.
-    return content_length;
-  }
-}
-
-
-void put_file_handler::write_success_envelope (connection_ptr connection, std::function<void()> on_success)
-{
-  // Writing status code success back to client.
-  write_status (connection, 200, [this, connection, on_success] () {
-
-    // Writing standard headers back to client.
-    write_standard_headers (connection, [this, connection, on_success] () {
-
-      // Ensuring envelope is closed.
-      ensure_envelope_finished (connection, on_success);
-    });
   });
 }
 
