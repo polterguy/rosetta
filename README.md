@@ -1,18 +1,13 @@
 Rosetta Web Server
 ==================
 
-Rosetta is a small, portable, and simple web server, aiming at being able to make
-anything with a network card, into a potential web server. You can run Rosetta in two
-different modes, *"thread-pool"* and *"single-thread"*. The latter could probably
-turn your wrist watch into a web server, if you tried. The former,
-scales upwards, to supercomputers, with thousands of CPUs.
+Rosetta is a small, portable, and simple web server.
 
 ## Features
 
 * SSL
-* GET/PUT/DELETE support, on files and folders
+* GET/PUT/DELETE/POST support, on files and folders
 * Basic Authentication
-* Multi-threading/thread-pool
 * Persistent connections
 * Timeouts
 * Max connections per client
@@ -25,10 +20,87 @@ scales upwards, to supercomputers, with thousands of CPUs.
 * Highly configurable
 * Paranoid by default
 * Ultra-fast
+* Ultra-small
 
 ## Getting started with Rosetta
 
 Coming soon
+
+## Features
+
+Rosetta is a tiny web server, created to do one thing well, which is supporting REST HTTP.
+This allows you to use your server almost the same way you would use a database. Using GET,
+DELETE and PUT to retrieve, create, modify and delete files. In addition, you can retrieve
+the content of folders, as JSON, by adding ?list as an HTTP parameter to your GET requests.
+
+Combined with WWW-Authenticate support, this allows you to securely access your files, any
+way you see fit, treating your server almost like a *"database"*, having all your logic in
+JavaScript, and/or other types of clients.
+
+### Single threaded, yet still asynchronous
+
+Since Rosetta is created to run on extreme hardware constraints, it does not feature any
+multi threading support. It is still able to server multiple requests, concurrently though,
+thanks to its asynchronous architecture.
+
+This means that it will use much less power, and can run on platforms, that are not normally
+thought to be able to run web servers.
+
+## HTTP REST support
+
+Rosetta is actually exclusively built around the HTTP GET/PUT/POST/DELETE verbs, and does
+not have any integration towards any server side programming languages at all. This makes
+it first of all much safer and secure, since it reduces the attack surface. In addition, it
+creates a situation, where your server becomes logically, more similar to a *"database"*,
+than a traditional web server.
+
+Your file system, on your server, basically becomes your database, and Rosetta allows you
+to query into your server, using GET, PUT and DELETE requests. POST is only for modifying
+your user objects, and your authorization objects, and nothing else.
+
+### Common for all HTTP verbs
+
+To make sure you retrieve the authenticated version of a resource, append "?authenticate"
+to your requests. This will ensure that your client receives a 307 respond, forcing the client
+to authenticate (log in), using Basic authentication, unless it is already authenticated.
+
+### GET verb
+
+With a GET request, you can either retrieve a single file, or the contents of a folder. To
+retrieve a folder's content, simply add the parameter "?list", and make sure what you try
+to request, is a folder, by appending a "/" at the end of your URL.
+
+To get a file, you could create a request resembling something like this;
+
+´´´
+GET /foo.html HTTP/1.1
+´´´
+
+To get a folder, you could do something like this;
+
+´´´html
+GET /bar/?list HTTP/1.1
+´´
+
+### PUT verb
+
+With a PUT request, you can either create a single file, by adding content to your request,
+or you can create a folder, at which point you must make sure your URL ends with a slash "/".
+
+### DELETE verb
+
+A DELETE request, can either delete a folder, or a single file. Make sure you append a "/"
+at the end of your URL, if you wish to delete a folder.
+
+### POST verb
+
+Since Rosetta features no server side programming language, but is a simple REST web server,
+the only usage for a POST request, is to either modify your authentication object, by POSTing
+to the URL "/.users". If you do, you must be logged in as a *"root"* user. Any user can still
+POST to this file, to change their passwords. But only a root account can do anything else.
+
+Or, you can modify the authorization objects, which are ASCII files in your server's directories,
+called ".auth". This operation is only legal for a *"root"* account.
 
 ## The Paranoid web server
 
@@ -210,7 +282,7 @@ that has more than 4096 bytes in its initial HTTP-Request line.
 If Rosetta discovers what it thinks is a *"malicious request"*, then it will immediately
 close the TCP connection, and not return anything at all to the client.
 
-This helps protect against a malicious client acquiring meta data information about your
+This helps protect against a malicious client, acquiring meta data information about your
 server, such as a 404 instead of a 401 response, verifying the existence of a path, etc.
 
 ### No meta data retrieval for restricted content
@@ -267,15 +339,6 @@ traffic, and port 443 for SSL traffic. It does not accept HEAD and TRACE request
 configured to run in *"thread-pool"* mode, with 128 threads. It has sane values for timeouts,
 preventing malicious and/or badly written clients to lock up resources on your server, by
 creating requests that never finishes.
-
-## Future plans
-
-Implement support for all HTTP verbs, PUT, DELETE, POST and OPTIONS, in addition to Basic
-Authentication. A custom verb is also being considered; LIST. The idea, is to allow you
-to control your files, on your server, through standardized HTTP verbs, turning your
-box, into a *"publishing box"* or a *"content management system"*, based upon the
-standard verbs from HTTP, allowing you to publish new content, and manage your content,
-from anything you wish.
 
 ## License
 
