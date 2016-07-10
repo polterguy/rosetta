@@ -52,6 +52,12 @@ private:
   /// Writes folder content back to client as JSON.
   void write_folder (connection_ptr connection, path folderpath, std::function<void()> on_success);
 
+  /// Writes objects of type either "files" or "folders" back to client as JSON.
+  void write_objects (const string & type,
+                      connection_ptr connection,
+                      std::shared_ptr<std::vector<unsigned char>> buffer_ptr,
+                      path folderpath);
+
   /// Writes 304 response back to client.
   void write_304_response (connection_ptr connection, std::function<void()> on_success);
 };

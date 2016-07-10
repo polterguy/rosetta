@@ -113,63 +113,8 @@ void get_folder_handler::write_folder (connection_ptr connection, path folderpat
   // Using shared_ptr of vector to hold folder information.
   auto buffer_ptr = std::make_shared<std::vector<unsigned char>> ();
   buffer_ptr->push_back ('{');
-  string folder_content = "\"content\":";
-  buffer_ptr->insert (buffer_ptr->end(), folder_content.begin(), folder_content.end());
-  buffer_ptr->push_back ('[');
-
-  // Iterating over all objects in folder.
-  directory_iterator idx {folderpath};
-  bool first = true;
-  while (idx != directory_iterator{}) {
-
-    // Making sure we only display files that are served.
-    if (is_regular_file (*idx)) {
-
-      // Either file is not served, or it is an invisible file that starts with a "."
-      // Regardless, we do not show these files, neither do we list them!
-      ++idx;
-      continue; // Not served
-    }
-
-    // Retrieving path, and making sure this is not an invisible file/folder for some reasons.
-    string path = idx->path().filename().string();
-
-    // Making sure we get a "," between each entry.
-    if (first)
-      first = false;
-    else
-      buffer_ptr->push_back (',');
-
-    // Making sure every object becomes a JavaScript/JSON object.
-    buffer_ptr->push_back ('{');
-
-    // Name of object.
-    string name = "\"name\":\"" + path + "\"";
-    buffer_ptr->insert (buffer_ptr->end(), name.begin(), name.end());
-
-    // Type of object.
-    string type = ",\"type\":\"" + string(is_directory (*idx) ? "folder" : "file") + "\"";
-    buffer_ptr->insert (buffer_ptr->end(), type.begin(), type.end());
-
-    // Size of object.
-    if (is_regular_file (*idx)) {
-
-      // We report the size of this guy, since it is a file.
-      string object_size = ",\"size\":\"" + boost::lexical_cast<string>(file_size (*idx)) + "\"";
-      buffer_ptr->insert (buffer_ptr->end(), object_size.begin(), object_size.end());
-    }
-
-    // Last changed.
-    string last_change = ",\"changed\":\"" + date::from_path_change (idx->path()).to_iso_string () + "\"";
-    buffer_ptr->insert (buffer_ptr->end(), last_change.begin(), last_change.end());
-
-    // Closing JSON object.
-    buffer_ptr->push_back ('}');
-    ++idx;
-  }
-
-  // Closing JSON array
-  buffer_ptr->push_back (']');
+  write_objects ("folders", connection, buffer_ptr, folderpath);
+  write_objects ("files", connection, buffer_ptr, folderpath);
   buffer_ptr->push_back ('}');
 
   // Writing status code.
@@ -204,6 +149,72 @@ void get_folder_handler::write_folder (connection_ptr connection, path folderpat
       });
     });
   });
+}
+
+
+void get_folder_handler::write_objects (const string & type,
+                                        connection_ptr connection,
+                                        std::shared_ptr<std::vector<unsigned char>> buffer_ptr,
+                                        path folderpath)
+{
+  string folder_content = string (type == "files" ? "," : "") + "\"" + type + "\":";
+  buffer_ptr->insert (buffer_ptr->end(), folder_content.begin(), folder_content.end());
+  buffer_ptr->push_back ('[');
+
+  // Iterating over all objects in folder.
+  directory_iterator idx {folderpath};
+  bool first = true;
+  while (idx != directory_iterator{}) {
+
+    // Making sure we do not display hidden files.
+    if (idx->path().filename().string().find_first_of ('.') == 0) {
+
+      ++idx;
+      continue; // Not served
+    }
+
+    // Making sure we only iterate the specified types of file objects.
+    if ((type == "folders" && !is_directory (*idx)) || (type == "files" && !is_regular_file (*idx))) {
+
+      ++idx;
+      continue; // Not served this time.
+    }
+
+    // Retrieving path, and making sure this is not an invisible file/folder for some reasons.
+    string path = idx->path().filename().string();
+
+    // Making sure we get a "," between each entry.
+    if (first)
+      first = false;
+    else
+      buffer_ptr->push_back (',');
+
+    // Making sure every object becomes a JavaScript/JSON object.
+    buffer_ptr->push_back ('{');
+
+    // Name of object.
+    string name = "\"name\":\"" + path + "\"";
+    buffer_ptr->insert (buffer_ptr->end(), name.begin(), name.end());
+
+    // Size of object.
+    if (is_regular_file (*idx)) {
+
+      // We report the size of this guy, since it is a file.
+      string object_size = ",\"size\":\"" + boost::lexical_cast<string>(file_size (*idx)) + "\"";
+      buffer_ptr->insert (buffer_ptr->end(), object_size.begin(), object_size.end());
+    }
+
+    // Last changed.
+    string last_change = ",\"changed\":\"" + date::from_path_change (idx->path()).to_iso_string () + "\"";
+    buffer_ptr->insert (buffer_ptr->end(), last_change.begin(), last_change.end());
+
+    // Closing JSON object.
+    buffer_ptr->push_back ('}');
+    ++idx;
+  }
+
+  // Closing JSON object array.
+  buffer_ptr->push_back (']');
 }
 
 
