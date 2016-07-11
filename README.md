@@ -72,15 +72,11 @@ to request, is a folder, by appending a "/" at the end of your URL.
 
 To get a file, you could create a request resembling something like this;
 
-´´´
-GET /foo.html HTTP/1.1
-´´´
+`GET /foo.html HTTP/1.1`
 
 To get a folder, you could do something like this;
 
-´´´html
-GET /bar/?list HTTP/1.1
-´´
+`GET /bar/?list HTTP/1.1`
 
 ### PUT verb
 
