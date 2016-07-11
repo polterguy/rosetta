@@ -126,6 +126,32 @@ Content-Type: application/x-www-form-urlencoded
 action=create-user&username=foo&password=bar&role=doorman
 ```
 
+Any user can do a *"change-password"* type of action, a root account can in addition do these
+actions;
+
+* change-role (requires username parameter)
+* create-user (requires username, password and role parameter)
+* delete-user (requires username parameter)
+
+The other type of POST usage, is for modifying the authorization access rights to a folder
+and all its files in your system. This is done by POSTing to your folder's URL, followed
+by "/.auth". For instance, modifying the GET access rights associated with a folder called
+*"foo"* at the root of your system, would look something like this;
+
+```
+POST /foo/.auth?authenticate HTTP/1.1
+Content-Length: 16
+Content-Type: application/x-www-form-urlencoded
+
+verb=GET&value=*
+```
+
+The above would give all roles in your system access to all files in your *"foo"* folder.
+To only give access to one or more roles, you could exchange the asterix with e.g.
+`doorman|clerk` which would give any user belonging to either *"doorman"* or *"clerk"*
+allowance to use any GET verb on the *"foo"* folder. Remember to URL encode your value,
+since it would contain a | for each role you wish to have access to this folder.
+
 ## The Paranoid web server
 
 Rosetta is a highly paranoid web server. Among other things, it does not do any logging. You
