@@ -83,10 +83,28 @@ To get a folder, you could do something like this;
 With a PUT request, you can either create a single file, by adding content to your request,
 or you can create a folder, at which point you must make sure your URL ends with a slash "/".
 
+To create a folder caller *"something"*, inside another existing folder called *"bar"*, you
+could do something like this;
+
+`PUT /bar/something/ HTTP/1.1`
+
+To create a file in your server's root directory called *"hello.html"*, you could do something
+like this;
+
+```
+PUT /hello.html HTTP/1.1
+Content-Length: 5
+
+hello
+```
+
 ### DELETE verb
 
 A DELETE request, can either delete a folder, or a single file. Make sure you append a "/"
-at the end of your URL, if you wish to delete a folder.
+at the end of your URL, if you wish to delete a folder. To delete a folder caller *"foo"*,
+you could do something like this;
+
+`DELETE /foo/`
 
 ### POST verb
 
@@ -97,6 +115,16 @@ POST to this file, to change their passwords. But only a root account can do any
 
 Or, you can modify the authorization objects, which are ASCII files in your server's directories,
 called ".auth". This operation is only legal for a *"root"* account.
+
+To create a new user, you could do something like this;
+
+```
+POST /.users?authenticate HTTP/1.1
+Content-Length: 69
+Content-Type: application/x-www-form-urlencoded
+
+action=create-user&username=foo&password=bar&role=doorman
+```
 
 ## The Paranoid web server
 
