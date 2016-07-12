@@ -119,6 +119,7 @@ connection_ptr server::create_connection (socket_ptr socket)
 
   // Creating a new connection as a shared pointer, and putting it into our list of connections.
   connection_ptr connection = connection::create (this, socket);
+  socket->set_connection (connection);
   client_connections.insert (connection);
   return connection;
 }

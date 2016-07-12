@@ -149,7 +149,7 @@ verb=GET&value=*
 The above would give all roles in your system access to all files in your *"foo"* folder.
 To only give access to one or more roles, you could exchange the asterix with e.g.
 `doorman|clerk` which would give any user belonging to either *"doorman"* or *"clerk"*
-allowance to use any GET verb on the *"foo"* folder. Remember to URL encode your value,
+allowance to use the GET verb on the *"foo"* folder. Remember to URL encode your value,
 since it would contain a | for each role you wish to have access to this folder.
 
 ## The Paranoid web server

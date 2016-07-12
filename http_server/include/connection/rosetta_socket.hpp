@@ -26,19 +26,21 @@
 
 using namespace boost::asio;
 using boost::system::error_code;
-using namespace rosetta::common;
 
 namespace rosetta {
 namespace http_server {
 
+class connection;
+typedef std::shared_ptr<connection> connection_ptr;
+
 // Helper to make code more readable.
-typedef std::function<void (const error_code & error, size_t bytes_read)> socket_callback;
+typedef std::function<void (const error_code & error, size_t no_bytes)> socket_callback;
 
 
 /// A common base class, wrapping both SSL sockets and normal sockets.
 /// Makes it possible to transparently wrap the standard global functions from boost asio, into two
 /// different implementations; One for SSL, and another for plain sockets.
-class rosetta_socket : public std::enable_shared_from_this<rosetta_socket>, public boost::noncopyable
+class rosetta_socket : public boost::noncopyable
 {
 public:
 
@@ -71,6 +73,14 @@ public:
 
   /// Returns true if socket is closed by other side.
   virtual bool closed_by_other_side() = 0;
+
+  /// Sets the connection instance for current instance.
+  void set_connection (connection_ptr connection) { _connection = connection; };
+
+protected:
+
+  /// Connection owning this instance.
+  connection_ptr _connection;
 };
 
 
@@ -85,28 +95,16 @@ public:
   { }
 
   /// Reads from socket until match condition is reached.
-  void async_read_until (streambuf & buffer, match_condition & match, socket_callback callback) override
-  {
-    boost::asio::async_read_until (_socket, buffer, match, callback);
-  }
+  void async_read_until (streambuf & buffer, match_condition & match, socket_callback callback) override;
 
   /// Reads exactly "no" bytes from socket.
-  void async_read (streambuf & buffer, boost::asio::detail::transfer_exactly_t no, socket_callback callback) override
-  {
-    boost::asio::async_read (_socket, buffer, no, callback);
-  }
+  void async_read (streambuf & buffer, boost::asio::detail::transfer_exactly_t no, socket_callback callback) override;
 
   /// Writes the given const_buffer to socket.
-  void async_write (const_buffers_1 buffer, socket_callback callback) override
-  {
-    boost::asio::async_write (_socket, buffer, callback);
-  }
+  void async_write (const_buffers_1 buffer, socket_callback callback) override;
 
   /// Writes the given mutable_buffer to socket.
-  void async_write (mutable_buffers_1 buffer, socket_callback callback) override
-  {
-    boost::asio::async_write (_socket, buffer, callback);
-  }
+  void async_write (mutable_buffers_1 buffer, socket_callback callback) override;
 
   /// Returns remote endpoint for socket.
   ip::tcp::endpoint remote_endpoint () override { return _socket.remote_endpoint(); }
@@ -148,28 +146,16 @@ public:
   { }
 
   /// Reads from socket until match condition is reached.
-  void async_read_until (streambuf & buffer, match_condition & match, socket_callback callback) override
-  {
-    boost::asio::async_read_until (_socket, buffer, match, callback);
-  }
+  void async_read_until (streambuf & buffer, match_condition & match, socket_callback callback) override;
 
   /// Reads exactly "no" bytes from socket.
-  void async_read (streambuf & buffer, boost::asio::detail::transfer_exactly_t no, socket_callback callback) override
-  {
-    boost::asio::async_read (_socket, buffer, no, callback);
-  }
+  void async_read (streambuf & buffer, boost::asio::detail::transfer_exactly_t no, socket_callback callback) override;
 
   /// Writes the given const_buffer to socket.
-  void async_write (const_buffers_1 buffer, socket_callback callback) override
-  {
-    boost::asio::async_write (_socket, buffer, callback);
-  }
+  void async_write (const_buffers_1 buffer, socket_callback callback) override;
 
   /// Writes the given mutable_buffer to socket.
-  void async_write (mutable_buffers_1 buffer, socket_callback callback) override
-  {
-    boost::asio::async_write (_socket, buffer, callback);
-  }
+  void async_write (mutable_buffers_1 buffer, socket_callback callback) override;
 
   /// Returns remote endpoint for socket.
   ip::tcp::endpoint remote_endpoint () override { return _socket.lowest_layer().remote_endpoint(); }
